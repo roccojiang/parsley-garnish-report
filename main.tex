@@ -3,7 +3,12 @@
 %% Language and font encodings
 \usepackage[english]{babel}
 \usepackage[utf8x]{inputenc}
+\usepackage{libertine}
+\usepackage{libertinust1math}
 \usepackage[T1]{fontenc}
+
+% Reset monospaced font to Computer Modern
+\renewcommand{\ttdefault}{cmtt}
 
 %% Sets page size and margins
 \usepackage[a4paper,top=3cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
@@ -14,25 +19,14 @@
 \usepackage[colorinlistoftodos]{todonotes}
 \usepackage[colorlinks=true, allcolors=blue]{hyperref}
 
-\title{Project Title}
-\author{John Smith}
+\title{Automated Parser Combinator Linting and Refactoring Tools}
+\author{Rocco Jiang}
 % Update supervisor and other title stuff in title/title.tex
 
 \begin{document}
 \input{title/title.tex}
 
-\begin{abstract}
-Your abstract goes here
-\end{abstract}
-
-\renewcommand{\abstractname}{Acknowledgements}
-\begin{abstract}
-Thanks mum!
-\end{abstract}
-
 \tableofcontents
-\listoffigures
-\listoftables
 
 \input{introduction/introduction.tex}
 \input{background/background.tex}
@@ -41,7 +35,7 @@ Thanks mum!
 \input{conclusion/conclusion.tex}
 \input{appendix/appendix.tex}
 
-\bibliographystyle{alpha}
-\bibliography{bibs/sample}
+\bibliographystyle{vancouver}
+\bibliography{bibs/parsers,bibs/refactoring}
 
 \end{document}
