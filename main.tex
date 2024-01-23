@@ -1,4 +1,4 @@
-\documentclass[a4paper, twoside]{report}
+\documentclass[a4paper, twoside, 11pt]{report}
 
 %% Language and font encodings
 \usepackage[english]{babel}
@@ -12,6 +12,9 @@
 
 %% Sets page size and margins
 \usepackage[a4paper,top=3cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+%% Set line spacing to "one and a half"
+\linespread{1.3}
 
 %% Useful packages
 \usepackage{amsmath}
@@ -32,10 +35,10 @@
 \input{background/background.tex}
 \input{project/project.tex}
 \input{evaluation/evaluation.tex}
-\input{conclusion/conclusion.tex}
-\input{appendix/appendix.tex}
+% \input{conclusion/conclusion.tex}
+% \input{appendix/appendix.tex}
 
 \bibliographystyle{vancouver}
-\bibliography{bibs/parsers,bibs/refactoring}
+\bibliography{bibs/parsers,bibs/refactoring,bibs/misc}
 
 \end{document}
