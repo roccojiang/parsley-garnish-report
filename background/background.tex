@@ -10,12 +10,11 @@ These tools can perform a variety of tasks, ranging from detecting possible bugs
 Static analysis tools are increasingly becoming more important in modern software development, as modern code continues to become more complex and difficult to reason about.
 Industry leaders, such as Google \cite{sadowski_analysis-google_2018} and Meta (formerly Facebook) \cite{calcagno_moving-facebook_2015}, have embraced static analysis tools as integral components of their software development workflows.
 
-% TODO: IDE integration
-
 \section{Applications of Static Analysis Tools}
 Typically in a software development workflow, multiple static analysis tools are used in conjunction to provide a comprehensive suite of checks.
-Often, these tools are integrated into an \textsc{ide} as plugins, allowing them to provide real-time feedback to aid developers in writing idiomatic code.
+Often, these tools are integrated into an \textsc{ide} as plugins, allowing them to be consolidated into a single visual interface.
 
+% TODO: is this paragraph now a bit off-topic compared to what is actually discussed?
 Refactoring and linting are two major functionalities that these tools provide.
 However, because many of these tools include both capabilities, the distinction between them can be blurry.
 This section aims to establish definitions for the two terms, which will be used as a basis for subsequent discussion within this thesis.
@@ -30,7 +29,6 @@ Therefore, it is often productive to refactor code to eliminate code smells, eve
 
 Static analysis tools can reason about how to safely refactor code in an automated manner, performing refactorings as source-to-source transformations.
 These transformations may be implemented as simple text-based replacements or more robust rewrite rules that operate on the abstract syntax tree (\textsc{ast}) of the source code.
-% TODO: further discussion of implementation within a different section, when discussing ScalaFix
 
 Automated refactoring support is particularly useful for large codebases, where manual refactoring would be tedious and error-prone.
 Generally, when a user makes use of an automated refactoring tool in an \textsc{ide}, they will manually identify the snippet of code that they wish to refactor, and then select the appropriate refactoring from a list of available options.
@@ -91,15 +89,17 @@ Modern linters are commonly integrated into \textsc{ide}s, where code analysis p
 Any violations found by the linter are displayed directly in the editor as warnings or errors at the relevant locations in the source code.
 This provides an ergonomic user experience, as the user can see the results of the analysis in real-time as part of the development workflow.
 
-Furthermore, advanced linters can provide automated code transformations to fix violations which can be corrected automatically by static analysis.
-When a linter integrated into an \textsc{ide} reports a warning, it may present the user with a \textit{code action} or \textit{quick fix} to apply the fix automatically.
+Although the strict definition for linting is concerned with only detecting issues in code, many advanced linters today can also provide auto-fixes for violations which can be corrected automatically by static analysis.
+% TODO: cite https://link.springer.com/book/10.1007/978-1-4842-7792-8
+This auto-fix capability is often integrated into \textsc{ide}s as well: the popular Language Server Protocol for defining \textsc{ide} features enables these auto-fix features via \textit{code actions}.
+When a section of code is highlighted by a linter warning, a user can apply a code action to automatically fix the issue with a single click.
 
 Many linters are configurable with a set of rules, which specify the types of issues that the linter should detect.
 These rules can be enabled or disabled by the user, allowing them to customise the linter to their needs.
 Rules can be categorised by their purpose: some rules are concerned with enforcing code style, while others are concerned with detecting code smells or other suspicious code patterns indicative of possible bugs.
 
 \subsubsection{Style checking and code appearance}
-% TODO: CheckStyle https://checkstyle.sourceforge.io/, ESLint?
+% TODO: CheckStyle https://checkstyle.sourceforge.io/?
 % TODO: https://flake8.pycqa.org/en/latest/   https://peps.python.org/pep-0008/
 Linters can be configured to enforce a particular style guide defining a set of conventions for how idiomatic code should be written.
 They can highlight style violations and in basic cases, automatically rewrite code to conform to the correct style.
@@ -162,31 +162,6 @@ Linters may also directly attempt to detect more serious issues in code, such as
 This can be helpful for even experienced users to avoid common pitfalls.
 Clippy has \texttt{clippy::suspicious} and \texttt{clippy::correctness} rule categories to identify code that is very likely to be incorrect or useless.
 ESLint provides several rules to warn against code patterns that are likely to cause runtime errors, such as re-assigning a \texttt{const} variable.
-
-% TODO: is this needed anymore?
-% Given that many linters can perform automated code transformations, the difference between refactoring and linting can be confusing.
-% We make the key distinction that linting is concerned with the \textit{detection} of issues in code, while refactoring is concerned with \textit{transforming} code to avoid some of these issues.
-% When linters apply automated code transformations to fix issues, some of these transformations may be considered refactorings.
-% Thus, many static analysis tools provide both linting and refactoring functionalities.
-% For example, when a linter detects a fragment of code that is repeated in multiple places, it may suggest the \textit{Extract Method} refactoring to avoid code duplication.
-% The linting tool itself may provide the automated refactoring functionality to perform the transformation.
-% The $\eta$-reduction example in fig.~\ref{fig:hlint-example} is another example of a refactoring suggested by a linter to conform to an idiomatic Haskell style.
-% We see that \texttt{hlint} can both highlight the issue to the user and perform the suggested refactoring automatically.
-
-
-% On second thought, this below section seems largely unnecessary and too much of a detour
-% \subsection{Bug Fixing and Automated Program Repair}
-% * Linters detect code smells which may be indicative of bugs, but don't directly detect bugs
-% * Other tools may attempt to detect bugs directly and possibly fix them
-% * The difficulty of this depends on the size of the problem space
-% * Automated program repair is a growing field of research to identify patches to fix bugs with little to no human intervention
-% * Large variety of approaches, many combining static and dynamic analysis techniques
-% * Requires fault localisation to identify the locations of bugs
-% * Approaches are broadly categorised into heuristic search-based techniques and constraint-based techniques
-% * This complexity is due to the huge space of changes to the input source code!
-% * However, in a much more limited domain, such as a library, this space is smaller, and much more amenable to automated program repair
-% * A large problem as well is that in the vast majority of cases we lack a formal specification for intended program behaviour: that's why we have to rely on tests so many approaches require dynamic analysis too
-% * However, in the following sections, we discuss a unique opportunity where this is not the case in the context of parser combinators. So we can just use basic static AST pattern matching techniques
 
 \section{Implementing Static Analysis Tools}
 This section first discusses the choices available for implementing a static analysis tool in Scala.
