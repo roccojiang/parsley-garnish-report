@@ -30,7 +30,7 @@
   title    = {xUnit.net Analyzers package},
   url      = {https://github.com/xunit/xunit.analyzers},
   abstract = {Roslyn analyzers for xUnit.net},
-  urldate  = {2024-01-22}
+  note     = {[Accessed: 2024 Jan 22]}
 }
 
 @inproceedings{renggli_domain-specific_2010,
@@ -51,13 +51,126 @@
 }
 
 @article{gregor_stllint_2006,
-author = {Gregor, Douglas and Schupp, Sibylle},
-title = {STLlint: lifting static checking from languages to libraries},
-journal = {Software: Practice and Experience},
-volume = {36},
-number = {3},
-pages = {225-254},
-doi = {10.1002/spe.683},
-url = {https://doi.org/10.1002/spe.683},
-year = {2006}
+  author  = {Gregor, Douglas and Schupp, Sibylle},
+  title   = {STLlint: lifting static checking from languages to libraries},
+  journal = {Software: Practice and Experience},
+  volume  = {36},
+  number  = {3},
+  pages   = {225-254},
+  doi     = {10.1002/spe.683},
+  url     = {https://doi.org/10.1002/spe.683},
+  year    = {2006}
 }
+
+@inproceedings{blanchet_static-analyzer_2003,
+  author    = {Blanchet, Bruno and Cousot, Patrick and Cousot, Radhia and Feret, J\'{e}rome and Mauborgne, Laurent and Min\'{e}, Antoine and Monniaux, David and Rival, Xavier},
+  title     = {A static analyzer for large safety-critical software},
+  year      = {2003},
+  month     = jun,
+  isbn      = {1581136625},
+  publisher = {Association for Computing Machinery},
+  address   = {New York, NY, USA},
+  url       = {https://doi.org/10.1145/781131.781153},
+  doi       = {10.1145/781131.781153},
+  abstract  = {We show that abstract interpretation-based static program analysis can be made efficient and precise enough to formally verify a class of properties for a family of large programs with few or no false alarms. This is achieved by refinement of a general purpose static analyzer and later adaptation to particular programs of the family by the end-user through parametrization. This is applied to the proof of soundness of data manipulation operations at the machine level for periodic synchronous safety critical embedded software.The main novelties are the design principle of static analyzers by refinement and adaptation through parametrization (Sect. 3 and 7), the symbolic manipulation of expressions to improve the precision of abstract transfer functions (Sect. 6.3), the octagon (Sect. 6.2.2), ellipsoid (Sect. 6.2.3), and decision tree (Sect. 6.2.4) abstract domains, all with sound handling of rounding errors in oating point computations, widening strategies (with thresholds: Sect. 7.1.2, delayed: Sect. 7.1.3) and the automatic determination of the parameters (parametrized packing: Sect. 7.2).},
+  booktitle = {Proceedings of the ACM SIGPLAN 2003 Conference on Programming Language Design and Implementation},
+  pages     = {196--207},
+  numpages  = {12},
+  keywords  = {abstract domains, abstract interpretation, embedded, floating point, reactive, real-time, safety-critical software, static analysis, verification},
+  location  = {San Diego, California, USA},
+  series    = {PLDI '03}
+}
+
+@article{hovemeyer_finding-bugs_2004,
+  author    = {Hovemeyer, David and Pugh, William},
+  title     = {Finding bugs is easy},
+  year      = {2004},
+  month     = {dec},
+  publisher = {Association for Computing Machinery},
+  address   = {New York, NY, USA},
+  volume    = {39},
+  number    = {12},
+  issn      = {0362-1340},
+  url       = {https://doi.org/10.1145/1052883.1052895},
+  doi       = {10.1145/1052883.1052895},
+  abstract  = {Many techniques have been developed over the years to automatically find bugs in software. Often, these techniques rely on formal methods and sophisticated program analysis. While these techniques are valuable, they can be difficult to apply, and they aren't always effective in finding real bugs.Bug patterns are code idioms that are often errors. We have implemented automatic detectors for a variety of bug patterns found in Java programs. In this paper, we describe how we have used bug pattern detectors to find serious bugs in several widely used Java applications and libraries. We have found that the effort required to implement a bug pattern detector tends to be low, and that even extremely simple detectors find bugs in real applications.From our experience applying bug pattern detectors to real programs, we have drawn several interesting conclusions. First, we have found that even well tested code written by experts contains a surprising number of obvious bugs. Second, Java (and similar languages) have many language features and APIs which are prone to misuse. Finally, that simple automatic techniques can be effective at countering the impact of both ordinary mistakes and misunderstood language features.},
+  journal   = {SIGPLAN Not.},
+  pages     = {92--106},
+  numpages  = {15}
+}
+
+@book{johnson_lint_1978,
+  title     = {Lint, a C program checker},
+  author    = {Johnson, Stephen C},
+  year      = {1978},
+  publisher = {AT\&T Bell Laboratories},
+  note      = {Technical Report 65}
+}
+
+@article{sadowski_analysis-google_2018,
+  author     = {Sadowski, Caitlin and Aftandilian, Edward and Eagle, Alex and Miller-Cushon, Liam and Jaspan, Ciera},
+  title      = {Lessons from building static analysis tools at Google},
+  year       = {2018},
+  issue_date = {April 2018},
+  publisher  = {Association for Computing Machinery},
+  address    = {New York, NY, USA},
+  volume     = {61},
+  number     = {4},
+  issn       = {0001-0782},
+  url        = {https://doi.org/10.1145/3188720},
+  doi        = {10.1145/3188720},
+  abstract   = {For a static analysis project to succeed, developers must feel they benefit from and enjoy using it.},
+  journal    = {Commun. ACM},
+  month      = {mar},
+  pages      = {58--66},
+  numpages   = {9}
+}
+
+@inproceedings{calcagno_moving-facebook_2015,
+  author    = {Calcagno, Cristiano
+               and Distefano, Dino
+               and Dubreil, Jeremy
+               and Gabi, Dominik
+               and Hooimeijer, Pieter
+               and Luca, Martino
+               and O'Hearn, Peter
+               and Papakonstantinou, Irene
+               and Purbrick, Jim
+               and Rodriguez, Dulma},
+  editor    = {Havelund, Klaus
+               and Holzmann, Gerard
+               and Joshi, Rajeev},
+  title     = {Moving Fast with Software Verification},
+  booktitle = {NASA Formal Methods},
+  year      = {2015},
+  publisher = {Springer International Publishing},
+  address   = {Cham},
+  pages     = {3--11},
+  abstract  = {For organisations like Facebook, high quality software is important. However, the pace of change and increasing complexity of modern code makes it difficult to produce error-free software. Available tools are often lacking in helping programmers develop more reliable and secure applications.},
+  isbn      = {978-3-319-17524-9}
+}
+
+@misc{mitchell_hlint_2024,
+  author   = {Mitchell, Neil},
+  title    = {HLint: Source code suggestions},
+  url      = {https://hackage.haskell.org/package/hlint},
+  abstract = {HLint gives suggestions on how to improve your source code.},
+  note     = {[Accessed: 2024 Jan 23]}
+}
+
+% TODO: Add chapter info?
+@inbook{fowler_refactoring_2018,
+  title     = {Refactoring: Improving the Design of Existing Code},
+  publisher = {Addison-Wesley},
+  author    = {Fowler, Martin},
+  year      = {2018},
+  isbn      = {9780134757681}
+}
+
+@misc{jetbrains_intellij_2021,
+  title     = {IntelliJ IDEA},
+  url       = {https://www.jetbrains.com/idea/},
+  author    = {JetBrains},
+  year      = {2024},
+  note      = {[Accessed: 2024 Jan 24]}
+} 

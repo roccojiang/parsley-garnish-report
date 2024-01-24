@@ -16,13 +16,22 @@
 %% Set line spacing to "one and a half"
 \linespread{1.3}
 
+%% Minted syntax highlighting
+\usepackage{minted}
+\usemintedstyle{emacs}
+\setminted{breaklines}
+\setminted{fontsize=\small}
+
 %% Useful packages
 \usepackage{amsmath}
 \usepackage{graphicx}
 \usepackage[colorinlistoftodos]{todonotes}
 \usepackage[colorlinks=true, allcolors=blue]{hyperref}
+\usepackage{xcolor}
+\usepackage[justification=centering]{caption}
+\usepackage{subcaption}
 
-\title{Automated Parser Combinator Linting and Refactoring Tools}
+\title{\texttt{parsley-garnish}: Static Analysis for Parser Combinator Libraries}
 \author{Rocco Jiang}
 % Update supervisor and other title stuff in title/title.tex
 
