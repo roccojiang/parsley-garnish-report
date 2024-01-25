@@ -32,7 +32,7 @@ These transformations may be implemented as simple text-based replacements or mo
 
 Automated refactoring support is particularly useful for large codebases, where manual refactoring would be tedious and error-prone.
 Generally, when a user makes use of an automated refactoring tool in an \textsc{ide}, they will manually identify the snippet of code that they wish to refactor, and then select the appropriate refactoring from a list of available options.
-Fig.~\ref{fig:extract-function-intellij} presents \textit{Extract Method} \cite{fowler_refactoring_2018}, an example of a common refactoring that can be performed automatically on a block code selected by the user.
+Fig.~\ref{fig:extract-function-intellij} presents \textit{Extract Method} \cite{fowler_refactoring_2018} in the IntelliJ IDEA\footnote{\url{https://www.jetbrains.com/idea/}} \textsc{ide}, an example of a common refactoring that can be performed automatically on a block code selected by the user.
 
 \begin{figure}[htbp]
   \centering
@@ -74,7 +74,7 @@ Fig.~\ref{fig:extract-function-intellij} presents \textit{Extract Method} \cite{
     \end{minted}
     \caption{The result of applying the \textit{Extract Method} refactoring using the chosen parameters in fig.~\ref{fig:extract-function-intellij-dialogue}.}
   \end{subfigure}
-  \caption{An example of the \textit{Extract Method} refactoring in IntelliJ IDEA \cite{jetbrains_intellij_2021}.}
+  \caption{An example of the \textit{Extract Method} refactoring in IntelliJ IDEA.}
   \label{fig:extract-function-intellij}
 \end{figure}
 
@@ -100,10 +100,10 @@ Rules can be categorised by their purpose: some rules are concerned with enforci
 
 \subsubsection{Style checking and code appearance}
 % TODO: CheckStyle https://checkstyle.sourceforge.io/?
-% TODO: https://flake8.pycqa.org/en/latest/   https://peps.python.org/pep-0008/
+% TODO: https://peps.python.org/pep-0008/
 Linters can be configured to enforce a particular style guide defining a set of conventions for how idiomatic code should be written.
 They can highlight style violations and in basic cases, automatically rewrite code to conform to the correct style.
-For example, the \textit{Flake8} linter for Python \todo{cite} enforces coding conventions from the PEP 8 style guide \todo{cite}.
+For example, the \textit{Flake8}\footnote{\url{https://flake8.pycqa.org/en/latest/}} linter for Python enforces coding conventions from the PEP 8 style guide \todo{cite}.
 Stylistic rules are especially helpful for large projects with multiple contributors, where a consistent coding style can improve readability and maintainability.
 
 \subsubsection{Identifying opportunities for refactoring}
@@ -115,8 +115,8 @@ The linter may then suggest a code action to automatically apply the \textit{Ext
 Other rules can suggest opportunities to improve more precise snippets of code by utilising language features in a more idiomatic manner.
 These rules are especially helpful for new users of a language, who may be unaware of useful language constructs and idioms.
 % TODO: Clippy for Rust https://arxiv.org/abs/2310.11738
-For example, the \textit{Clippy} linter for Rust \todo{cite article} categorises a collection of rules as \texttt{clippy::complexity} rules to detect code that does something simple in a complex way and suggests a simpler alternative.
-Fig.~\ref{fig:hlint-example} provides an example of a similar rule in Haskell, from the \textit{HLint} linter \cite{mitchell_hlint_2024}.
+For example, the \textit{Clippy}\footnote{\url{https://doc.rust-lang.org/clippy/}} linter for Rust \todo{cite article} categorises a collection of rules as \texttt{clippy::complexity} rules to detect code that does something simple in a complex way and suggests a simpler alternative.
+Fig.~\ref{fig:hlint-example} provides an example of a similar rule in Haskell, from the \textit{HLint}\footnote{\url{https://hackage.haskell.org/package/hlint}} linter.
 The rule suggests an $\eta$-reduction refactoring, presented to the user as a code action that can be applied automatically.
 
 \begin{figure}[htbp]
@@ -148,14 +148,14 @@ The rule suggests an $\eta$-reduction refactoring, presented to the user as a co
 
 Many idiomatic practices exist to avoid common pitfalls that may lead to unintended behaviour.
 By highlighting good practices, linters can help users avoid these common mistakes that may cause bugs.
-For example, \textit{ESLint} \todo{cite}, one of the most popular JavaScript linters, warns against common JavaScript pitfalls such as using the regular equality operator \texttt{==} instead of its type-safe alternative \texttt{===}.
+For example, \textit{ESLint}\footnote{\url{https://eslint.org/docs/latest/rules/}}, one of the most popular JavaScript linters, warns against common JavaScript pitfalls such as using the regular equality operator \texttt{==} instead of its type-safe alternative \texttt{===}.
 
 Linters developed for a specific library provide rules to enforce idiomatic usage specific to the domain of the library.
-% TODO: was there a paper that mentioned something like this??? I feel like there was
+% TODO: is this the paper that talks about this? https://ieeexplore.ieee.org/abstract/document/6405305/references#references
 A library or especially an embedded \textsc{dsl} may require a particular style of usage that is different from the host language.
 Therefore, a regular linter for the host language may not be able to detect issues specific to the library.
 In this case, an accompanying linter can greatly benefit users: common misuses can be detected and sometimes automatically fixed, and users can be directed to relevant documentation to learn more about correct usage.
-For instance, the \textit{xUnit.net} testing framework for C\# is accompanied by an analyser package \cite{xunit_xunitanalyzers_2024} which provides linting rules to enforce best practices specific to xUnit.
+For instance, the \textit{xUnit.net} testing framework for C\# is accompanied by the \texttt{xunit.analyzers}\footnote{\url{https://github.com/xunit/xunit.analyzers}} package which provides linting rules to enforce best practices specific to xUnit.
 
 \subsubsection{Detecting potential bugs}
 Linters may also directly attempt to detect more serious issues in code, such as possible logic errors.
@@ -163,13 +163,84 @@ This can be helpful for even experienced users to avoid common pitfalls.
 Clippy has \texttt{clippy::suspicious} and \texttt{clippy::correctness} rule categories to identify code that is very likely to be incorrect or useless.
 ESLint provides several rules to warn against code patterns that are likely to cause runtime errors, such as re-assigning a \texttt{const} variable.
 
-\section{Implementing Static Analysis Tools}
-This section first discusses the choices available for implementing a static analysis tool in Scala.
-We then discuss how the chosen implementation tool provides a framework for implementing linting and refactoring rules.
-% Focus on scala, since we are writing a tool for parsley
+\section{Static Analysis for Scala}
+\subsection{Choice of Tooling}
+The goal of \texttt{parsley-garnish} is to provide linting and refactoring capabilities for the \texttt{parsley} parser combinator library.
+Since \texttt{parsley} is a Scala library, this project must be implemented using a tool capable of statically analysing Scala code.
+This section will therefore discuss and evaluate the choices available for implementing \texttt{parsley-garnish}.
 
-% This is traditionally achieved by traversing the \textsc{ast} and pattern matching on the tree structure to identify problematic patterns.
-% % TODO: cite https://doc.rust-lang.org/clippy/development/lint_passes.html
-% Some linters, such as \texttt{clippy}, are also able to utilise type information from the compiler as part of their analysis.
+\subsubsection{Scala compiler plugins}
+% TODO: cite https://dl.acm.org/doi/abs/10.1145/3331545.3342599
+The most powerful approach would be to implement \texttt{parsley-garnish} as a compiler plugin \todo{cite}.
+Using the low-level compiler \textsc{api}, it is possible to perform arbitrary code transformations at any step of the compilation process.
+Compiler plugins therefore offer full freedom to extend the Scala compiler with extra functionality, such as extra passes for code analysis and emitting lint warnings as diagnostics or even compiler errors.
+
+However, this approach has several drawbacks.
+Firstly, compiler plugins are tightly coupled with the compiler itself, and therefore not portable across major compiler versions.
+% https://github.com/mattmoore/scala-compiler-plugins is a good reference, in case I need to revisit this
+% TODO: cite https://docs.scala-lang.org/scala3/reference/changed-features/compiler-plugins.html (probably the latter)
+For instance, plugins written for the Scala 3 compiler, known as \texttt{dotty}, are completely incompatible with Scala 2 plugins \todo{cite}.
+Additionally, developing compiler plugins requires a deep understanding of arcane and poorly documented compiler internals.
+% TODO: cite https://link.springer.com/chapter/10.1007/978-3-662-46663-6_2
+Exposing the full compiler \textsc{api} permits unsafe operations that may violate undocumented invariants assumed by the compiler, leading to exceptions during compilation or even malformed bytecode \todo{cite}.
+The lack of higher-level abstractions also makes it difficult to implement even trivial tasks such as renaming a field.
+
+For these reasons, it would be preferable to explore other tools that may use compiler plugins themselves but provide a higher-level interface for implementing code analysis and transformations.
+
+\subsubsection{Scalameta}
+\textit{Scalameta}\footnote{\url{https://scalameta.org/}} is a metaprogramming framework for Scala that provides a unified interface for performing common metaprogramming tasks.
+It provides a high-level syntactic \textsc{api} for transforming and pretty-printing Scala source code, as well as a semantic \textsc{api} providing access to semantic information such as type inference and name resolution.
+% TODO: cite https://infoscience.epfl.ch/record/226166
+Scalameta is the successor of the earlier \texttt{scala.reflect} metaprogramming framework, which parsed source code into lossy trees that discarded syntactic information such as comments and whitespace \todo{cite}.
+On the other hand, Scalameta trees are lossless and preserve all syntactic details, a key feature that allows code transformations and refactorings to preserve formatting details.
+
+% TODO: cite https://inthisbuild.readthedocs.io/en/latest/index.html. See GitHub source code for date information.
+Scalameta's semantic \textsc{api} is powered by \textit{SemanticDB}, a compiler-agnostic data model for semantic information in Scala programs \todo{cite}.
+This allows Scalameta to extract semantic information via compiler plugins that emit data in the SemanticDB format.
+Thus, Scalameta can work with any compiler that supports SemanticDB, rather than being tied to a specific compiler implementation.
+
+Since Scalameta provides a high-level interface for manipulating syntactic and semantic information, it is a promising choice for this project.
+Being able to access semantic information is especially helpful for implementing more complex code analyses.
+However, Scalameta's primary focus is on providing a general metaprogramming framework and therefore lacks \textsc{api} support specifically for implementing linting and refactoring rules.
+For example, the Scalameta tree transformation utilities do not preserve formatting details when pretty-printed, despite the underlying trees containing this information.
+
+\subsubsection{Scalafix}
+\textit{Scalafix}\footnote{\url{https://scalacenter.github.io/scalafix/}} is a refactoring and linting tool built on top of Scalameta.
+It specifically provides an \textsc{api} for implementing fine-grained code transformations that preserve comments and formatting details.
+% TODO: cite https://www.scala-lang.org/blog/2017/09/11/scalafix-v0.5.html
+Scalafix provides a framework for implementing linting rules to emit warnings, as well as rewrite rules to perform automated code transformations \todo{cite}.
+Since it is built on Scalameta, a major advantage of Scalafix is that it is also compiler-agnostic and could be integrated into any \textsc{ide} if a plugin is developed for it.
+
+% TODO: cite https://scala-lang.org/blog/2016/10/24/scalafix.html
+Originally, Scalafix was designed to help automate the process of migrating code from Scala 2 to 3, which involved many breaking changes to the language \todo{cite}.
+However, Scalafix has since evolved into a general-purpose tool for implementing code transformations and analyses, utilising the powerful syntactic and semantic \textsc{api}s provided by Scalameta.
+Scalafix rules can be either syntactic or semantic, depending on whether they require semantic information to perform their analysis.
+Syntactic rules are faster to run, since they operate purely on the \textsc{ast} without requiring compilation to extract semantic information, but are more limited in the accuracy of analyses they can perform.
+
+Scalafix is growing to become the de-facto modern successor to earlier refactoring tools such as Abide\footnote{\url{https://contributors.scala-lang.org/t/whats-the-status-of-abide/}} and \texttt{scala-refactoring}\footnote{\url{https://github.com/scala-ide/scala-refactoring}}.
+\texttt{scala-refactoring} used \texttt{scala.reflect} to implement code transformations, with much extra work utilising the Scala Presentation Compiler \textsc{ast} to preserve formatting details lost by \texttt{scala.reflect}.
+As a result, maintaining the library became difficult and the project was abandoned in favour of a clean implementation using Scalameta, which was designed in part to address the shortcomings of \texttt{scala.reflect}.
+
+A drawback of Scalafix is that it is primarily a command-line tool, and therefore by default does not provide a user-friendly interface for interactive usage.
+However, this can rectified in the future by integrating Scalafix into the Metals \textsc{lsp} server for Scala, which would allow it to be integrated into any \textsc{ide} that supports the LSP.
+
+Overall, Scalafix emerges as the most favorable choice for implementing \texttt{parsley-garnish}.
+It provides high-level \textsc{api}s specifically for implementing linting and rewrite rules without necessitating extensive knowledge of compiler internals.
+Scalafix is also being actively developed and maintained, with good basic documentation and a growing number of examples of usage in the wild.
+
+\subsubsection{Other tools considered}
+The main alternate contender to Scalafix is the IntelliJ Scala Plugin\footnote{\url{https://github.com/JetBrains/intellij-scala}}.
+However, while the plugin offers superior interactive usage within the IntelliJ IDEA \textsc{ide}, it is tied to the IntelliJ Scala compiler and therefore not portable across other compilers.
+To maintain flexibility and not tie \texttt{parsley-garnish} to a particular compiler or code editor, Scalafix is a preferable option.
+Furthermore, documentation is less clear on how to write a Scala plugin for IntelliJ compared to the Scalafix documentation.
+
+WartRemover\footnote{\url{https://www.wartremover.org/}} is a linter implemented as a compiler plugin, with support for writing custom rules.
+However, it only can emit warnings or errors and does not support auto-fixes, making it less suitable for \texttt{parsley-garnish}'s goals.
+
+ScalaStyle\footnote{\url{http://www.scalastyle.org/}} is primarily a style checker which also supports custom rules.
+However, it is only able to perform syntactic analyses and does not have access to semantic information, restricting the types of analyses it can perform.
+
+% TODO: maybe a section introducing ScalaFix and how it works? or is that too much detail?
+% TODO: maybe a figure to show an example of a ScalaFix rewrite rule?
 
 \chapter{Parser Combinators}
