@@ -1,4 +1,4 @@
-\chapter{Parser Combinators}
+\section{Parser Combinators}
 
 Parsing is the process of extracting structured information from a flat, unstructured representation of the data.
 Parsers are programs that perform this process, using a specified grammar to determine the structure of the data.
@@ -22,7 +22,7 @@ Across different implementations, parser combinator \textsc{api}s can vary signi
 Experienced users of parser combinators may approach a new library with prior knowledge of general concepts but may have misconceptions about the specifics of the \textsc{api} which can lead to confusion and frustration.
 This is another motivating reason for the development of \texttt{parsley-garnish}, to lower the barrier of entry for new users of the \texttt{parsley} library.
 
-\section{Parsley}
+\subsection{Parsley}
 % TODO: some sort of literate Scala?
 % TODO: make examples a bit better
 
@@ -88,7 +88,7 @@ Except for the possibly cryptic-looking implementation of \texttt{num} to parse 
   \label{fig:simple-grammar-parser}
 \end{figure}
 
-\section{Design Patterns for Parsley}
+\subsection{Design Patterns for Parsley}
 % TODO
 \textit{(This background section is a work-in-progress, and will likely expand to include more information about the specific problems and design patterns I choose to explore in the project.)}
 
