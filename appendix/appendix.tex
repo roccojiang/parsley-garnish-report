@@ -1,2 +1,53 @@
-\appendix
-\chapter{First Appendix}
+\documentclass[../main.tex]{subfiles}
+
+\begin{document}
+
+\chapter{Proofs of Parser Laws}
+
+% TODO: one more sentence to justify why gigaparsec semantics is easier to prove on
+The approach taken to prove the following parser laws for \texttt{parsley} is via equational reasoning on \texttt{gigaparsec} semantics, under the assumption that their semantics are equivalent.
+While there is no formal proof of this equivalence at the present, \texttt{gigaparsec} was designed to have semantics equivalent to \texttt{parsley}'s.
+
+\section{Left absorption for \texttt{fmap}}
+\begin{lstlisting}
+    f <$> empty
+% \proofstep{applicative functor law} %
+    pure f <*> empty
+% \proofstep{definition of \texttt{<*>}} %
+    liftA2 ($) (pure f) empty
+% \proofstep{semantics of \texttt{liftA2}} %
+    Parsec $ \st ok err ->
+      let ok' x st' = (unParsec empty) st' (ok . (x $)) err
+      in (unParsec $ pure f) st ok' err
+% \proofstep{semantics of \texttt{empty}} %
+    Parsec $ \st ok err ->
+      let ok' x st' = (unParsec $ raise (`emptyErr` 0)) st' (ok . (x $)) err
+      in (unParsec $ pure f) st ok' err
+% \proofstep{semantics of \texttt{raise}} %
+    Parsec $ \st ok err ->
+      let ok' x st' = (unParsec $ Parsec $ \st'' _ bad ->
+        useHints bad (emptyErr st'' 0) st') st' (ok . (x $)) err
+      in (unParsec $ pure f) st ok' err
+% \proofstep{$\beta$-reduction} %
+    Parsec $ \st ok err ->
+      let ok' x st' = useHints err (emptyErr st' 0) st'
+      in (unParsec $ pure f) st ok' err
+% \proofstep{semantics of \texttt{pure}} %
+    Parsec $ \st ok err ->
+      let ok' x st' = useHints err (emptyErr st' 0) st'
+      in (unParsec $ Parsec $ \st'' ok'' _ -> ok'' f st'') st ok' err
+% \proofstep{$\beta$-reduction} %
+    Parsec $ \st ok err ->
+      let ok' x st' = useHints err (emptyErr st' 0) st'
+      in ok' f st
+% \proofstep{inline \texttt{ok'}} %
+    Parsec $ \st ok err -> useHints err (emptyErr st 0) st
+% \proofstep{rearrange and $\alpha$-conversion} %
+    Parsec $ \st _ bad -> useHints bad ((`emptyErr` 0) st) st
+% \proofstep{fold definition of \texttt{raise}} %
+    raise (`emptyErr` 0)
+% \proofstep{fold definition of \texttt{empty}} %
+    empty
+\end{lstlisting}
+
+\end{document}

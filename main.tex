@@ -9,17 +9,35 @@
 \usepackage{mathpartir}
 \usepackage[backend=biber,style=ext-authoryear,uniquename=false]{biblatex}
 \usepackage{float}
-\usepackage[tt=false, type1=true]{libertine}
-\usepackage[varqu]{zi4}
-\usepackage[libertine]{newtxmath}
-\usepackage[T1]{fontenc}
+\usepackage{iftex}
+\ifLuaTeX
+  \usepackage{fontspec}
+  \usepackage{unicode-math}
+  \setmainfont{Libertinus Serif}
+  \setsansfont{Libertinus Sans}
+  \setmathfont{Libertinus Math}[Scale=MatchUppercase]
+  \setmonofont{JetBrains Mono}[
+    % Extension=.ttf,
+    % UprightFont=*-Light,
+    % BoldFont=*-Medium,
+    % ItalicFont=*-LightItalic,
+    % BoldItalicFont=*-MediumItalic,
+    Scale=MatchLowercase,
+    Contextuals=Alternate  % Activate the calt feature
+  ]
+  \usepackage{lstfiracode}
+\else
+  \usepackage[tt=false, type1=true]{libertine}
+  \usepackage[varqu]{zi4} % In LuaTeX this turns quotes into \textquotesingle within listings, breaking the tt font
+  \usepackage[libertine]{newtxmath}
+  \usepackage[T1]{fontenc}
+  \usepackage[scaled=0.8, lining]{FiraMono}
+\fi
 \usepackage{amsmath}
 \usepackage{xcolor}
 \usepackage{microtype}
-\usepackage{semantic}
 \usepackage{tikz}
 \usepackage{pgfplots}
-\usepackage[scaled=0.8, lining]{FiraMono}
 \usepackage{scalerel}[2016/12/29]
 \usepackage{sansmath}
 \usepackage{placeins}
@@ -30,8 +48,10 @@
 \usepackage[figurename=Fig., justification=centering]{caption}
 \usepackage{subcaption}
 \usepackage{enumitem}
+\usepackage{epigraph} % TODO: remove if not using any quotes
 \usepackage[nounderscore]{syntax}
 \usepackage{minted}
+\usepackage{listings}
 \usepackage{subfiles}
 \usepackage{pifont}% http://ctan.org/pkg/pifont
 \usepackage{textcomp}
@@ -42,6 +62,30 @@
 \usepackage{multirow}
 \usepackage{changepage}
 \usepackage{titlesec}
+
+\epigraphnoindent
+
+\lstloadlanguages{Haskell}
+\ifLuaTeX
+  \lstset{
+    language=Haskell,
+    basicstyle=\ttfamily,
+    flexiblecolumns=false,
+    escapechar=\%, % char to escape out of listings and back to LaTeX
+    style=FiraCodeStyle,
+    literate={\\}{{λ}}1
+  }
+\else
+  \lstset{
+    language=Haskell,
+    basicstyle=\ttfamily,
+    flexiblecolumns=false,
+    escapechar=\%, % char to escape out of listings and back to LaTeX
+    literate={\\}{{$\lambda$}}1
+  }
+\fi
+
+\newcommand{\proofstep}[1]{\( = \qquad \{$  \textrm{#1}  $\}\)}
 
 \let\cite\parencite
 
@@ -147,8 +191,8 @@
 \newcommand{\ponders}[3]{\marginpar{\tiny\itshape\raggedright\textcolor{#2}{\textbf{#1:} #3}}\ignorespaces}
 \marginparwidth=1.6cm \marginparsep=0cm
 \newcommand{\TODO}[1]{{\color{DarkRed}#1}}
-\newcommand{\jw}[1]{\ponders{JW}{blue}{#1}}
-\newcommand{\me}[1]{\ponders{NW}{DarkRed}{#1}}
+\newcommand{\rj}[1]{\ponders{RJ}{blue}{#1}}
+\newcommand{\jw}[1]{\ponders{JW}{DarkRed}{#1}}
 
 %fix for # and % inside footnotes for minted: must go below everything else!
 \makeatletter
@@ -217,15 +261,16 @@
 \tableofcontents
 \pagebreak
 \listoffigures
-\listoftables
+% \listoftables % TODO: uncomment if I have tables
 
 \pagebreak
 \pagenumbering{arabic}
 
-\subfile{introduction/introduction}
-\subfile{background/background}
-\subfile{project/project}
-\subfile{evaluation/evaluation}
+\subfile{introduction/introduction}%
+\subfile{background/background}%
+\subfile{body/body}%
+\subfile{project/project}%
+\subfile{evaluation/evaluation}%
 
 % \subfile{Introduction}%
 % \subfile{Background}%
@@ -238,5 +283,6 @@
 \printbibliography[heading=bibintoc]
 
 \appendix
+\subfile{appendix/appendix}%
 
 \end{document}

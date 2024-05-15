@@ -160,12 +160,20 @@ However, dynamic languages such as JavaScript present challenges for static anal
 This has led to the exploration of linters that incorporate dynamic analysis techniques to identify issues that static methods cannot detect \cite{gong_dlint_2015}.
 Despite these developments, state-of-the-art JavaScript linters utilised in industry, such as \emph{ESLint}, still solely rely on static analysis.
 
+\TODO{
 * parsley is a scala library
 * scala is a static language, strongly typed
 * this section will therefore focus on the traditional static analysis approach, since dynamic analysis is not as relevant here
 
+https://scalacenter.github.io/scalafix/docs/users/related-projects.html
+Lint on compile vs lint after compile?
+}
 
 \subsubsection{AST stuff}
+
+\TODO{
+* how does HLint work? seems like its sometimes prone to false positives
+}
 
 Static analysis tools can reason about how to safely refactor code in an automated manner, performing refactorings as source-to-source transformations.
 These transformations may be implemented as simple text-based replacements or more robust rewrite rules that operate on the abstract syntax tree (\textsc{ast}) of the source code.
@@ -217,6 +225,7 @@ However, Scalameta's primary focus is on providing a general metaprogramming fra
 For example, the Scalameta tree transformation utilities do not preserve formatting details when pretty-printed, despite the underlying trees containing this information.
 
 \paragraph{Scalafix}
+% Scalafix is fundamentally a general-purpose code linter and code rewriter
 \textit{Scalafix}\footnote{\url{https://scalacenter.github.io/scalafix/}} is a refactoring and linting tool built on top of Scalameta.
 It specifically provides an \textsc{api} for implementing fine-grained code transformations that preserve comments and formatting details.
 Scalafix provides a framework for implementing linting rules to emit warnings, as well as rewrite rules to perform automated code transformations \cite{geirsson_catch_2017}.
