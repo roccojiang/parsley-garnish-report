@@ -17,11 +17,6 @@
   \setsansfont{Libertinus Sans}
   \setmathfont{Libertinus Math}[Scale=MatchUppercase]
   \setmonofont{JetBrains Mono}[
-    % Extension=.ttf,
-    % UprightFont=*-Light,
-    % BoldFont=*-Medium,
-    % ItalicFont=*-LightItalic,
-    % BoldItalicFont=*-MediumItalic,
     Scale=MatchLowercase,
     Contextuals=Alternate  % Activate the calt feature
   ]
@@ -209,9 +204,9 @@
 }
 \makeatother
 
-\addbibresource{bibs/parsers.bib}
-\addbibresource{bibs/tools.bib}
-\addbibresource{bibs/misc.bib}
+\addbibresource{\subfix{bibs/parsers.bib}}
+\addbibresource{\subfix{bibs/tools.bib}}
+\addbibresource{\subfix{bibs/misc.bib}}
 
 \begin{document}
 
@@ -219,7 +214,7 @@
 
 \hypersetup{pageanchor=false}
 \begin{titlepage}
-    \vspace*{-13.5mm}\hspace{-30.6mm}\hspace{17.5mm}\includegraphics[width=7cm]{title/logo.eps}
+    \vspace*{-13.5mm}\hspace{-30.6mm}\hspace{17.5mm}\includegraphics[width=7cm]{assets/logo.eps}
     \vspace*{\fill}
     \begin{center}
       {\Huge{\maintitle}}\\[0.4cm]
@@ -282,6 +277,8 @@
 \renewcommand{\chaptertitle}{Bibliography}
 \printbibliography[heading=bibintoc]
 
+\pagebreak
+\renewcommand{\chaptertitle}{Appendices}
 \appendix
 \subfile{appendix/appendix}%
 
