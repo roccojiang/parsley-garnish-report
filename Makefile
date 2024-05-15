@@ -2,7 +2,8 @@ LATEXMK = latexmk -lualatex -shell-escape
 
 TEX_FILES := $(shell find . -name '*.tex')
 
-all: src/introduction/introduction.pdf \
+all: main.pdf \
+		 src/introduction/introduction.pdf \
 		 src/background/background.pdf \
 		 src/body/body.pdf \
 		 src/project/project.pdf \
