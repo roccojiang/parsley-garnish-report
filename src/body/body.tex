@@ -2,7 +2,10 @@
 
 \begin{document}
 
-% TODO: Update chapter titles etc. as I figure out how to properly organise these sections
+\TODO{
+  Misc. things to write (might move to other sections):
+  * Top-down parsers -- intro to left-recursion and the types of left recursion in PEG grammars
+}
 
 \TODO{
 Not sure how to order things: lint rules first, or implementation?
@@ -42,21 +45,121 @@ The other complex rule(s) will likely share implementation details with the Pars
 
 \section{Ambiguous Implicit Conversions}
 \epigraph{Heroin is just one letter away from heroine, and implicit conversions are the heroine we don't deserve.}{Jamie Willis, 2024}
-Implicit conversions are a powerful feature in Scala, allowing for automatic type coercion between types.
-However, they are often considered a double-edged sword, as they can be easily abused, leading to unexpected behaviour and making code harder to reason about.
 
-\TODO{
-* Implicit conversions are controversial, but less evil when it comes to dsls
-* from the man odersky himself: https://contributors.scala-lang.org/t/can-we-wean-scala-off-implicit-conversions/4388
-* Cite Jamie's design pattern from the scala paper - pattern 0 and 2c
-* See his discussion in phd thesis (nothing has been elaborated on in the masters thesis)
+\subsection*{Problem}
 
-* have to use syntacticrule because we want to be able to provide diagnostics even if compilation fails, due to the exact problem of clashing implicits
-* so actually this would've been better as lint-on-compile, to annotate the compiler error message at the exact location - we'd also crucially have more information at that stage
-* but because the only other option for scalafix is semanticrules that are completely after compilation time, we can't gather even this partial information
-% http://www.wartremover.org/doc/warts.html#implicitconversion
-* wartremover actually has a wart for this \^, but it only targets the definition of implicit conversions, so it's not actually what we'd want out of a lint-on-compile rule
+Implicit conversions are a powerful feature in Scala, allowing users to supply an argument of one type when another is expected, to reduce boilerplate.
+As noted by \textcite{willis_design_2022}, implicit conversions are particularly useful for designing \textsc{dsl}s.
+In the context of parser combinators, they introduce the usage of implicit conversions to automatically lift string and character literals into parsers in the \emph{Implicit Conversions} design pattern.
+This eliminates the need to explicitly wrap these elements in combinators:
+\scala{string("parsley") | string("garnish")} can now be expressed as just \scala{"parsley" | "garnish"}, more closely resembling the style of a \textsc{bnf} grammar.
+
+The \emph{Implicit Lexer} pattern is a further specialisation of this approach, hiding the boilerplate of whitespace handling entirely within a \scala{lexer} object.
+This design pattern allows whitespace handling to be encapsulated as private combinators within the \scala{lexer} object, which are then made available only through implicit conversions automatically applied by the Scala compiler.
+
+However, due to their utility, implicit conversions are also an easily abused feature of Scala.
+They can obscure the flow of the program, making it difficult to understand what the code is doing and potentially hiding side effects or costly operations.
+A downside particularly relevant to Parsley is that implicit conversions often lead to confusing error diagnostics when the compiler is unable to resolve them.
+
+One common issue arises from ambiguous implicits when there are multiple implicit conversions in scope.
+Parsley provides \scala{stringLift} and \scala{charLift} combinators in the \texttt{parsley.syntax.character} package for the \emph{Implicit Conversions} pattern,
+and exposes an \scala{implicitSymbol} combinator for lexers to use in the \emph{Implicit Lexer} pattern.
+For novice users, it is easy to accidentally import both sets of these implicits, when it is likely that they only intended to use the \scala{implicitSymbol} implicit. % TODO: explain why lexer implicit supercedes character implicits?
+For example, consider the following code snippet:
+\begin{minted}{scala}
+val p = 'g' ~> "arnish"
+p.parse("garnish")
+// [error] type mismatch;
+//   found   : String("arnish")
+//   required: parsley.Parsley[?]
+//  Note that implicit conversions are not applicable because they are ambiguous:
+//   both method stringLift in object character of type (str: String): parsley.Parsley[String]
+//   and method implicitSymbol in class ImplicitSymbol of type (s: String): parsley.Parsley[Unit]
+//   are possible conversion functions from String("arnish") to parsley.Parsley[?]
+//    val p = 'g' ~> "arnish"
+//                   ^^^^^^^^
+\end{minted}
+
+Here, the compiler provides a detailed error message indicating the ambiguity between two possible implicit conversions.
+However, the compiler is not always able to report such issues clearly. For instance, switching the position of the intended implicit conversion results in a less helpful message:
+\begin{minted}{scala}
+val p = "garnis" <~ 'h'
+p.parse("garnish")
+// [error] value <~ is not a member of String
+//    val p = "garnis" <~ 'h'
+//            ^^^^^^^^^^^
+\end{minted}
+
+\subsection*{Solution}
+Ideally, this issue would be addressed by implementing a lint-on-compile rule, which could annotate the compiler error message at the exact location of the issue.
+If this were implemented as a compiler plugin, partial information available from the compiler stages before the error could potentially provide enough detail to identify the exact clashing implicits.
+This approach would allow leveraging domain knowledge to update the error message with more useful Parsley-specific diagnostics.
+
+Incidentally, WartRemover has a related lint rule for implicit conversions\footnote{\url{http://www.wartremover.org/doc/warts.html#implicitconversion}},
+although it only targets the locations where implicit conversions are \emph{defined}, not where they are \emph{applied}.
+Despite this limitation, it serves as a proof of concept demonstrating the feasibility of such an approach.
+
+Unfortunately, Scalafix restricts usage to only syntactic rules on the bare \textsc{ast} or semantic rules that operate fully post-compilation.
+Since the ambiguous implicit conversions will cause compilation failures, this lint must be implemented as a syntactic rule.
+Consequently, the solution takes a different approach: estimating the presence of clashing implicits by examining their import statements within each scope.
+
+\subsection*{Example}
+\Cref{fig:ambiguous-implicits-example} extends the previous example to a full Scala source file following the \emph{Implicit Lexer} pattern,
+but where the user has erroneously additionally imported the \scala{stringLift} implicit from the \emph{Implicit Conversions} pattern.
+This results in the Scala compiler throwing an error on line 6 due to ambiguous implicits.
+When run on this file, \texttt{parsley-garnish} will report a warning at line 3 similar to that shown in \cref{fig:ambiguous-implicits-warning}.
+
+\begin{figure}[htbp]
+\begin{minted}[frame=single,linenos]{scala}
+object parser {
+  import parsley.syntax.character.stringLift
+  import lexer.implicits._
+
+  val p = "garnis" <~ 'h'
 }
+
+object lexer {
+  import parsley.token.Lexer, parsley.token.descriptions.LexicalDesc
+
+  private val lexer = new Lexer(LexicalDesc.plain)
+  val implicits = lexer.lexeme.symbol.implicits
+}
+\end{minted}
+\caption{A minimal Parsley program which fails to compile due to ambiguous implicits in the \texttt{parser} object.}
+\label{fig:ambiguous-implicits-example}
+\end{figure}
+
+\begin{figure}[htbp]
+% TODO: maybe work out a nicer-looking frame for all these minted and fancyvrb environments
+\begin{Verbatim}[frame=single]
+warning: [AmbiguousImplicitConversions] This import may cause clashing implicit conversions:
+* import parsley.syntax.character.stringLift at line 2
+* import lexer.implicits._ at line 3
+If this is the case, you may encounter confusing errors like 'method is not a member of String'.
+To fix this, ensure that you only import a single implicit conversion.
+
+  import lexer.implicits._
+  ^^^^^^^^^^^^^^^^^^^^^^^^  
+\end{Verbatim}
+\caption{The warning message produced by the \texttt{AmbiguousImplicitConversions} lint rule.}
+\label{fig:ambiguous-implicits-warning}
+\end{figure}
+
+\subsection*{Implementation}
+Unlike Java, Scala offers more flexibility with import statements, allowing them to appear anywhere in source files rather than just at the top.
+Scala's import statements are lexically scoped, allowing their visibility to be limited to a single class, object, or function.
+Additionally, Scala processes import statements in a top-down order within the file, further restricting their visibility, as scopes above an import cannot see the imports defined below them.
+
+
+* Scalafix (via scalameta) provides a generic traversal of the AST: filter to find all import statements in top-down order
+* This allows the scope to be lexically managed -- traversal in the same order that the compiler reads imports
+* The ancestor AST node of an import statement is its enclosing scope
+* Use ancestor information to determine which of the visited imports are in scope at that point
+
+* to find stringLift: Pattern match to find if import is of form `import parsley.syntax.character.\_`
+* to find implicit lexer: pattern match to find if there is an importee called `implicitSymbol` or if an import contains keywords `lexer` and `implicit(s)`
+
+* if at any point in the traversal, both types of imports are in scope, report a warning
 
 \section{Remove Explicit Usage of Implicit Conversions}
 
@@ -89,6 +192,7 @@ Representation of Parsley combinators in \texttt{parsley-garnish}. Compare with 
   * For others: probably need to parse directly into composite combinators, since we don't want to destructively modify what combinators have been used.
 * Optimisations: for us, the goal is human readability, so this is interesting to compare to the paper. Lots of similar stuff actually, like top-down peephole optimisations utilising parser laws (I think I do it this way? Need to double check).
   * For cleanliness to isolate boilerplate: https://blog.sumtypeofway.com/posts/introduction-to-recursion-schemes.html -- we don't have a generic traversal, but we can decouple the recursive application of a given partial function from the actual pf itself (I've called it .transform for the Parser class)
+    % https://ndmitchell.com/downloads/paper-uniform_boilerplate_and_list_processing-30_sep_2007.pdf covers the important stuff wrt: bottom-up traversal, rewrite to normal form - since our rules have RHS that appear on LHS
 }
 
 \section{Function Representation}
@@ -116,7 +220,14 @@ Also attempted to make it typed but that didn't go so well with Scala's limitati
   * apply methods of case classes - symbol will tell its a class signature so we use this as a clue to look at synthetics???
 * generic bridges -- I reckon the information will probably show up in synthetics again
 
-I think look at symbol signature first, then look at synthetics based on some heuristics (e.g. if no symbol sig -- if this happens will there even be synthetics?, if class signature)
+* Don't have full access to type information - can do more work here theoretically, but its difficult and error-prone
+* So we don't model a typed lambda calculus, just have it untyped
+
+Approaches - AVOIDING capture via substitution
+* Substitution approaches
+  * De Bruijn indices - inefficient to open/close terms so much - De Bruijn levels as an alternative
+  * HOAS
+* Normalisation by evaluation
 }
 
 \end{document}
