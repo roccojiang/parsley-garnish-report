@@ -16,9 +16,8 @@
   \setmainfont{Libertinus Serif}
   \setsansfont{Libertinus Sans}
   \setmathfont{Libertinus Math}[Scale=MatchUppercase]
-  \setmonofont{JetBrains Mono}[
+  \setmonofont{Fira Mono}[
     Scale=MatchLowercase,
-    Contextuals=Alternate  % Activate the calt feature
   ]
   \usepackage{lstfiracode}
 \else
@@ -68,7 +67,7 @@
     flexiblecolumns=false,
     escapechar=\%, % char to escape out of listings and back to LaTeX
     style=FiraCodeStyle,
-    literate={\\}{{λ}}1
+    literate={\\}{{λ}}1 {->}{{$\rightarrow$}}2
   }
 \else
   \lstset{
@@ -76,7 +75,7 @@
     basicstyle=\ttfamily,
     flexiblecolumns=false,
     escapechar=\%, % char to escape out of listings and back to LaTeX
-    literate={\\}{{$\lambda$}}1
+    % literate={\\}{{$\lambda$}}1 % the lambda looks pretty bad so I've disabled this
   }
 \fi
 
