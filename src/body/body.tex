@@ -131,7 +131,7 @@ object lexer {
 
 \begin{figure}[htbp]
 % TODO: maybe work out a nicer-looking frame for all these minted and fancyvrb environments
-\begin{Verbatim}[frame=single]
+\begin{minted}[frame=single,fontsize=\small]{text}
 warning: [AmbiguousImplicitConversions] This import may cause clashing implicit conversions:
 * import parsley.syntax.character.stringLift at line 2
 * import lexer.implicits._ at line 3
@@ -140,7 +140,7 @@ To fix this, ensure that you only import a single implicit conversion.
 
   import lexer.implicits._
   ^^^^^^^^^^^^^^^^^^^^^^^^  
-\end{Verbatim}
+\end{minted}
 \caption{The warning message produced by the \texttt{AmbiguousImplicitConversions} lint rule.}
 \label{fig:ambiguous-implicits-warning}
 \end{figure}
@@ -171,7 +171,7 @@ Additionally, Scala processes import statements in a top-down order within the f
 * indicate limitations that this will only work if the ADT is defined in the same file, in order to extend it
 }
 
-\section{Left Recursion Removal}
+\section{Left Recursion Factoring}\label{sec:factor-leftrec}
 
 \chapter{Implementation}
 
@@ -182,7 +182,80 @@ Other util things?
 ACTUALLY NEED TO DO: import combinators if they aren't already imported
 }
 
-\section{Parser Representation}
+\section{Parser Representation}\label{sec:parser-representation}
+Several of the more complex lint rules, most notably \cref{sec:factor-leftrec}, require manipulating parser combinators in a high-level manner.
+It would be possible, but extremely cumbersome, to work directly with the generic Scala \textsc{ast} nodes provided by Scalameta.
+Instead, it is very useful to represent parsers as an algebraic data type \textsc{adt} to simplify the manipulation of combinators.
+This \namecref{sec:parser-representation} explores the motivation behind this and the design choices made in the implementation.
+Use the \cref{sec:factor-leftrec} rule as a basis/context to demonstrate the utility of this representation.
+
+Why do we want a parser representation? Because the left-recursion factoring is based on lawful transformations and rearrangements of parsers,
+which are much easier to achieve and reason about when parsers are represented as a high-level \textsc{adt} rather than as raw Scala \textsc{ast} nodes.
+This representation also then gives us for free the implementation for lint rules such as \emph{Simplify Complex Parsers} rule, which applies parser laws to simplify parser definitions.
+
+Running example to motivate all requirements for the parser representation -- removing left recursion from the following simple parser:
+\begin{minted}{scala}
+lazy val p: Parsley[String] = (p, string("a")).zipped(_ + _) | string("b")
+\end{minted}
+
+\subsection{Converting Scalameta Trees to the Parser \textsc{adt}}
+Pattern match on AST nodes of interest to build a Parser.
+Each Parser defines a partial function \scala{fromTerm} which creates an instance of that parser from the appropriate Scalameta \scala{Term}.
+Use Scalafix's \scala{SymbolMatcher} to match tree nodes that resolve to a specific set of symbols.
+This makes use of semantic information from SemanticDB, so we are sure that a \scala{<*>} is actually within the \scala{parsley.Parsley} package, rather than some other function with the same name.
+This is a drawback of HLint, which is prone to false positives due to its reliance on syntactic information only.
+
+For example:
+\begin{minted}{scala}
+object Ap {
+  val matcher = SymbolMatcher.normalized("parsley.Parsley.`<*>`")
+
+  def fromTerm(implicit doc: SemanticDocument): PartialFunction[Term, Ap] = {
+    case Term.ApplyInfix(p, matcher(_), _, Term.ArgClause(List(q), _)) =>
+      Ap(p.toParser, q.toParser)
+  }
+}
+\end{minted}
+So this looks for an infix application \scala{p <*> q}, where we can then build an \scala{Ap} parser while recursively converting \scala{p} and \scala{q} to parsers.
+
+\subsection{Building New Parsers From Existing Parsers}
+Now that we have parsers represented as an \textsc{adt}, we can easily build new parsers from existing parsers.
+Make this even easier by utilising Scala's ability to define infix operators, define them as extension methods on the \scala{Parser} trait.
+For example:
+\begin{minted}{scala}
+implicit class ParserOps(private val p: Parser) extends AnyVal {
+  def <*>(q: Parser): Parser = Ap(p, q)
+  def <|>(q: Parser): Parser = Choice(p, q)
+  def map(f: Function): Parser = FMap(p, f)
+}
+\end{minted}
+%
+This makes it more ergonomic to manipulate parsers, it's like we're writing Parsley code itself.
+\begin{minted}{scala}
+case class Choice(p: Parser, q: Parser) extends Parser {
+  override def unfold(implicit ctx: UnfoldingContext, doc: SemanticDocument): UnfoldedParser = {
+    val UnfoldedParser(pe, pn, pl) = p.unfold
+    val UnfoldedParser(qe, qn, ql) = q.unfold
+    UnfoldedParser(pe.orElse(qe), pn <|> qn, pl <|> ql)
+  }
+}
+\end{minted}
+Look at how clean this is: \scala{pn <|> qn} will expand into \scala{Choice(pn, qn)}.
+
+\subsection{Simplifying Parsers Using Parser Laws}
+For human readability of the transformed output, it is important to simplify the parser as much as possible.
+This is another key motivation for the parser representation, bringing static inspectability.
+Similar to the high-level optimisations done in~\cite{willis_staged_2023} using parser laws based on applicatve, alternative, selective.
+\textcite{willis_parsley_2023} provides the most comprehensive list of parser laws which Parsley adheres to.
+% TODO: figure of all the relevant parser laws
+
+% TODO: updated example where parser laws have been applied to simplify the parser
+
+\subsubsection{Implementation}
+Bottom-up traversal to apply peephole optimisations based on parser laws.
+For maintainability, code readability, and extensibility: decouple the application of transformation function from recursive traversal through the datatype.
+Hand-written traversal, but inspired by the generic traversal techniques in \cite{mitchell_uniform_2007}.
+Make ADT sealed so the compiler will warn if we miss on adding a new case: this is still more error prone than generically deriving, but we don't want to introduce a new dependency on Shapeless library (it's not complex enough to warrant bringing in a dependency for generic derivation).
 
 \TODO{
 % Garnishing Parsec with Parsley 2018: Parsley is a deep embedding: the language is represented by objects and behaviours are realised as methods on an abstract trait. In Parsley’s case, the deep embedding provides methods for code generation and optimisation and classes for each core combinator. The advantage of a deep embedding over a shallow embedding is that it significantly easier to optimise using pattern matching on constructors instead of bytecode.

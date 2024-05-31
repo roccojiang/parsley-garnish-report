@@ -6,7 +6,6 @@
   url       = {https://doi.org/10.1145/3241653.3241656},
   doi       = {10.1145/3241653.3241656},
   abstract  = {Parser combinators are a clean and powerful abstraction which can provide reasonably efficient means of parsing a grammar into a form which the programmer desires. They remain close to the domain of grammars whilst at the same time offering enormous flexibility. In Haskell, the Parsec library is a prime example of such a library. However, a direct translation to Scala proves to be unbearably slow. This paper describes the semantics and design of a new library, called Parsley, which retains a close resemblance to Parsec style whilst providing very competitive performance.},
-  urldate   = {2024-01-22},
   booktitle = {Proceedings of the 9th {ACM} {SIGPLAN} {International} {Symposium} on {Scala}},
   publisher = {Association for Computing Machinery},
   author    = {Willis, Jamie and Wu, Nicolas},
@@ -52,7 +51,6 @@
   address   = {New York, NY, USA},
   url       = {https://doi.org/10.1145/3550198.3550427},
   doi       = {10.1145/3550198.3550427},
-  abstract  = {Parser combinators provide a parsing experience that balances flexibility and abstraction with writing parsers in a style that remains close to the grammar. Parser combinators can benefit from the design patterns and structure of an object-oriented world, however, and this paper showcases the implementation and implications of various design patterns tailored at parsers in an object-oriented and functional world. In particular, features of Scala, such as implicits and path-dependent types, along with general object-oriented design help make it easy to write and maintain such parsers.},
   booktitle = {Proceedings of the Scala Symposium},
   pages     = {9--21},
   numpages  = {13},
@@ -68,4 +66,49 @@
   isbn      = {1934356999},
   publisher = {Pragmatic Bookshelf},
   edition   = {2nd}
+}
+
+@phdthesis{willis_parsley_2023,
+  address = {London},
+  type    = {{PhD} {Thesis}},
+  title   = {Parsley: {Optimising} and {Improving} {Parser} {Combinators}},
+  url     = {https://doi.org/10.25560/110313},
+  doi     = {10.25560/110313},
+  school  = {Imperial College London},
+  author  = {Willis, Jamie},
+  month   = aug,
+  year    = {2023}
+}
+
+@article{willis_staged_2023,
+  author     = {Willis, Jamie and Wu, Nicolas and Pickering, Matthew},
+  title      = {Staged selective parser combinators},
+  year       = {2020},
+  issue_date = {August 2020},
+  publisher  = {Association for Computing Machinery},
+  address    = {New York, NY, USA},
+  volume     = {4},
+  number     = {ICFP},
+  url        = {https://doi.org/10.1145/3409002},
+  doi        = {10.1145/3409002},
+  journal    = {Proc. ACM Program. Lang.},
+  month      = {aug},
+  articleno  = {120},
+  numpages   = {30}
+}
+
+@inproceedings{mitchell_uniform_2007,
+author = {Mitchell, Neil and Runciman, Colin},
+title = {Uniform boilerplate and list processing},
+year = {2007},
+isbn = {9781595936745},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/1291201.1291208},
+doi = {10.1145/1291201.1291208},
+booktitle = {Proceedings of the ACM SIGPLAN Workshop on Haskell Workshop},
+pages = {49--60},
+numpages = {12},
+location = {Freiburg, Germany},
+series = {Haskell '07}
 }
