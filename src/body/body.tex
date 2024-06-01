@@ -420,6 +420,58 @@ case class Zipped(func: Function, parsers: List[Parser]) extends Parser {
 
 \section{Function Representation}\label{sec:function-representation}
 By the end of \cref{sec:simplify-parsers}, one may notice that it would also be beneficial to simplify functions for the same reasons that parsers needed to be simplified.
+The transformations on parsers during left-recursion factoring also involve mapping over parsers with functions such as \scala{flip} to reverse the order of arguments, and \scala{compose} to compose functions.
+
+We want to convert functions to a semantically equivalent but visually simpler form.
+This is the idea of normalisation.
+It may be useful to view this as statically evaluating as much as possible -- however, not all inputs are known so we cannot fully evaluate the result value.
+Normalisation is therefore just evaluation, but in the presence of unknown terms.
+
+\subsection{Approach}
+Assume functions passed to parsers are pure.
+So it is reasonable to model functions as a lambda calculus, and this can also be achieved with an ADT.
+As an aside, this is fine -- Scala 3 has been formalised to the DOT calculus, and the subset that we are interested in is equivalent to the lambda calculus.
+In the simple lambda calculus all functions are curried i.e. each function only takes one argument, and multi-argument functions are represented as a chain of single-argument functions.
+In Scala, uncurried functions are preferred for performance reasons, but it allows currying as functions can have multiple parameter lists.
+We could desugar all this and curry the functions, but we want to be able to easily transform our output back into Scala code.
+So we extend the lambda calculus with n-ary abstraction and application.
+
+\subsubsection{Normalisation by Rewriting}
+Essentially term-rewriting, similar to how Parsers are simplified.
+Strong reduction -- allow beta reduction to occur deep inside lambda terms, in all redexes of a term, until no more reductions can be made.
+To beta normal form, not just beta-WHNF (weak head normal form) % TODO: does jamie's thesis have more elaboration on terminology
+% TODO: cite https://inria.hal.science/inria-00434283/document ? for NbE but also some of the terminology used
+
+Aside: Untyped lambda calculus is not strongly normalising, but these terms are converted from valid typed Scala programs.
+Although not formally proven, it is reasonable to assume that these terms are a subset of the simple lambda calculus that are strongly normalising -- they won't be particularly complex.
+
+\scala{Function} has one binding construct -- the n-ary abstraction. This introduces variables and the need for capture-avoiding substitution.
+Capture-avoiding substitution is hard, many approaches e.g. de Bruijn indices (but inefficient to open/close terms so much, so the correct choice is levels).
+Attempted a barendregt's but the optimised form (not freshening on every substitution) might be subtly incorrect, not sure tbh.
+
+\subsubsection{Normalisation by Evaluation}
+Alternative, newer approach that doesn't require any rewriting at all.
+Instead, evaluate 
+In NbE, a term is first evaluated in some 'semantic' model of language. The resulting value is reified back into a term. This gives a practical method for deciding definitional equality even in complicated dependent type theories, where rewriting becomes prohibitively complicated.
+
+\subsection{Converting Scalameta Terms to the Function \textsc{adt}}
+Eta-expansion.
+
+\subsection{Normalising Function Terms}
+\begin{figure}[htbp]
+\begin{equation*}
+% Created here (but modified slightly) https://tikzcd.yichuanshen.de/#N4Igdg9gJgpgziAXAbVABwnAlgFyxMJZARgBoAGAXVJADcBDAGwFcYkQAdDnGADx2AAJAPIBBAMoBfEJNLpMufIRQBmCtTpNW7Lj35CxUgHq6+AsADNps+djwEiZAEwaGLNok7czwAGLMwAGN7MGs5EAw7JSI1Fxo3bU9TfQAZegBbACMoejDbRQcUcnV4rQ8vPQFxGHT6MDxAuDyIhRCiYrjNdx1vfXEAT3r6XmsNGCgAc3giUAsAJwh0pGKQHAgkMi7EirMcARg3aRpGekyYRgAFVujPRhgLHBlw+cWNmjWkNS3y5L2BOZgWAs-SOIBOZ0u10KYPujxsIBeS0QTne60QKwSP16f2AAIsd2CoPB5yuUWhdweT1mCyRKNWaK+mJ6lT2wEgc1qjCwcBgkgABABePm-VkAoEg4UcQJYOaBSUs-aHSXS2Xy3b-e4EnD8kDHU4kqHKEBzLATAAWcOeNKQdI+iE2XLA5RycDN41133YyGQfIAtHzKJQZJRJEA
+\begin{tikzcd}[row sep=huge,column sep=large]
+  \text{Semantics} & \text{HOAS} \arrow[rr, "\texttt{eval}"]                                                                                                                                         &  & \text{HOAS}^\text{nf} \arrow[dd, "\texttt{reify}"] \\
+                   &                                                                                                                                                                                 &  &                                                    \\
+  \text{Syntax}    & \text{Function} \arrow[uu, "\texttt{reflect}"] \arrow[rr, "\substack{\texttt{normalise} \\ =\ \texttt{reify}\ \circ\ \texttt{eval}\ \circ\ \texttt{reflect}}"'] \arrow[rruu, "{\text{\textlbrackdbl} - \text{\textrbrackdbl}}", dashed] &  & \text{Lambda}                                     
+\end{tikzcd}
+\end{equation*}
+\caption{Normalisation by evaluation for the \scala{Function} datatype.}
+\end{figure}
+
+\subsection{Future Work?}
+Eta reduction -- this is more complicated than in Haskell since Scala has special syntax % https://docs.scala-lang.org/scala3/book/fun-eta-expansion.html
 
 \TODO{
 Abstraction built over scalafix/meta ASTs to represent functions.
@@ -454,5 +506,8 @@ Approaches - AVOIDING capture via substitution
   * HOAS
 * Normalisation by evaluation
 }
+
+\section{Limitations}
+Tried to make Parser and Function typed, but it didn't work out due to limitations in Scala's type inference with GADTs.
 
 \end{document}
