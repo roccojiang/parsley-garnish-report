@@ -8,19 +8,23 @@ Furthermore, \cref{sec:simplify-parsers} demonstrated that this representation a
 However, so far, the functions passed to lifting combinators have been treated in an opaque manner, and have not been subject to the same simplifications as parsers.
 This is unsatisfactory, as these functions are essential to combining and sequencing parsers to build more complex parsers.
 
-Additionally, the transformations on parsers during left-recursion factoring involve mapping over parsers with functions such as \scala{flip} to reverse the order of arguments, and \scala{compose} to compose functions.
+Additionally, the transformations on parsers during left-recursion factoring involve mapping over parsers with higher-order functions such as \scala{flip} to reverse the order of arguments, and \scala{compose} to compose functions.
 Looking back at the running example in the previous \namecref{sec:parser-representation}, the function passed to the \scala{map} combinator has ended up in an unnecessarily complex form:
 \begin{minted}{scala}
 val f: Function = FLIP(COMPOSE(a => b => a + b)(ID))
 \end{minted}
 It would be ideal to make functions inspectable in a similar manner to parsers, so that they can be \emph{normalised} into a semantically equivalent but visually simpler form.
 
+\subsection{Motivation}
+Where are functions used in parsley?
+Lowest-level: map and family
+
 \subsection{Approach}
 
 It may be useful to view this as statically evaluating as much as possible -- however, not all inputs are known so we cannot fully evaluate the result value.
 Normalisation is therefore just evaluation, but in the presence of unknown terms.
 
-Assume functions passed to parsers are pure.
+Assume functions passed to parsers are pure, because we assume sane users.
 So it is reasonable to model functions as a lambda calculus, and this can also be achieved with an ADT.
 As an aside, this is fine -- Scala 3 has been formalised to the DOT calculus, and the subset that we are interested in is equivalent to the lambda calculus.
 In the simple lambda calculus all functions are curried i.e. each function only takes one argument, and multi-argument functions are represented as a chain of single-argument functions.
@@ -42,12 +46,55 @@ Capture-avoiding substitution is hard, many approaches e.g. de Bruijn indices (b
 Attempted a barendregt's but the optimised form (not freshening on every substitution) might be subtly incorrect, not sure tbh.
 
 \subsubsection{Normalisation by Evaluation}
-Alternative, newer approach that doesn't require any rewriting at all.
-Instead, evaluate 
-In NbE, a term is first evaluated in some 'semantic' model of language. The resulting value is reified back into a term. This gives a practical method for deciding definitional equality even in complicated dependent type theories, where rewriting becomes prohibitively complicated.
+Unlike traditional normalisation techniques, bypasses rewriting entirely, instead appealing to their denotational semantics.
+Interpret the term into a denotational model which can then be evaluated, and reify the result back into a term.
+Use HOAS to leverage the meta-language (i.e. Scala) as our semantic model -- blazingly fast! (theoretically lol)
+No rewriting = no worrying about avoiding capture.
+Shift that burden onto the scala compiler.
 
 \subsection{Converting Scalameta Terms to the Function \textsc{adt}}
-Eta-expansion.
+Three cases:
+\begin{enumerate}
+    \item \scala{Term.Function} nodes, representing lambda expressions
+    \item \scala{Term.AnonymousFunction} nodes, representing lambda expressions using placeholder syntax
+    \item Any other term, which will be $eta$-expanded if possible
+\end{enumerate}
+
+\subsubsection{Lambda Expressions}
+Often found as relatively simple functions to glue together parsers, or transform the result of a parser:
+\begin{minted}{scala}
+val asciiCode: Parsley[Int] = item.map(char => char.toInt)
+\end{minted}
+
+Choose a particularly convoluted example:
+\begin{minted}{scala}
+a => (a, b) => a + b
+\end{minted}
+In this example, the \scala{a} in the function body refers to the \scala{a} in the second parameter list, as it shadows the \scala{a} in the first parameter list.
+
+Conversion ``flattens'' the lambda expression into a chain of n-ary abstractions, with the final term being the body of the lambda.
+Because we lose scoping information this way, perform $\alpha$-conversion on variables.
+The body becomes a \scala{Translucent} term.
+
+\begin{lstlisting}
+\(_l1). \(_l2, _l3). Translucent(%\textbf{\_l2 + \_l3}%, env = {%\textbf{\_l1}% -> _l1, %\textbf{\_l2}% -> _l2, %\textbf{\_l3}% -> _l3})
+\end{lstlisting}
+Values in bold are Scalameta tree nodes, so the body term's environment maps \scala{Term.Name} nodes to their corresponding variable terms.
+
+\subsubsection{Placeholder Syntax}
+Scala supports placeholder syntax for terseness, so the earlier parser can be rewritten as:
+\begin{minted}{scala}
+val asciiCode: Parsley[Int] = item.map(_.toInt)
+\end{minted}
+
+\subsubsection{Eta-Expansion}
+\begin{minted}{scala}
+case class AsciiCode(code: Int)
+object AsciiCode extends ParserBridge1[Char, AsciiCode] {
+  def apply(char: Char): AsciiCode = AsciiCode(char.toInt)
+}
+val asciiCode = AsciiCode(item) // desugars to item.map(AsciiCode.apply)
+\end{minted}
 
 \subsection{Normalising Function Terms}
 \begin{figure}[htbp]
@@ -61,6 +108,21 @@ Eta-expansion.
 \end{equation*}
 \caption{Normalisation by evaluation for the \scala{Function} datatype.}
 \end{figure}
+
+% TODO: replace VarName with Term.Name or String? Or could just leave as is
+\begin{minted}{scala}
+trait HOAS
+case class Abs(n: Int, f: List[HOAS] => HOAS) extends HOAS
+case class App(f: HOAS, xs: List[HOAS]) extends HOAS
+case class Var(name: VarName) extends HOAS
+case class Translucent(t: Term, env: Map[VarName, HOAS]) extends HOAS
+\end{minted}
+%
+Abs represents n-ary $\lambda$-abstraction; App is n-ary function application; Var represents opaque free variables.
+Translucent is treated as opaque during normalisation, but contains normalisable terms in an environment, where they are substituted back in after normalisation.
+
+\subsection{Converting Functions back to Scalameta Terms}
+Surprise bitches same shit again, quasiquotes ftw
 
 \subsection{Future Work?}
 Eta reduction -- this is more complicated than in Haskell since Scala has special syntax % https://docs.scala-lang.org/scala3/book/fun-eta-expansion.html
