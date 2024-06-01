@@ -16,9 +16,9 @@
   \setmainfont{Libertinus Serif}
   \setsansfont{Libertinus Sans}
   \setmathfont{Libertinus Math}[Scale=MatchUppercase]
-  \setmonofont{JetBrains Mono}[
+  \setmonofont{Fira Mono}[
     Scale=MatchLowercase,
-    Contextuals=Alternate  % Activate the calt feature
+    Numbers=Lining,
   ]
   \usepackage{lstfiracode}
 \else
@@ -43,7 +43,6 @@
 \usepackage[figurename=Fig., justification=centering]{caption}
 \usepackage{subcaption}
 \usepackage{enumitem}
-\usepackage{epigraph} % TODO: remove if not using any quotes
 \usepackage[nounderscore]{syntax}
 \usepackage{minted}
 \usepackage{listings}
@@ -58,8 +57,6 @@
 \usepackage{changepage}
 \usepackage{titlesec}
 
-\epigraphnoindent
-
 \lstloadlanguages{Haskell}
 \ifLuaTeX
   \lstset{
@@ -68,7 +65,7 @@
     flexiblecolumns=false,
     escapechar=\%, % char to escape out of listings and back to LaTeX
     style=FiraCodeStyle,
-    literate={\\}{{λ}}1
+    literate={\\}{{λ}}1 {->}{{$\rightarrow$}}2
   }
 \else
   \lstset{
@@ -76,11 +73,11 @@
     basicstyle=\ttfamily,
     flexiblecolumns=false,
     escapechar=\%, % char to escape out of listings and back to LaTeX
-    literate={\\}{{$\lambda$}}1
+    % literate={\\}{{$\lambda$}}1 % the lambda looks pretty bad so I've disabled this
   }
 \fi
 
-\newcommand{\proofstep}[1]{\( = \qquad \{$  \textrm{#1}  $\}\)}
+\newcommand{\proofstep}[1]{\( = \qquad \{ \enspace \textrm{#1} \enspace \}\)}
 
 \let\cite\parencite
 
