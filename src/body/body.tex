@@ -7,10 +7,6 @@
   * Top-down parsers -- intro to left-recursion and the types of left recursion in PEG grammars
 }
 
-\TODO{
-Not sure how to order things: lint rules first, or implementation?
-}
-
 \chapter{Lint Rules in \texttt{parsley-garnish}}
 
 \TODO{Catalogue of lint rules implemented.}
@@ -44,8 +40,6 @@ The other complex rule(s) will likely share implementation details with the Pars
 }
 
 \section{Ambiguous Implicit Conversions}
-\epigraph{Heroin is just one letter away from heroine, and implicit conversions are the heroine we don't deserve.}{Jamie Willis, 2024}
-
 \subsection*{Problem}
 
 Implicit conversions are a powerful feature in Scala, allowing users to supply an argument of one type when another is expected, to reduce boilerplate.
@@ -131,7 +125,7 @@ object lexer {
 
 \begin{figure}[htbp]
 % TODO: maybe work out a nicer-looking frame for all these minted and fancyvrb environments
-\begin{Verbatim}[frame=single]
+\begin{minted}[frame=single,fontsize=\small]{text}
 warning: [AmbiguousImplicitConversions] This import may cause clashing implicit conversions:
 * import parsley.syntax.character.stringLift at line 2
 * import lexer.implicits._ at line 3
@@ -140,7 +134,7 @@ To fix this, ensure that you only import a single implicit conversion.
 
   import lexer.implicits._
   ^^^^^^^^^^^^^^^^^^^^^^^^  
-\end{Verbatim}
+\end{minted}
 \caption{The warning message produced by the \texttt{AmbiguousImplicitConversions} lint rule.}
 \label{fig:ambiguous-implicits-warning}
 \end{figure}
@@ -171,31 +165,262 @@ Additionally, Scala processes import statements in a top-down order within the f
 * indicate limitations that this will only work if the ADT is defined in the same file, in order to extend it
 }
 
-\section{Left Recursion Removal}
+\section{Left Recursion Factoring}\label{sec:factor-leftrec}
 
 \chapter{Implementation}
+\section{Parser Representation}\label{sec:parser-representation}
+% TODO: come back to this after the section body is finished
+Several of the more complex lint rules, most notably \cref{sec:factor-leftrec}, require manipulating parser combinators in a high-level manner.
+Scalafix works with code represented as data, in the form of a \textsc{ast}-like representation i.e. Scalameta \scala{Tree} nodes.
+It would be possible, but extremely cumbersome, to work directly with these \textsc{ast} nodes.
 
-\TODO{
-Non-terminal detection. This may get reworked/renamed since it's pretty specialised for leftrec rn, and in reality it's just trying to grab all the parsers. % <- where does this go?
+Left-recursion factoring is based on lawful transformations and rearrangements of parsers.
+There are many instances where given two parsers \scala{p} and \scala{q}, the transformation requires combining them with another combinator, such as \scala{<*>}.
+We can use quasiquotes \scala{q"p <*> q"} which expands to a \scala{Term} node resembling \scala{ApplyInfix(lhs = p, op = Term("<*>"), args = q)} (in pseudocode for readability purposes).
+This is ok in terms of ergonomics, but we lose the static inspectability of the individual parsers \scala{p} and \scala{q}.
 
-Other util things?
-ACTUALLY NEED TO DO: import combinators if they aren't already imported
+Instead, represent parsers as an algebraic data type \textsc{adt} in the same way that Parsley itself uses a deep embedding to represent combinators as objects.
+Methods on these objects can then be used to manipulate them, and the resulting object can still be pattern matched, maintaining the static inspectability of the parsers.
+So then it's just like writing parsers in Parsley itself: \scala{p <*> q} constructs a \scala{Ap(p, q)} node which can still be pattern matched on.
+And similar to Parsley, representing everything as objects makes it easy to optimise using pattern matching on constructors.
+This representation also then gives us for free the implementation for lint rules such as \emph{Simplify Complex Parsers} rule, which applies parser laws to simplify parsers.
+
+This \namecref{sec:parser-representation} explores the motivation behind this and the design choices made in the implementation.
+Use the \cref{sec:factor-leftrec} rule as a basis/context to demonstrate the utility of this representation.
+
+Running example to motivate all requirements for the parser representation -- removing left recursion from the following simple parser:
+\begin{minted}{scala}
+lazy val expr: Parsley[String] = (expr, string("a")).zipped(_ + _) | string("b")
+\end{minted}
+
+\subsection{Detecting Top-Level Parsers}
+Each source file is represented by Scalafix as a large \textsc{ast}.
+\texttt{parsley-garnish} would benefit from a higher-level abstraction.
+A more useful representation for \texttt{parsley-garnish} is a map of all parsers defined within that file, indexed by the symbol of the definition.
+
+To achieve this, it is necessary to identify the \textsc{ast} nodes of interest corresponding to Parsley parsers.
+This involves pattern matching on \scala{val}, \scala{var}, and \scala{def} definitions with a type inferred to be of form \scala{Parsley[_]}.
+Consider \scala{expr}, which is a top-level definition of a parser:
+\begin{minted}{scala}
+lazy val expr: Parsley[String] = (expr, string("a")).zipped(_ + _) | string("b")
+//       ^^^^^^^^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//         key: expr.symbol          RHS of definition: convert to a Parser
+\end{minted}
+The right hand side of the definition is a Scalameta \scala{Term} node representing the definition of the parser.
+During traversal, the right hand side of the definition is converted to a \scala{Parser} instance.
+This is then accumulated in a map, with the symbol of the definition as the key.
+A full traversal through a source file obtains all the non-terminals in the grammar defined within that file.
+
+\subsection{Converting Scalameta Terms to the Parser \textsc{adt}}
+Having identified the \textsc{ast} nodes which represent parsers, they need to be transformed into the appropriate \scala{Parser} representation.
+This involves pattern matching on the \scala{Term} to determine which parser combinator it represents, and then constructing the appropriate \scala{Parser} instance.
+
+Each Parser defines a partial function \scala{fromTerm} which creates an instance of that parser from the appropriate Scalameta \scala{Term}.
+These \scala{fromTerm} methods define a \scala{toParser} extension method on Scalameta \scala{Term}s to transform them to the appropriate parser.
+Use Scalafix's \scala{SymbolMatcher} to match tree nodes that resolve to a specific set of symbols.
+This makes use of semantic information from SemanticDB, so we are sure that a \scala{<*>} is actually within the \scala{parsley.Parsley} package, rather than some other function with the same name.
+This is much more robust compared to HLint, which suffers from false positives due to its reliance on syntactic information only.
+
+The top-level combinator that makes up \scala{expr}'s definition is the choice combinator, \scala{|}.
+Taking a look at the Scalameta \scala{Term} representing this definition \scala{(expr, string("a")).zipped(_ + _) | string("b")}
+(this is cleaned up to hide the large term representing the LHS of the choice):
+\begin{minted}{scala}
+Term.ApplyInfix(
+  Term.Apply(...), // (expr, string("a")).zipped(_ + _)
+  Term.Name("|"),
+  Type.ArgClause(List()),
+  Term.ArgClause(
+    List(
+      Term.Apply(
+        Term.Name("string"),
+        Term.ArgClause(List(Lit.String("b")), None)
+      )
+    ),
+    None
+  )
+)
+\end{minted}
+%
+The goal is to pattern match on this term to construct a \scala{Choice} node, which represents the choice combinator.
+Thus, \scala{Choice.fromTerm} should be defined to match on an infix application on a \scala{|} (or \scala{<|>}) combinator:
+\begin{minted}{scala}
+object Choice {
+  val matcher = SymbolMatcher.normalized("parsley.Parsley.`|`", "parsley.Parsley.`<|>`")
+
+  def fromTerm(implicit doc: SemanticDocument): PartialFunction[Term, Choice] = {
+    case Term.ApplyInfix(p, matcher(_), _, Term.ArgClause(List(q), _)) =>
+      Choice(p.toParser, q.toParser)
+  }
 }
+\end{minted}
+If it finds such a term, it constructs a \scala{Choice} node, and recurses on \scala{p} and \scala{q} to also convert them to parser nodes.
+After all sub-terms also get converted, the \scala{expr} parser is represented as:
+\begin{minted}{scala}
+Choice(
+  Zipped(Function(_ + _), List(NonTerminal(expr), Str(a))),
+  Str(b)
+)
+\end{minted}
+For now we are only concerned with the parser representation; we will touch upon how \scala{Function}s are represented in the next \namecref{sec:function-representation}.
 
-\section{Parser Representation}
+\subsection{Building New Parsers From Existing Parsers}
+Now that we have parsers represented as an \textsc{adt}, we can easily build new parsers from existing parsers.
+This is crucial for the left-recursion factoring rule, which ``unfolds'' parsers into separate parsers representing the left-recursive and non-left-recursive parts.
+These are then recombined to form parsers which are free from left recursion.
 
-\TODO{
-% Garnishing Parsec with Parsley 2018: Parsley is a deep embedding: the language is represented by objects and behaviours are realised as methods on an abstract trait. In Parsley’s case, the deep embedding provides methods for code generation and optimisation and classes for each core combinator. The advantage of a deep embedding over a shallow embedding is that it significantly easier to optimise using pattern matching on constructors instead of bytecode.
-Representation of Parsley combinators in \texttt{parsley-garnish}. Compare with approach in Scala Parsley, take cues from the 2018 paper.
-* Approach to composites? Need to think about this.
-  * For LeftRec: Parse ASTs into a small group of core combinators, but we also need to represent composite combinators as their own case classes -- recombine/"simplify" after analysis is concluded, it doesn't really matter if we completely change what combinators are used as long as semantic meaning is preserved.
-  * For others: probably need to parse directly into composite combinators, since we don't want to destructively modify what combinators have been used.
-* Optimisations: for us, the goal is human readability, so this is interesting to compare to the paper. Lots of similar stuff actually, like top-down peephole optimisations utilising parser laws (I think I do it this way? Need to double check).
-  * For cleanliness to isolate boilerplate: https://blog.sumtypeofway.com/posts/introduction-to-recursion-schemes.html -- we don't have a generic traversal, but we can decouple the recursive application of a given partial function from the actual pf itself (I've called it .transform for the Parser class)
-    % https://ndmitchell.com/downloads/paper-uniform_boilerplate_and_list_processing-30_sep_2007.pdf covers the important stuff wrt: bottom-up traversal, rewrite to normal form - since our rules have RHS that appear on LHS
+Make this even easier by utilising Scala's ability to define infix operators, define them as extension methods on the \scala{Parser} trait.
+For example:
+\begin{minted}{scala}
+implicit class ParserOps(private val p: Parser) extends AnyVal {
+  def <*>(q: Parser): Parser = Ap(p, q)
+  def <|>(q: Parser): Parser = Choice(p, q)
+  def map(f: Function): Parser = FMap(p, f)
 }
+\end{minted}
+%
+This makes it more ergonomic to manipulate parsers, it's like we're writing Parsley code itself.
+A small example snippet from the \scala{unfold} method on the \scala{Ap} parser:
+\begin{minted}{scala}
+val lefts = {
+  val llr = pl.map(flip) <*> q
+  val rlr = pe.map(f => ql.map(composeH(f))).getOrElse(Empty)
+  llr <|> rlr
+}
+\end{minted}
+Notice how the code closely resembles the high-level description of the transformation, using \scala{<*>}, \scala{<|>}, \scala{map}, operators.
 
-\section{Function Representation}
+\subsection{Simplifying Parsers Using Parser Laws}\label{sec:simplify-parsers}
+Once all the unfolded parsers have been recombined, the raw output is very noisy and difficult to read.
+Again, ignore the functions, these will be covered in \cref{sec:function-representation}.
+\begin{minted}{scala}
+lazy val expr: Parsley[String] = chain.postfix(
+  empty | (empty.map(a => b => a + b) | empty <*> expr) <*> string("a")
+    | string("b") | empty
+)(
+  (empty.map(FLIP) <*> expr | pure(ID).map(COMPOSE(a => b => a + b)))
+    .map(FLIP) <*> string("a")
+    | empty | empty
+)
+\end{minted}
+%
+This is obviously unacceptable and completely obfuscates the intent of the parser.
+For human readability of the transformed output, it is therefore important to simplify the parser as much as possible.
+Now that the parsers are represented as objects, it is easy to pattern match on their constructors.
+This improved static inspectability allows us to perform simplifications using the laws that govern parser combinators -- these often form a natural simplification in one direction.
+This is similar to the high-level optimisations performed in the Parsley backend as described by~\textcite{willis_staged_2023}, using the same parser laws.
+\Cref{fig:parser-laws} shows the subset of parser laws utilised by \texttt{parsley-garnish} for parser simplification.
+
+\begin{figure}[htbp]
+\centering
+\begin{gather}
+  % Functor
+  \text{\scala{p.map(f).map(g) = p.map(g compose f)}} \label{eqn:functor-comp} \\
+  % Applicative functor
+  \text{\scala{pure(f) <*> pure(x) = pure(f(x))}} \label{eqn:app-homomorphism} \\
+  \text{\scala{pure(f) <*> x = x.map(f)}} \label{eqn:app-fmap} \\
+  % Alternative applicative functor
+  \text{\scala{empty | u = u}} \label{eqn:alt-left-neutral} \\
+  \text{\scala{u | empty = u}} \label{eqn:alt-right-neutral} \\
+  \text{\scala{pure(x) | u = pure(x)}} \label{eqn:alt-left-biased-choice} \\
+  \text{\scala{empty <*> u = empty}} \label{eqn:alt-empty-absorb} \\
+  \text{\scala{empty.map(f) = empty}} \label{eqn:alt-fmap-absorb}
+\end{gather}
+% I've wanted more fine-grained control, so instead of using cleveref I've manually written out the references -- TAKE CARE to keep them in the same order as the equations
+% \caption{Functor~\cref{eqn:functor-comp}, Applicative~\cref{eqn:app-homomorphism,eqn:app-fmap}, and Alternative~\cref{eqn:alt-left-neutral,eqn:alt-right-neutral,eqn:alt-left-biased-choice,eqn:alt-empty-absorb,eqn:alt-fmap-absorb} laws.}
+\caption{Functor~(\ref{eqn:functor-comp}), Applicative~(\ref{eqn:app-homomorphism}, \ref{eqn:app-fmap}), and Alternative~(\ref{eqn:alt-left-neutral}--\ref{eqn:alt-fmap-absorb}) laws.}
+\label{fig:parser-laws}
+\end{figure}
+
+Most of the laws in \cref{fig:parser-laws} have already been shown to hold for Parsley in~\cite{willis_garnishing_2018}.
+An additional proof for \cref{eqn:alt-fmap-absorb} can be found in \cref{appendix:parser-law-proofs}.
+
+In the previous example, it is evident that the most noise results from the \scala{empty} combinators.
+These can be eliminated using \cref{eqn:alt-left-neutral,eqn:alt-right-neutral,eqn:alt-empty-absorb,eqn:alt-fmap-absorb}:
+\begin{minted}{scala}
+lazy val expr: Parsley[String] = chain.postfix(string("b"))(
+  (pure(ID).map(COMPOSE(a => b => a + b))).map(FLIP) <*> string("a")
+)
+\end{minted}
+%
+The complicated term in the postfix operator can then be simplified as follows:
+\begin{minted}[baselinestretch=1.5,escapeinside=\%\%]{scala}
+    (pure(ID).map(COMPOSE(a => b => a + b))).map(FLIP) <*> string("a")
+% \proofstep{\cref{eqn:app-homomorphism,eqn:app-fmap}} %
+    pure(COMPOSE(a => b => a + b)(ID)).map(FLIP) <*> string("a")
+% \proofstep{\cref{eqn:app-homomorphism,eqn:app-fmap}} %
+    pure(FLIP(COMPOSE(a => b => a + b)(ID))) <*> string("a")
+% \proofstep{\cref{eqn:app-fmap}} %
+    string("a").map(FLIP(COMPOSE(a => b => a + b)(ID)))
+\end{minted}
+%
+This results in the most simplified form of the parser:
+\begin{minted}{scala}
+val f: Function = FLIP(COMPOSE(a => b => a + b)(ID))
+lazy val expr: Parsley[String] = chain.postfix(string("b"))(string("a").map(f))
+\end{minted}
+
+\subsubsection{Implementation}
+These simplifications are applied akin to peephole optimisations in a bottom-up traversal of the recursive \scala{Parser} \textsc{adt}.
+There are many instances of Parsers, so this leads to a lot of boilerplate code recursing through each case, which is prone to error when we implement it.
+To avoid this, we decouple the application of a generic transformation function from the recursive traversal through the datatype.
+This is still a hand-written traversal, but heavily inspired by the generic traversal patterns in \cite{mitchell_uniform_2007}.
+Bottom-up transformation takes a partial function, applying the transformation at nodes where it is defined.
+The resulting \scala{transform} method on parsers resembles the following (only a few cases shown for brevity):
+\begin{minted}{scala}
+def transform(pf: PartialFunction[Parser, Parser]): Parser = {
+  val p = this match {
+    case Ap(p, q)      => Ap(p.transform(pf), q.transform(pf))
+    case Zipped(f, ps) => Zipped(f, ps.map(_.transform(pf)))
+    case Pure(f)       => Pure(f)
+    ...
+  }
+  if (pf.isDefinedAt(p)) pf(p) else p
+}
+\end{minted}
+%
+There is also a need for a \scala{rewrite} method to apply a transformation exhaustively until a normal form is reached.
+This is implemented in terms of \scala{transform}, applying the partial function everywhere and re-applying it until it no longer makes a change.
+\begin{minted}{scala}
+def rewrite(pf: PartialFunction[Parser, Parser]): Parser = {
+  def pf0(p: Parser) = if (pf.isDefinedAt(p)) pf(p).rewrite(pf) else p
+  this.transform(pf0)
+}
+\end{minted}
+%
+Therefore, any transformation on parsers can be defined without having to worry about any recursive traversal boilerplate.
+Using \scala{rewrite}, parser simplification can then be expressed in a clean and maintainable manner:
+\begin{minted}{scala}
+def simplify: Parser = this.rewrite {
+  // p.map(f).map(g) == p.map(g compose f)
+  case FMap(FMap(p, f), g) => FMap(p, composeH(g, f))
+  // u <|> empty == u
+  case Choice(u, Empty) => u
+  // pure(f) <|> u == pure(f)
+  case Choice(Pure(f), _) => Pure(f)
+  ...
+}
+\end{minted}
+%
+Additionally, the \scala{Parser} trait is sealed, so there will be compiler warnings if a new case is added and the \scala{transform} method is not updated.
+Overall, this approach still requires a hand-written traversal so it is more error-prone than a generic derivation.
+However, that would require usage of an external library such as \texttt{shapeless}\footnote{\url{https://github.com/milessabin/shapeless}},
+which is not desired as the complexity of the \textsc{adt} is not high enough to warrant bringing in an extra dependency just for this purpose.
+
+\subsection{Converting Parsers Back to Scalameta Terms}
+After the transformations on parsers are complete, they need to be converted back to a textual representation to be applied as a Scalafix patch.
+It is actually rather trivial to do so, by borrowing the pretty-printing capabilities of Scalameta terms.
+This transformation is thus the inverse of the \scala{fromTerm} transformation.
+This can be written using Scalameta quasiquotes to construct the \scala{Term} nodes.
+The \scala{Parser} trait defines this transformation as the method \scala{term}, for example:
+\begin{minted}{scala}
+case class Zipped(func: Function, parsers: List[Parser]) extends Parser {
+  val term: Term = q"(..${parsers.map(_.term)}).zipped(${func.term})"
+}
+\end{minted}
+
+\section{Function Representation}\label{sec:function-representation}
+By the end of \cref{sec:simplify-parsers}, one may notice that it would also be beneficial to simplify functions for the same reasons that parsers needed to be simplified.
+
 \TODO{
 Abstraction built over scalafix/meta ASTs to represent functions.
 Allows us to statically evaluate function composition/flipping etc, so it doesn't turn into one big mess -- again, human readability of the transformed output is the goal.
