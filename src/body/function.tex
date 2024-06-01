@@ -32,6 +32,20 @@ In Scala, uncurried functions are preferred for performance reasons, but it allo
 We could desugar all this and curry the functions, but we want to be able to easily transform our output back into Scala code.
 So we extend the lambda calculus with n-ary abstraction and application.
 
+\begin{minted}{scala}
+trait Function
+
+trait Lambda extends Function
+case class Abs(xs: List[Var], f: Function) extends Lambda
+case class App(f: Function, xs: List[Function]) extends Lambda
+case class Var(name: VarName) extends Lambda
+case class Translucent(t: Term, env: Map[VarName, Function]) extends Lambda
+
+case object Identity extends Function
+case object Flip extends Function
+case object Compose extends Function
+\end{minted}
+
 \subsubsection{Normalisation by Rewriting}
 Essentially term-rewriting, similar to how Parsers are simplified.
 Strong reduction -- allow beta reduction to occur deep inside lambda terms, in all redexes of a term, until no more reductions can be made.
@@ -112,14 +126,77 @@ val asciiCode = AsciiCode(item) // desugars to item.map(AsciiCode.apply)
 % TODO: replace VarName with Term.Name or String? Or could just leave as is
 \begin{minted}{scala}
 trait HOAS
-case class Abs(n: Int, f: List[HOAS] => HOAS) extends HOAS
-case class App(f: HOAS, xs: List[HOAS]) extends HOAS
-case class Var(name: VarName) extends HOAS
-case class Translucent(t: Term, env: Map[VarName, HOAS]) extends HOAS
+case class HAbs(n: Int, f: List[HOAS] => HOAS) extends HOAS
+case class HApp(f: HOAS, xs: List[HOAS]) extends HOAS
+case class HVar(name: VarName) extends HOAS
+case class HTranslucent(t: Term, env: Map[VarName, HOAS]) extends HOAS
 \end{minted}
 %
 Abs represents n-ary $\lambda$-abstraction; App is n-ary function application; Var represents opaque free variables.
 Translucent is treated as opaque during normalisation, but contains normalisable terms in an environment, where they are substituted back in after normalisation.
+
+\subsubsection{Reflection}
+
+\begin{minted}{scala}
+trait Function {
+  def reflect: HOAS = {
+    def reflect0(func: Function, boundVars: Map[Var, HOAS]): HOAS = func match {
+      case Abs(xs, f) =>
+        HAbs(xs.size, vs => reflect0(f, boundVars ++ xs.zip(vs)))
+      case App(f, xs) =>
+        HApp(reflect0(f, boundVars), xs.map(reflect0(_, boundVars)))
+      case v @ Var(name) =>
+        boundVars.getOrElse(v, HVar(name))
+      case Translucent(term, env) =>
+        HTranslucent(term, env.map { case (v, func) => v -> reflect0(func, boundVars) })
+
+      case Id => HAbs(f => f)
+      case Flip => HAbs(f => HAbs(x => HAbs(y => HApp(HApp(f, y), x))))
+      case Compose => HAbs(f => HAbs(g => HAbs(x => HApp(f, HApp(g, x)))))
+    }
+
+    reflect0(this, Map.empty)
+  }
+}
+\end{minted}
+
+\subsubsection{Evaluation}
+\begin{minted}{scala}
+trait HOAS {
+  def eval: HOAS = this match {
+    case HAbs(n, f) => HAbs(n, x => f(x).eval)
+    case HApp(f, x) => f.whnf match {
+      case HAbs(_, g) => g(x).eval
+      case g          => HApp(g.eval, x.map(_.eval))
+    }
+    case HTranslucent(t, env) => HTranslucent(t, env.map { case (k, v) => k -> v.eval })
+    case _ => this
+  }
+
+  private def whnf: HOAS = this match {
+    case HApp(f, x) => f.whnf match {
+      case HAbs(_, g) => g(x).whnf
+      case g          => HApp(g, x)
+    }
+    case HTranslucent(t, env) => HTranslucent(t, env.map { case (k, v) => k -> v.whnf })
+    case _ => this
+  }
+}
+\end{minted}
+
+\subsubsection{Reification}
+\begin{minted}{scala}
+trait HOAS {  
+  def reify: Function = this match {
+    case HAbs(n, f) =>
+      val params = (1 to n).map(_ => Var.fresh()).toList
+      Abs(params, f(params.map(x => HVar(x.name))).reify)
+    case HApp(f, xs) => App(f.reify, xs.map(_.reify))
+    case HVar(name) => Var(name)
+    case HTranslucent(t, env) => Translucent(t, env.map { case (v, f) => v -> f.reify })
+  }
+}
+\end{minted}
 
 \subsection{Converting Functions back to Scalameta Terms}
 Surprise bitches same shit again, quasiquotes ftw
