@@ -6,6 +6,8 @@ all: main.pdf \
 		 src/introduction/introduction.pdf \
 		 src/background/background.pdf \
 		 src/body/body.pdf \
+		 src/body/parser.pdf \
+		 src/body/function.pdf \
 		 src/project/project.pdf \
 		 src/evaluation/evaluation.pdf \
 		 src/appendix/appendix.pdf
@@ -19,12 +21,14 @@ clean:
 	@echo "Cleaning up auxiliary files..."
 	@find . -name '*.tex' -exec sh -c 'cd $$(dirname {}) && latexmk -c $$(basename {})' \;
 	@find . -type f -name '*.bbl' -exec rm {} +
+	@find . -type f -name '*.bbl-SAVE-ERROR' -exec rm {} +
 	@find . -type d -name '_minted-*' -exec rm -rf {} +
 
 distclean:
 	@echo "Cleaning up all files including PDF outputs..."
 	@find . -name '*.tex' -exec sh -c 'cd $$(dirname {}) && latexmk -C $$(basename {})' \;
 	@find . -type f -name '*.bbl' -exec rm {} +
+	@find . -type f -name '*.bbl-SAVE-ERROR' -exec rm {} +
 	@find . -type d -name '_minted-*' -exec rm -rf {} +
 
 .PHONY: all main clean distclean
