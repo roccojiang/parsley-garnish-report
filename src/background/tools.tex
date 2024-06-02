@@ -183,9 +183,12 @@ These transformations may be implemented as simple text-based replacements or mo
 
 These tools can perform a variety of tasks, ranging from detecting possible bugs \cite{johnson_lint_1978,hovemeyer_finding-bugs_2004} to formal software verification of program properties \cite{blanchet_static-analyzer_2003}.
 
-\section{Static Analysis for Scala}
+\section{Implementing Linters for Scala}
 
-\TODO{DSL linting is hard but luckily Parsley is an eDSL so we can just use Scala metaprogramming utilities}
+\TODO{
+  Metaprogramming. Linters are metaprograms that inspect and manipulate Scala source code.
+  DSL linting is hard but luckily Parsley is an eDSL so we can just use Scala metaprogramming utilities
+}
 
 \subsection{Choice of Tooling}
 The goal of \texttt{parsley-garnish} is to provide linting and refactoring capabilities for the \texttt{parsley} parser combinator library.
@@ -209,11 +212,11 @@ For these reasons, it would be preferable to explore other tools that may use co
 
 \paragraph{Scalameta}
 \textit{Scalameta}\footnote{\url{https://scalameta.org/}} is a metaprogramming framework for Scala that provides a unified interface for performing common metaprogramming tasks.
+Many Scala tools are built with Scalameta, most notably the \emph{Metals}\footnote{\url{https://scalameta.org/metals/}} \textsc{lsp} server for Scala.
 It provides a high-level syntactic \textsc{api} for transforming and pretty-printing Scala source code, as well as a semantic \textsc{api} providing access to semantic information such as type inference and name resolution.
-\TODO{make this clearer about the unification of runtime and compile-time metaprogramming? scalameta does more than scala-reflect}
-Scalameta is the successor of the earlier \texttt{scala.reflect} metaprogramming framework, which parsed source code into lossy trees that discarded syntactic information such as comments and whitespace \cite{burmako_scalameta_2017}.
-\TODO{this is called hygiene right?}
-On the other hand, Scalameta trees are lossless and preserve all syntactic details, a key feature that allows code transformations and refactorings to preserve formatting details.
+Scalameta builds upon the earlier \texttt{scala.reflect} metaprogramming framework, unifying runtime and compile-time metaprogramming under a single \textsc{api}.
+Previously under \texttt{scala.reflect}, source code was parsed into lossy trees that discarded syntactic \emph{trivia} such as comments and whitespace~\cite{burmako_scalameta_2017}.
+On the other hand, Scalameta trees are fully lossless and preserve all syntactic details: a crucial feature for code transformations and refactorings that must preserve formatting details.
 
 Scalameta's semantic \textsc{api} is powered by \textit{SemanticDB}, a compiler-agnostic data model for semantic information in Scala programs.
 This allows Scalameta to extract semantic information via compiler plugins that emit data in the SemanticDB format.
@@ -222,30 +225,33 @@ Thus, Scalameta can work with any compiler that supports SemanticDB, rather than
 Since Scalameta provides a high-level interface for manipulating syntactic and semantic information, it is a promising choice for this project.
 Being able to access semantic information is especially helpful for implementing more complex code analyses.
 However, Scalameta's primary focus is on providing a general metaprogramming framework and therefore lacks \textsc{api} support specifically for implementing linting and refactoring rules.
-For example, the Scalameta tree transformation utilities do not preserve formatting details when pretty-printed, despite the underlying trees containing this information.
+For example, the Scalameta tree transformation utilities do not fully preserve formatting details when pretty-printed, despite the underlying trees containing this information.
 
 \paragraph{Scalafix}
-% Scalafix is fundamentally a general-purpose code linter and code rewriter
-\textit{Scalafix}\footnote{\url{https://scalacenter.github.io/scalafix/}} is a refactoring and linting tool built on top of Scalameta.
-It specifically provides an \textsc{api} for implementing fine-grained code transformations that preserve comments and formatting details.
-Scalafix provides a framework for implementing linting rules to emit warnings, as well as rewrite rules to perform automated code transformations \cite{geirsson_catch_2017}.
+\textit{Scalafix}\footnote{\url{https://scalacenter.github.io/scalafix/}} is a code linting and rewriting tool built on top of Scalameta.
+It provides a higher-level \textsc{api} over Scalameta's tree transformation capabilities, specifically designed for implementing fine-grained code transformations that preserve the original formatting of the source file.
+Scalafix provides a framework for implementing linting rules to emit diagnostic warnings, as well as rewrite rules to perform automated code transformations~\cite{geirsson_catch_2017}.
 Since it is built on Scalameta, a major advantage of Scalafix is that it is also compiler-agnostic and could be integrated into any \textsc{ide} if a plugin is developed for it.
 
-Originally, Scalafix was designed to help automate the process of migrating code from Scala 2 to 3, which involved many breaking changes to the language \cite{geirsson_scalafix_2016}.
-However, Scalafix has since evolved into a general-purpose tool for implementing code transformations and analyses, utilising the powerful syntactic and semantic \textsc{api}s provided by Scalameta.
-Scalafix rules can be either syntactic or semantic, depending on whether they require semantic information to perform their analysis.
-Syntactic rules are faster to run, since they operate purely on the \textsc{ast} without requiring compilation to extract semantic information, but are more limited in the accuracy of analyses they can perform.
+Originally, Scalafix was designed to help automate the process of migrating code from Scala 2 to 3, which involved many breaking changes to the language~\cite{geirsson_scalafix_2016}.
+However, Scalafix has since evolved into a general-purpose tool for implementing generic code transformations and analyses.
+Scalafix rules can be either \emph{syntactic} or \emph{semantic} depending on whether they require semantic information to perform their analysis~\cite{scalacenter_scalafix_2024}.
+Syntactic rules are faster to run, operating purely on the \textsc{ast} without requiring compilation to extract semantic information, but are more limited in the analyses they can perform.
+Semantic rules are more complicated to run as they require compilation with the SemanticDB compiler plugin, but they enable more powerful analyses that require access to compiler information such as type signatures.
 
-Scalafix is growing to become the de-facto modern successor to earlier refactoring tools such as Abide\footnote{\url{https://contributors.scala-lang.org/t/whats-the-status-of-abide/}} and \texttt{scala-refactoring}\footnote{\url{https://github.com/scala-ide/scala-refactoring}}.
-\texttt{scala-refactoring} used \texttt{scala.reflect} to implement code transformations, with much extra work utilising the Scala Presentation Compiler \textsc{ast} to preserve formatting details lost by \texttt{scala.reflect}.
-As a result, maintaining the library became difficult and the project was abandoned in favour of a clean implementation using Scalameta, which was designed in part to address the shortcomings of \texttt{scala.reflect}.
+% Scalafix is growing to become the de-facto modern successor to earlier refactoring tools such as Abide\footnote{\url{https://contributors.scala-lang.org/t/whats-the-status-of-abide/}} and \texttt{scala-refactoring}\footnote{\url{https://github.com/scala-ide/scala-refactoring}}.
+% \texttt{scala-refactoring} used \texttt{scala.reflect} to implement code transformations, with much extra work utilising the Scala Presentation Compiler \textsc{ast} to preserve formatting details lost by \texttt{scala.reflect}.
+% As a result, maintaining the library became difficult and the project was abandoned in favour of a clean implementation using Scalameta, which was designed in part to address the shortcomings of \texttt{scala.reflect}.
 
-A drawback of Scalafix is that it is primarily a command-line tool, and therefore by default does not provide a user-friendly interface for interactive usage. % TODO: expand this: cite jaglin's talk, especially since metals backend also uses semanticdb
-However, this can rectified in the future by integrating Scalafix into the Metals \textsc{lsp} server for Scala, which would allow it to be integrated into any \textsc{ide} that supports the LSP.
+A drawback of Scalafix is that it is primarily a command-line tool, and currently does not provide an interactive interface within any code editor.
+Ideally, users should be able to see inline diagnostics, as well as preview and select auto-fixes interactively.
+A Metals integration would be the most favourable outcome, as they already share a Scalameta backend, and it would allow Scalafix to be integrated into any code editor supporting the \textsc{lsp} protocol.
+However, at the time of writing, Scalafix only has basic integrations with Metals to run rules, but no interactive in-editor integrations~\cite{jaglin_scalafix_2024}.
+This feature request is an open issue on GitHub\footnote{\url{https://github.com/scalameta/metals-feature-requests/issues/230}}, but no timeline has been provided for its implementation.
 
-Overall, Scalafix emerges as the most favorable choice for implementing \texttt{parsley-garnish}.
+Nonetheless, Scalafix emerges as the most favourable choice for implementing \texttt{parsley-garnish}.
 It provides high-level \textsc{api}s specifically for implementing linting and rewrite rules without necessitating extensive knowledge of compiler internals.
-Scalafix is also being actively developed and maintained, with good basic documentation and a growing number of examples of usage in the wild.
+Scalafix is also being actively maintained, with good basic documentation and a growing number of examples of usage in the wild.
 
 \paragraph{Other tools considered}
 The main alternate contender to Scalafix is the IntelliJ Scala Plugin\footnote{\url{https://github.com/JetBrains/intellij-scala}}.
@@ -259,34 +265,55 @@ However, it only can emit warnings or errors and does not support auto-fixes, ma
 ScalaStyle\footnote{\url{http://www.scalastyle.org/}} is primarily a style checker which also supports custom rules.
 However, it is only able to perform syntactic analyses and does not have access to semantic information, restricting the types of analyses it can perform.
 
-% TODO: maybe a section introducing ScalaFix and how it works? or is that too much detail?
 % TODO: maybe a figure to show an example of a ScalaFix rewrite rule?
 
 % TODO: comparison with clippy (https://doc.rust-lang.org/clippy/development/lint_passes.html) and/or roslyn (https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/; https://learning.oreilly.com/library/view/roslyn-cookbook/9781787286832/)
 
-\subsection{Scalafix}
-Two categories of scalafix rules: syntactic and semantic.~\cite{scalacenter_scalafix_2024}
-Syntactic rules don't require compilation, so they are easier to run. However this also means they can only do limited code analysis, as they don't have access to compiler information such as symbols and types.
-Semantic rules, on the other hand, require compilation and are therefore slower and more complicated to run. However, they are able to perform more advanced code analysis since they have access to the compiler information that syntactic rules lack access to.
+\subsection{Guide to Scalafix}\label{sec:scalafix}
+This \namecref{sec:scalafix} briefly explains how Scalafix rules are implemented, and key pieces of terminology in its \textsc{api}.
 
-Scalafix rules can act like traditional linters, solely emitting diagnostics for issues in the code.
-They can also apply rewrites to transform code as an automatic fix to the issue.
+\subsubsection{Rules}
+Scalafix rules are implemented as generic top-to-bottom traversals through the Scala \textsc{ast}, represented as a Scalameta \scala{Tree} data structure.
+During traversal, side effects are generated using the \scala{Patch} data structure, which represents either a lint diagnostic or a code rewrite.
 
-\subsubsection{Internals}
+The simple syntactic rule in \cref{fig:syntactic-rule-ex} shows how this is achieved using the Scalafix \textsc{api}:
+\begin{itemize}
+  \item \scala{doc.tree.collect} performs the tree traversal, where \textsc{ast} nodes of interest can be visited via pattern matching.
+  \item \scala{case v: Defn.Val if !v.mods.exists(_.is[Mod.Lazy])} visits a \scala{val} definition node that is not already marked as \scala{lazy}.
+  \item \scala{Patch.addLeft(v, "lazy ")} describes a patch to add the \scala{lazy} modifier to the left side of the node that was matched on.
+\end{itemize}
+
+\begin{figure}[htbp]
+\begin{minted}{scala}
+class MakeValsLazy extends SyntacticRule("MakeValsLazy") {
+  override def fix(implicit doc: SyntacticDocument): Patch = {
+    doc.tree.collect {
+      case v: Defn.Val if !v.mods.exists(_.is[Mod.Lazy]) => Patch.addLeft(v, "lazy ")
+    }.asPatch
+  }
+}
+\end{minted}
+\label{fig:syntactic-rule-ex}
+\caption{A syntactic rule that makes all \texttt{val} definitions lazy.}
+\end{figure}
+
+\subsubsection{Safer Patches Using Quasiquotes}
+A careful reader may notice from \cref{fig:syntactic-rule-ex} that the \scala{Patch} rewrite method receives a simple string value, which seems unsafe and could potentially lead to malformed code.
+That careful reader would be correct.
+Scalafix provides no guarantees that the output of a patch is a well-formed program, and it is the rule author's responsibility to ensure so.
+
+The approach taken by \texttt{parsley-garnish} is to represent intended rewrites as Scalameta \scala{Tree} objects, and only convert them to strings immediately before applying the patch.
+Rewrite Patches are pure strings, so this isn't the safest way to do things as there are no guarantees that the output is a well-formed program.
+This shortcoming can be somewhat mitigated by instead representing rewrites as Trees, and only converting them to strings right before applying the Patch. % TODO: further discussion somewhere about Squid quasiquotes? 
+Patches generated by rules get collected, and applied in a batch rewrite at the end
+
+\subsubsection{Semantic Information}
 Scalafix parses each source file to generate AST once, each rule gets fed this AST later.
 
 The compiler information that semantic rules use is provided by the \texttt{semanticdb-scalac} compiler plugin.
 This is injected immediately after the \texttt{typer} phase of the \texttt{scalac} Scala compiler, allowing it to harvest and dump semantic information in SemanticDB format.~\cite{scalameta_semanticdb_guide_2023}
 Basically a stripped-down version of \textsc{tast}y (Typed Abstract Syntax Trees)\footnote{\url{https://docs.scala-lang.org/scala3/guides/tasty-overview.html}} but for both scala 2 and 3.
 Scalafix then presents a seamless API to implement semantic rules, allowing users to inspect an AST node and any semantic information associated with it.
-
-\subsubsection{Implementing Rules}
-Scalafix rules are metaprograms -- they manipulate Scala programs.
-This is achieved by a generic traversal through the AST, represented as a SemanticDB Tree datatype.
-Generate side effects with Patches, which represent either lint diagnostics or code rewrites.
-Rewrite Patches are pure strings, so this isn't the safest way to do things as there are no guarantees that the output is a well-formed program.
-This shortcoming can be somewhat mitigated by instead representing rewrites as Trees, and only converting them to strings right before applying the Patch. % TODO: further discussion somewhere about Squid quasiquotes? 
-Patches generated by rules get collected, and applied in a batch rewrite at the end
 
 What semantic information is available to the user?
 Trees may have symbol information affixed to them: global symbols are guaranteed to be unique across all documents processed by semanticDB, but local symbols are not~\cite{scalameta_semanticdb_spec_2023}.

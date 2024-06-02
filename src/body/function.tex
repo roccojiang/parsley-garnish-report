@@ -3,6 +3,11 @@
 \begin{document}
 
 \section{Function Representation}\label{sec:function-representation}
+\todo{
+  This section is about simplifying in the general domain, so really Squid can do all of this? Still an interesting approach ig
+  And shows a shortcoming of scalameta quasiquotes
+}
+
 The work in \cref{sec:parser-representation} showed that it is possible to lift \textsc{ast} nodes corresponding to parser terms into a more statically inspectable \scala{Parser} datatype.
 Furthermore, \cref{sec:simplify-parsers} demonstrated that this representation allows parsers to be transformed into a simpler form.
 However, so far, the functions passed to lifting combinators have been treated in an opaque manner, and have not been subject to the same simplifications as parsers.
@@ -67,6 +72,10 @@ Interpret the term into a denotational model which can then be evaluated, and re
 Use HOAS to leverage the meta-language (i.e. Scala) as our semantic model -- blazingly fast! (theoretically lol)
 No rewriting = no worrying about avoiding capture.
 Shift that burden onto the scala compiler.
+
+\TODO{
+  Add diagram showing $\text{\textlbrackdbl} - \text{\textrbrackdbl}$
+}
 
 \subsection{Converting Scalameta Terms to the Function \textsc{adt}}
 Three cases:
@@ -202,8 +211,10 @@ trait HOAS {
 \subsection{Converting Functions back to Scalameta Terms}
 Surprise bitches same shit again, quasiquotes ftw
 
-\subsection{Future Work?}
+\subsection{Further Work?}
+% TODO: probably move this to the end of the document
 Eta reduction -- this is more complicated than in Haskell since Scala has special syntax % https://docs.scala-lang.org/scala3/book/fun-eta-expansion.html
+Partial evaluation, not just normalisation (if we reduce to fully closed terms 1+1 can we get it to evaluate to 2? -- except currently this would be a Translucent term)
 
 \TODO{
 TODO:
