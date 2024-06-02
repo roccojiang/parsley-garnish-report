@@ -1,0 +1,233 @@
+\documentclass[../../main.tex]{subfiles}
+
+\begin{document}
+
+\section{Function Representation}\label{sec:function-representation}
+The work in \cref{sec:parser-representation} showed that it is possible to lift \textsc{ast} nodes corresponding to parser terms into a more statically inspectable \scala{Parser} datatype.
+Furthermore, \cref{sec:simplify-parsers} demonstrated that this representation allows parsers to be transformed into a simpler form.
+However, so far, the functions passed to lifting combinators have been treated in an opaque manner, and have not been subject to the same simplifications as parsers.
+This is unsatisfactory, as these functions are essential to combining and sequencing parsers to build more complex parsers.
+
+Additionally, the transformations on parsers during left-recursion factoring involve mapping over parsers with higher-order functions such as \scala{flip} to reverse the order of arguments, and \scala{compose} to compose functions.
+Looking back at the running example in the previous \namecref{sec:parser-representation}, the function passed to the \scala{map} combinator has ended up in an unnecessarily complex form:
+\begin{minted}{scala}
+val f: Function = FLIP(COMPOSE(a => b => a + b)(ID))
+\end{minted}
+It would be ideal to make functions inspectable in a similar manner to parsers, so that they can be \emph{normalised} into a semantically equivalent but visually simpler form.
+
+\subsection{Motivation}
+Where are functions used in parsley?
+Lowest-level: map and family
+
+% TODO: there's some decent stuff in Ch8 of david davie's masters thesis briefly summing up how to articulate related things in a succinct manner
+\subsection{Approach}
+
+It may be useful to view this as statically evaluating as much as possible -- however, not all inputs are known so we cannot fully evaluate the result value.
+Normalisation is therefore just evaluation, but in the presence of unknown terms.
+
+Assume functions passed to parsers are pure, because we assume sane users.
+So it is reasonable to model functions as a lambda calculus, and this can also be achieved with an ADT.
+As an aside, this is fine -- Scala 3 has been formalised to the DOT calculus, and the subset that we are interested in is equivalent to the lambda calculus.
+In the simple lambda calculus all functions are curried i.e. each function only takes one argument, and multi-argument functions are represented as a chain of single-argument functions.
+In Scala, uncurried functions are preferred for performance reasons, but it allows currying as functions can have multiple parameter lists.
+We could desugar all this and curry the functions, but we want to be able to easily transform our output back into Scala code.
+So we extend the lambda calculus with n-ary abstraction and application.
+
+\begin{minted}{scala}
+trait Function
+
+trait Lambda extends Function
+case class Abs(xs: List[Var], f: Function) extends Lambda
+case class App(f: Function, xs: List[Function]) extends Lambda
+case class Var(name: VarName) extends Lambda
+case class Translucent(t: Term, env: Map[VarName, Function]) extends Lambda
+
+case object Identity extends Function
+case object Flip extends Function
+case object Compose extends Function
+\end{minted}
+
+\subsubsection{Normalisation by Rewriting}
+Essentially term-rewriting, similar to how Parsers are simplified.
+Strong reduction -- allow beta reduction to occur deep inside lambda terms, in all redexes of a term, until no more reductions can be made.
+To beta normal form, not just beta-WHNF (weak head normal form) % TODO: does jamie's thesis have more elaboration on terminology
+% TODO: cite https://inria.hal.science/inria-00434283/document ? for NbE but also some of the terminology used
+
+Aside: Untyped lambda calculus is not strongly normalising, but these terms are converted from valid typed Scala programs.
+Although not formally proven, it is reasonable to assume that these terms are a subset of the simple lambda calculus that are strongly normalising -- they won't be particularly complex.
+
+\scala{Function} has one binding construct -- the n-ary abstraction. This introduces variables and the need for capture-avoiding substitution.
+Capture-avoiding substitution is hard, many approaches e.g. de Bruijn indices (but inefficient to open/close terms so much, so the correct choice is levels).
+Attempted a barendregt's but the optimised form (not freshening on every substitution) might be subtly incorrect, not sure tbh.
+
+\subsubsection{Normalisation by Evaluation}
+Fortunately, there is a cheat to completely circumvent the nightmare of capture-avoiding substitution.
+Unlike traditional normalisation techniques, NbE bypasses rewriting entirely, instead appealing to their denotational semantics. (fuck yeah bitches)
+Interpret the term into a denotational model which can then be evaluated, and reify the result back into a term.
+Use HOAS to leverage the meta-language (i.e. Scala) as our semantic model -- blazingly fast! (theoretically lol)
+No rewriting = no worrying about avoiding capture.
+Shift that burden onto the scala compiler.
+
+\subsection{Converting Scalameta Terms to the Function \textsc{adt}}
+Three cases:
+\begin{enumerate}
+    \item \scala{Term.Function} nodes, representing lambda expressions
+    \item \scala{Term.AnonymousFunction} nodes, representing lambda expressions using placeholder syntax
+    \item Any other term, which will be $eta$-expanded if possible
+\end{enumerate}
+
+\subsubsection{Lambda Expressions}
+Often found as relatively simple functions to glue together parsers, or transform the result of a parser:
+\begin{minted}{scala}
+val asciiCode: Parsley[Int] = item.map(char => char.toInt)
+\end{minted}
+
+Choose a particularly convoluted example:
+\begin{minted}{scala}
+a => (a, b) => a + b
+\end{minted}
+In this example, the \scala{a} in the function body refers to the \scala{a} in the second parameter list, as it shadows the \scala{a} in the first parameter list.
+
+Conversion ``flattens'' the lambda expression into a chain of n-ary abstractions, with the final term being the body of the lambda.
+Because we lose scoping information this way, perform $\alpha$-conversion on variables.
+The body becomes a \scala{Translucent} term.
+
+\begin{lstlisting}
+\(_l1). \(_l2, _l3). Translucent(%\textbf{\_l2 + \_l3}%, env = {%\textbf{\_l1}% -> _l1, %\textbf{\_l2}% -> _l2, %\textbf{\_l3}% -> _l3})
+\end{lstlisting}
+Values in bold are Scalameta tree nodes, so the body term's environment maps \scala{Term.Name} nodes to their corresponding variable terms.
+
+\subsubsection{Placeholder Syntax}
+Scala supports placeholder syntax for terseness, so the earlier parser can be rewritten as:
+\begin{minted}{scala}
+val asciiCode: Parsley[Int] = item.map(_.toInt)
+\end{minted}
+
+\subsubsection{Eta-Expansion}
+\begin{minted}{scala}
+case class AsciiCode(code: Int)
+object AsciiCode extends ParserBridge1[Char, AsciiCode] {
+  def apply(char: Char): AsciiCode = AsciiCode(char.toInt)
+}
+val asciiCode = AsciiCode(item) // desugars to item.map(AsciiCode.apply)
+\end{minted}
+
+\subsection{Normalising Function Terms}
+\begin{figure}[htbp]
+\begin{equation*}
+% Created here (but modified slightly) https://tikzcd.yichuanshen.de/#N4Igdg9gJgpgziAXAbVABwnAlgFyxMJZARgBoAGAXVJADcBDAGwFcYkQAdDnGADx2AAJAPIBBAMoBfEJNLpMufIRQBmCtTpNW7Lj35CxUgHq6+AsADNps+djwEiZAEwaGLNok7czwAGLMwAGN7MGs5EAw7JSI1Fxo3bU9TfQAZegBbACMoejDbRQcUcnV4rQ8vPQFxGHT6MDxAuDyIhRCiYrjNdx1vfXEAT3r6XmsNGCgAc3giUAsAJwh0pGKQHAgkMi7EirMcARg3aRpGekyYRgAFVujPRhgLHBlw+cWNmjWkNS3y5L2BOZgWAs-SOIBOZ0u10KYPujxsIBeS0QTne60QKwSP16f2AAIsd2CoPB5yuUWhdweT1mCyRKNWaK+mJ6lT2wEgc1qjCwcBgkgABABePm-VkAoEg4UcQJYOaBSUs-aHSXS2Xy3b-e4EnD8kDHU4kqHKEBzLATAAWcOeNKQdI+iE2XLA5RycDN41133YyGQfIAtHzKJQZJRJEA
+\begin{tikzcd}[sep=5em]
+  \text{Semantics} & \text{HOAS} \arrow[rr, "\texttt{eval}"]                                                                                                                                         &  & \text{HOAS}^\text{nf} \arrow[dd, "\texttt{reify}"] \\
+                   &                                                                                                                                                                                 &  &                                                    \\
+  \text{Syntax}    & \text{Function} \arrow[uu, "\texttt{reflect}"] \arrow[rr, "\substack{\texttt{normalise} \\ =\ \texttt{reify}\ \circ\ \texttt{eval}\ \circ\ \texttt{reflect}}"'] \arrow[rruu, "{\text{\textlbrackdbl} - \text{\textrbrackdbl}}", dashed] &  & \text{Lambda}                                     
+\end{tikzcd}
+\end{equation*}
+\caption{Normalisation by evaluation for the \scala{Function} datatype.}
+\end{figure}
+
+\begin{minted}{scala}
+trait HOAS
+case class HAbs(n: Int, f: List[HOAS] => HOAS) extends HOAS
+case class HApp(f: HOAS, xs: List[HOAS]) extends HOAS
+case class HVar(name: VarName) extends HOAS
+case class HTranslucent(t: Term, env: Map[VarName, HOAS]) extends HOAS
+\end{minted}
+%
+Abs represents n-ary $\lambda$-abstraction; App is n-ary function application; Var represents opaque free variables.
+Translucent is treated as opaque during normalisation, but contains normalisable terms in an environment, where they are substituted back in after normalisation.
+
+\subsubsection{Reflection}
+
+\begin{minted}{scala}
+trait Function {
+  def reflect: HOAS = {
+    def reflect0(func: Function, boundVars: Map[Var, HOAS]): HOAS = func match {
+      case Abs(xs, f) =>
+        HAbs(xs.size, vs => reflect0(f, boundVars ++ xs.zip(vs)))
+      case App(f, xs) =>
+        HApp(reflect0(f, boundVars), xs.map(reflect0(_, boundVars)))
+      case v @ Var(name) =>
+        boundVars.getOrElse(v, HVar(name))
+      case Translucent(term, env) =>
+        HTranslucent(term, env.map { case (v, func) => v -> reflect0(func, boundVars) })
+
+      case Id => HAbs(f => f)
+      case Flip => HAbs(f => HAbs(x => HAbs(y => HApp(HApp(f, y), x))))
+      case Compose => HAbs(f => HAbs(g => HAbs(x => HApp(f, HApp(g, x)))))
+    }
+
+    reflect0(this, Map.empty)
+  }
+}
+\end{minted}
+
+\subsubsection{Evaluation}
+\begin{minted}{scala}
+trait HOAS {
+  def eval: HOAS = this match {
+    case HAbs(n, f) => HAbs(n, x => f(x).eval)
+    case HApp(f, x) => f.whnf match {
+      case HAbs(_, g) => g(x).eval
+      case g          => HApp(g.eval, x.map(_.eval))
+    }
+    case HTranslucent(t, env) => HTranslucent(t, env.map { case (k, v) => k -> v.eval })
+    case _ => this
+  }
+
+  private def whnf: HOAS = this match {
+    case HApp(f, x) => f.whnf match {
+      case HAbs(_, g) => g(x).whnf
+      case g          => HApp(g, x)
+    }
+    case HTranslucent(t, env) => HTranslucent(t, env.map { case (k, v) => k -> v.whnf })
+    case _ => this
+  }
+}
+\end{minted}
+
+\subsubsection{Reification}
+\begin{minted}{scala}
+trait HOAS {  
+  def reify: Function = this match {
+    case HAbs(n, f) =>
+      val params = (1 to n).map(_ => Var.fresh()).toList
+      Abs(params, f(params.map(x => HVar(x.name))).reify)
+    case HApp(f, xs) => App(f.reify, xs.map(_.reify))
+    case HVar(name) => Var(name)
+    case HTranslucent(t, env) => Translucent(t, env.map { case (v, f) => v -> f.reify })
+  }
+}
+\end{minted}
+
+\subsection{Converting Functions back to Scalameta Terms}
+Surprise bitches same shit again, quasiquotes ftw
+
+\subsection{Future Work?}
+Eta reduction -- this is more complicated than in Haskell since Scala has special syntax % https://docs.scala-lang.org/scala3/book/fun-eta-expansion.html
+
+\TODO{
+TODO:
+Abstraction built over scalafix/meta ASTs to represent functions.
+Allows us to statically evaluate function composition/flipping etc, so it doesn't turn into one big mess -- again, human readability of the transformed output is the goal.
+% https://hugopeters.me/posts/16/ -- should I switch to de bruijn indices? Bound variables get instantiated only at the end, don't have to worry about alpha conversion (relation to Barendregt's convention if needed??)
+Abstraction is again an ADT as a lambda calculus, but with parameter lists so not everything is curried.
+\^ idk, this is still a work-in-progress. Seems that there might not be enough time to uncurry the leftrec analysis so this design decision might not be super important.
+Representation as a lambda calc has allocation overhead, but greatly simplifies function evaluation via beta reduction, instead of having to deal with high-level representations of compose/id (not too bad tbh) and flip (annoying).
+Also attempted to make it typed but that didn't go so well with Scala's limitations on type inference.
+
+* Extracting method arguments (alongside their types) is very painful
+* Need to unify information from signature (within symbolinformation) and synthetics
+  * synthetics exist in certain cases: .apply methods, showing the concrete type of a generic argument, implicit conversions
+    * from https://scalacenter.github.io/scalafix/docs/developers/semantic-tree.html: SemanticTree is a sealed data structure that encodes tree nodes that are generated by the compiler from inferred type parameters, implicit arguments, implicit conversions, inferred .apply and for-comprehensions.
+
+* Don't have full access to type information - can do more work here theoretically, but its difficult and error-prone
+* So we don't model a typed lambda calculus, just have it untyped
+
+Approaches - AVOIDING capture via substitution
+* Substitution approaches
+  * De Bruijn indices - inefficient to open/close terms so much - De Bruijn levels as an alternative
+  * HOAS
+* Normalisation by evaluation
+}
+
+\end{document}
