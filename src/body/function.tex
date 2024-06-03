@@ -3,7 +3,7 @@
 \begin{document}
 
 \section{Function Representation}\label{sec:function-representation}
-\todo{
+\TODO{
   This section is about simplifying in the general domain, so really Squid can do all of this? Still an interesting approach ig
   And shows a shortcoming of scalameta quasiquotes
 }
@@ -36,7 +36,7 @@ As an aside, this is fine -- Scala 3 has been formalised to the DOT calculus, an
 In the simple lambda calculus all functions are curried i.e. each function only takes one argument, and multi-argument functions are represented as a chain of single-argument functions.
 In Scala, uncurried functions are preferred for performance reasons, but it allows currying as functions can have multiple parameter lists.
 We could desugar all this and curry the functions, but we want to be able to easily transform our output back into Scala code.
-So we extend the lambda calculus with n-ary abstraction and application.
+So we extend the lambda calculus to be able to represent multi-argument functions using n-ary abstraction and application.
 
 \begin{minted}{scala}
 trait Function

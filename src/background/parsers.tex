@@ -1,17 +1,21 @@
+\documentclass[../../main.tex]{subfiles}
+
+\begin{document}
+
 \section{Parser Combinators}
 
 Parsing is the process of extracting structured information from a flat, unstructured representation of the data.
 Parsers are programs that perform this process, using a specified grammar to determine the structure of the data.
 They are utilised in a variety of applications such as compilers, interpreters, and processing of data storage formats such as \textsc{json} and \textsc{xml}.
 
-Traditionally, parsers have either been written by hand or by using parser generator frameworks such as ANTLR \cite{parr_antlr_2013}.
+Traditionally, parsers have either been written by hand or by using parser generator frameworks such as \textsc{antlr}~\cite{parr_antlr_2013}.
 Hand-rolling a parser is a tedious process, requiring the programmer to manually implement the parsing algorithm for the grammar.
 However, this approach is the most powerful and flexible and can provide excellent performance.
 Alternatively, parser generators lift the burden of implementing the parsing algorithm, instead requiring the programmer to specify the grammar in the format of a domain-specific language (\textsc{dsl}) similar to a high-level grammar.
 The grammar is then compiled by the parser generator tool to produce a parser in a target language.
 This approach is less flexible but can be more convenient and less error-prone.
 
-Parser combinators \cite{hutton_higher-order_1992}, which stem from a functional programming background, are a middle ground between the two approaches.
+Parser combinators~\cite{hutton_higher-order_1992}, which stem from a functional programming background, are a middle ground between the two approaches.
 They take the form of an embedded \textsc{dsl} written directly in a general-purpose language, rather than the parser generator approach where the \textsc{dsl} is a separate language.
 With a parser generator, the provided \textsc{dsl} is often limited in its expressiveness.
 This is not the case with parser combinators, as the full power of the host language is available to the programmer.
@@ -25,7 +29,7 @@ This is another motivating reason for the development of \texttt{parsley-garnish
 \subsection{Parsley}
 \TODO{TODO: proper, worked example showcasing relevant design patterns and stuff which will be picked up by the linter}
 
-\texttt{Parsley} \cite{willis_garnishing_2018} is a parser combinator library for Scala that provides an \textsc{api} inspired by the \texttt{parsec} \cite{leijen_parsec_2001} style of parser combinators.
+\texttt{Parsley}~\cite{willis_garnishing_2018} is a parser combinator library for Scala that provides an \textsc{api} inspired by the \texttt{parsec}~\cite{leijen_parsec_2001} style of parser combinators.
 This section provides an illustrative example of a simple expression parser to demonstrate what a parser written in \texttt{parsley} looks like.
 
 Consider the \textsc{ebnf} grammar for a simple expression language shown in fig.~\ref{fig:simple-grammar-ebnf}.
@@ -91,9 +95,11 @@ Except for the possibly cryptic-looking implementation of \texttt{num} to parse 
 % TODO
 \textit{(This background section is a work-in-progress, and will likely expand to include more information about the specific problems and design patterns I choose to explore in the project.)}
 
-Willis and Wu \cite{willis_design_2022} describe several design patterns for writing maintainable parsers using parser combinators in Scala.
+Willis and Wu~\cite{willis_design_2022} describe several design patterns for writing maintainable parsers using parser combinators in Scala.
 They identified common problems and anti-patterns in parser design, and proposed solutions in the form of design patterns.
 This provides a guideline for writing idiomatic \texttt{parsley} code for practical parser design, which enables opportunities for the development of linting and refactoring rules.
 
 This thesis hopes to explore how these common problems can be formalised into code smells and suspicious code patterns that can be automatically detected using linting rules.
 Some of the design patterns are also theoretically amenable to automated refactoring, which we hope to explore and implement in \texttt{parsley-garnish}.
+
+\end{document}

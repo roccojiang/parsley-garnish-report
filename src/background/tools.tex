@@ -1,3 +1,7 @@
+\documentclass[../../main.tex]{subfiles}
+
+\begin{document}
+
 \section{Linting and Static Analysis}
 
 % TODO: talk about how my approach is formal methods, not data-driven
@@ -6,7 +10,7 @@
 % Most practical static checkers for JavaScript [3, 2, 1, 4] and other languages [29, 11] take a pragmatic view and favor a relatively low false positive rate over soundness
 
 \textbf{Linting} is the process of analysing source code to identify and report issues related to coding style and potential logical errors.
-The term originates from the \texttt{lint} program \cite{johnson_lint_1978}, which examined C source code for bugs, as well as wasteful code patterns that may be legal but error-prone.
+The term originates from the \texttt{lint} program~\cite{johnson_lint_1978}, which examined C source code for bugs, as well as wasteful code patterns that may be legal but error-prone.
 The tool was also utilised to enforce portability restrictions which aided users in writing portable code that could be compiled on multiple platforms.
 Since the release of \texttt{lint}, many linting tools, known as \textbf{linters}, have been developed for a wide range of programming languages.
 
@@ -17,11 +21,11 @@ Linters can also be integrated as part of the code review process, or into conti
 
 Although the traditional definition for linting is concerned only with \emph{detecting} issues in code, modern linters have broadened their scope significantly.
 In addition to detecting issues, many linters provide \emph{auto-fix} capabilities to correct issues by automatically rewriting the offending code snippets.
-This feature is often integrated into \textsc{ide}s as well: the popular Language Server Protocol for defining \textsc{ide} features enables these auto-fix features via \emph{code actions} \cite{gunasinghe_lsp_2022}.
+This feature is often integrated into \textsc{ide}s as well: the popular Language Server Protocol for defining \textsc{ide} features enables these auto-fix features via \emph{code actions}~\cite{gunasinghe_lsp_2022}.
 When a section of code is highlighted by a linter warning, a user can apply a code action to automatically fix the issue with a single click.
 
 Linters and related static analysis tools are increasingly becoming more important in modern software development, as modern code continues to become more complex and difficult to reason about.
-Industry leaders, such as Google \cite{sadowski_analysis-google_2018} and Meta/Facebook \cite{calcagno_moving-facebook_2015}, have embraced these tools as integral components of their software development workflows.
+Industry leaders, such as Google~\cite{sadowski_analysis-google_2018} and Meta/Facebook~\cite{calcagno_moving-facebook_2015}, have embraced these tools as integral components of their software development workflows.
 The use of automated tools to detect potential issues is not only faster but in some cases more effective than human review, saving developer time and reducing error rates in the development process.
 
 \subsection{Types of Issues Detected by Linters}
@@ -40,7 +44,7 @@ For example, \emph{ESLint}\footnote{\url{https://eslint.org/docs/latest/rules/}}
 
 A well-designed linter can help programmers learn about useful language constructs by suggesting them in the context of their code, aiding them in adhering to best practices and common style conventions.
 This category of rules is therefore especially helpful as an educational tool for new users of a language, who may be unaware of these idioms.
-For example, the \emph{Clippy}\footnote{\url{https://doc.rust-lang.org/clippy/}} linter for Rust \cite{li_clippy_2023} categorises a collection of rules as \texttt{clippy::complexity} rules to detect code that does something simple in a complex way and suggests a simpler alternative.
+For example, the \emph{Clippy}\footnote{\url{https://doc.rust-lang.org/clippy/}} linter for Rust~\cite{li_clippy_2023} categorises a collection of rules as \texttt{clippy::complexity} rules to detect code that does something simple in a complex way and suggests a simpler alternative.
 \Cref{fig:hlint-example} provides an example of a similar rule in Haskell, from the \textit{HLint}\footnote{\url{https://hackage.haskell.org/package/hlint}} linter.
 The rule suggests to rewrite the function into an equivalent but more concise form via $\eta$-reduction, presented to the user as a code action that can be applied automatically.
 
@@ -72,7 +76,7 @@ The rule suggests to rewrite the function into an equivalent but more concise fo
 \end{figure}
 
 \paragraph{Domain-specific idioms}
-A library or especially an embedded \textsc{dsl} may require a particular style of usage that is different from the host language \cite{hora_domain_2012}.
+A library or especially an embedded \textsc{dsl} may require a particular style of usage that is different from the host language~\cite{hora_domain_2012}.
 The majority of linters are designed for general-purpose application domains, so they are unlikely to detect issues specific to a more specialised domain.
 Therefore, linters may be developed for specific libraries or \textsc{dsl}s, with their own set of domain-specific rules.
 In this case, the accompanying linter can benefit users and improve developer productivity in a similar manner to general-purpose linters: common misuses can be detected and sometimes automatically fixed, and users can be directed to relevant documentation to learn more about correct usage.
@@ -81,7 +85,7 @@ For instance, the \emph{xUnit.net} testing framework for C\# is accompanied by t
 \subsubsection{Code smells and opportunities for refactoring}
 
 Code refactoring is a well-established practice in software development.
-In his influential book \emph{Refactoring: Improving the Design of Existing Code} \cite{fowler_refactoring_2018}, Fowler defines \textbf{refactoring} as ``the process of changing a software system in such a way that it does not alter the external behaviour of the code yet improves its internal structure''.
+In his influential book \emph{Refactoring: Improving the Design of Existing Code}~\cite{fowler_refactoring_2018}, Fowler defines \textbf{refactoring} as ``the process of changing a software system in such a way that it does not alter the external behaviour of the code yet improves its internal structure''.
 Refactoring may be employed to eliminate \textbf{code smells}, which are surface indications that could indicate deeper problems in the system.
 Code smells are not necessarily problematic on their own, however, they may lead to issues such as bugs or poor maintainability if left unchecked.
 They are conceptually similar to the stylistic issues mentioned earlier, however they may encompass higher-level structural and design-based problems that are not easily fixed by simple stylistic changes.
@@ -90,7 +94,7 @@ Therefore, it is often productive to refactor code to eliminate code smells, eve
 
 Certain linting rules can aid in the refactoring process by broadly identifying code smells and candidate areas for refactoring, suggesting appropriate actions that the user can take.
 As an example, a linter may detect a fragment of code that is repeated in multiple places: this is a code smell, as discussed previously.
-The linter may then suggest a code action to automatically apply an \emph{Extract Method} \cite{fowler_refactoring_2018} refactoring to avoid code duplication: \cref{fig:extract-function-intellij} demonstrates how this automatic refactoring process can be performed in the IntelliJ IDEA\footnote{\url{https://www.jetbrains.com/idea/}} \textsc{ide}.
+The linter may then suggest a code action to automatically apply an \emph{Extract Method}~\cite{fowler_refactoring_2018} refactoring to avoid code duplication: \cref{fig:extract-function-intellij} demonstrates how this automatic refactoring process can be performed in the IntelliJ IDEA\footnote{\url{https://www.jetbrains.com/idea/}} \textsc{ide}.
 
 \begin{figure}[htbp]
   \centering
@@ -157,7 +161,7 @@ Although dynamic analysis can yield more precise results as it observes the actu
 Given their need to be scalable and efficient enough to handle entire codebases, linters are designed to be fast and lightweight.
 In most practical cases, therefore, dynamic analysis is too slow and resource-intensive to be used for the purpose of linting.
 However, dynamic languages such as JavaScript present challenges for static analysis due to their dynamic runtime nature.
-This has led to the exploration of linters that incorporate dynamic analysis techniques to identify issues that static methods cannot detect \cite{gong_dlint_2015}.
+This has led to the exploration of linters that incorporate dynamic analysis techniques to identify issues that static methods cannot detect~\cite{gong_dlint_2015}.
 Despite these developments, state-of-the-art JavaScript linters utilised in industry, such as \emph{ESLint}, still solely rely on static analysis.
 
 \TODO{
@@ -181,7 +185,7 @@ These transformations may be implemented as simple text-based replacements or mo
 
 % TODO: justification why we don't use dynamic analysis? linters - static, lightweight
 
-These tools can perform a variety of tasks, ranging from detecting possible bugs \cite{johnson_lint_1978,hovemeyer_finding-bugs_2004} to formal software verification of program properties \cite{blanchet_static-analyzer_2003}.
+These tools can perform a variety of tasks, ranging from detecting possible bugs~\cite{johnson_lint_1978,hovemeyer_finding-bugs_2004} to formal software verification of program properties~\cite{blanchet_static-analyzer_2003}.
 
 \section{Implementing Linters for Scala}
 
@@ -196,16 +200,16 @@ Since \texttt{parsley} is a Scala library, this project must be implemented usin
 This section will therefore discuss and evaluate the choices available for implementing \texttt{parsley-garnish}.
 
 \paragraph{Scala compiler plugins}
-The most powerful approach would be to implement \texttt{parsley-garnish} as a compiler plugin \cite{pickering_plugins_2019}.
+The most powerful approach would be to implement \texttt{parsley-garnish} as a compiler plugin~\cite{pickering_plugins_2019}.
 Using the low-level compiler \textsc{api}, it is possible to perform arbitrary code transformations at any step of the compilation process.
 Compiler plugins therefore offer full freedom to extend the Scala compiler with extra functionality, such as extra passes for code analysis and emitting lint warnings as diagnostics or even compiler errors.
 
 However, this approach has several drawbacks.
 Firstly, compiler plugins are tightly coupled with the compiler itself, and therefore not portable across major compiler versions.
 % https://github.com/mattmoore/scala-compiler-plugins is a good reference, in case I need to revisit this
-For instance, plugins written for the Scala 3 compiler, known as \texttt{dotty}, are completely incompatible with Scala 2 plugins \cite{lampepfl_changes_2022}.
+For instance, plugins written for the Scala 3 compiler, known as \texttt{dotty}, are completely incompatible with Scala 2 plugins~\cite{lampepfl_changes_2022}.
 Additionally, developing compiler plugins requires a deep understanding of arcane and poorly documented compiler internals.
-Exposing the full compiler \textsc{api} permits unsafe operations that may violate undocumented invariants assumed by the compiler, leading to exceptions during compilation or even malformed bytecode \cite{sherwany_refactoring_2015}.
+Exposing the full compiler \textsc{api} permits unsafe operations that may violate undocumented invariants assumed by the compiler, leading to exceptions during compilation or even malformed bytecode~\cite{sherwany_refactoring_2015}.
 The lack of higher-level abstractions also makes it difficult to implement even trivial tasks such as renaming a field.
 
 For these reasons, it would be preferable to explore other tools that may use compiler plugins themselves but provide a higher-level interface for implementing code analysis and transformations.
@@ -244,7 +248,7 @@ Semantic rules are more complicated to run as they require compilation with the 
 % As a result, maintaining the library became difficult and the project was abandoned in favour of a clean implementation using Scalameta, which was designed in part to address the shortcomings of \texttt{scala.reflect}.
 
 A drawback of Scalafix is that it is primarily a command-line tool, and currently does not provide an interactive interface within any code editor.
-Ideally, users should be able to see inline diagnostics, as well as preview and select auto-fixes interactively.
+Ideally, users should be able to see inline diagnostics, as well as preview and select auto-fixes interactively like in \cref{fig:extract-function-intellij}.
 A Metals integration would be the most favourable outcome, as they already share a Scalameta backend, and it would allow Scalafix to be integrated into any code editor supporting the \textsc{lsp} protocol.
 However, at the time of writing, Scalafix only has basic integrations with Metals to run rules, but no interactive in-editor integrations~\cite{jaglin_scalafix_2024}.
 This feature request is an open issue on GitHub\footnote{\url{https://github.com/scalameta/metals-feature-requests/issues/230}}, but no timeline has been provided for its implementation.
@@ -275,8 +279,9 @@ This \namecref{sec:scalafix} briefly explains how Scalafix rules are implemented
 \subsubsection{Rules}
 Scalafix rules are implemented as generic top-to-bottom traversals through the Scala \textsc{ast}, represented as a Scalameta \scala{Tree} data structure.
 During traversal, side effects are generated using the \scala{Patch} data structure, which represents either a lint diagnostic or a code rewrite.
+Rules are applied file-by-file, and the patches generated by each rule are collected and applied by Scalafix as a batch rewrite after all rules have finished running.
 
-The simple syntactic rule in \cref{fig:syntactic-rule-ex} shows how this is achieved using the Scalafix \textsc{api}:
+\Cref{fig:syntactic-rule-ex} showcases the basic structure of a simple syntactic rule:
 \begin{itemize}
   \item \scala{doc.tree.collect} performs the tree traversal, where \textsc{ast} nodes of interest can be visited via pattern matching.
   \item \scala{case v: Defn.Val if !v.mods.exists(_.is[Mod.Lazy])} visits a \scala{val} definition node that is not already marked as \scala{lazy}.
@@ -293,22 +298,58 @@ class MakeValsLazy extends SyntacticRule("MakeValsLazy") {
   }
 }
 \end{minted}
-\label{fig:syntactic-rule-ex}
 \caption{A syntactic rule that makes all \texttt{val} definitions lazy.}
+\label{fig:syntactic-rule-ex}
 \end{figure}
 
 \subsubsection{Safer Patches Using Quasiquotes}
-A careful reader may notice from \cref{fig:syntactic-rule-ex} that the \scala{Patch} rewrite method receives a simple string value, which seems unsafe and could potentially lead to malformed code.
-That careful reader would be correct.
+A careful reader may notice from \cref{fig:syntactic-rule-ex} that the \scala{Patch} rewrite method receives a raw string value, which seems unsafe and could potentially lead to malformed code.
+That careful reader would indeed be correct:
 Scalafix provides no guarantees that the output of a patch is a well-formed program, and it is the rule author's responsibility to ensure so.
 
 The approach taken by \texttt{parsley-garnish} is to represent intended rewrites as Scalameta \scala{Tree} objects, and only convert them to strings immediately before applying the patch.
-Rewrite Patches are pure strings, so this isn't the safest way to do things as there are no guarantees that the output is a well-formed program.
-This shortcoming can be somewhat mitigated by instead representing rewrites as Trees, and only converting them to strings right before applying the Patch. % TODO: further discussion somewhere about Squid quasiquotes? 
-Patches generated by rules get collected, and applied in a batch rewrite at the end
+\Cref{fig:quasiquote-ex} shows how \emph{quasiquotes}~\cite{shabalin_quasiquotes_2013} can be used as syntactic sugar to construct trees in a convenient manner:
+\begin{itemize}
+  \item \scala{q"..."} is the quasiquote's string interpolation syntax to build a \scala{Term} node, which is a subclass of \scala{Tree}.
+  \item \scala{$x} splices the value of the expression \scala{x} into the constructed tree. Ordinarily, spliced values need to be an instance of a \scala{Tree}, but simple values such as integers (in this case) can be automatically lifted into the appropriate tree node.
+  \item \scala{Tree.structure} represents the resulting \scala{Tree} data structure as a string, useful for debugging.
+  \item \scala{Tree.syntax} pretty-prints the tree back into its source code representation, which can then be fed into a \scala{Patch}.
+\end{itemize}
+Quasiquotes expand at compile-time into \scala{Tree} constructors, so they do not preserve formatting details.
+This turns out to be very convenient for pretty-printing purposes: often, spliced values may contain superfluous parentheses, which are automatically removed (as seen in the final example within \cref{fig:quasiquote-ex}).
+
+\begin{figure}[htbp]
+\begin{minted}{scala}
+val x = 1
+val tree = q"$x + 2"
+
+println(tree.structure)
+// Term.ApplyInfix(
+//   Lit.Int(1),
+//   Term.Name("+"),
+//   Type.ArgClause(Nil),
+//   Term.ArgClause(List(Lit.Int(2)), None)
+// )
+
+println(tree.syntax)
+// 1 + 2
+println(q"($tree)".syntax)
+// 1 + 2
+\end{minted}
+\caption{Using Scalameta quasiquotes to construct a tree.}
+\label{fig:quasiquote-ex}
+\end{figure}
+
+By using quasiquotes instead of raw strings, the syntactic correctness of a rewrite is guaranteed.
+However, this safety is not foolproof: quasiquotes are not guaranteed to be well-typed or well-scoped, so the rewritten program still might not be able to compile.
+They are also not \emph{hygienic}: generated code will not be able to avoid name clashes with regular code~\cite{burmako_scalameta_2017}.
+The lack of hygiene can cause issues with variable capture, allowing a variable to be unintentionally shadowed by a generated variable.
+Again, it is the rule author's responsibility to ensure that variable capture does not occur: \cref{sec:function-representation} in part discusses how this is handled in \texttt{parsley-garnish}.
 
 \subsubsection{Semantic Information}
-Scalafix parses each source file to generate AST once, each rule gets fed this AST later.
+Semantic rules are implemented in the same manner as \cref{fig:syntactic-rule-ex}, but instead take the more powerful \scala{SemanticDocument} as an implicit parameter.
+
+\TODO{ FINISH THIS }
 
 The compiler information that semantic rules use is provided by the \texttt{semanticdb-scalac} compiler plugin.
 This is injected immediately after the \texttt{typer} phase of the \texttt{scalac} Scala compiler, allowing it to harvest and dump semantic information in SemanticDB format.~\cite{scalameta_semanticdb_guide_2023}
@@ -323,3 +364,5 @@ Scalafix API provides \scala{SymbolMatcher} to easily create predicates to match
 \scala{SymbolInformation} also provides other metadata, especially useful is its type signature provided from the compiler's type-checking stage.
 A tree may also contains \scala{synthetics} data, granting access to implicit parameter application, and surface syntactic sugar added by compiler.
 \scala{SemanticDocument.diagnostics} checks contextual (contextualised = we know which parts of the code the warnings is for) compiler warnings.
+
+\end{document}

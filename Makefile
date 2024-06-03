@@ -5,6 +5,8 @@ TEX_FILES := $(shell find . -name '*.tex')
 all: main.pdf \
 		 src/introduction/introduction.pdf \
 		 src/background/background.pdf \
+		 src/background/tools.pdf \
+		 src/background/parsers.pdf \
 		 src/body/body.pdf \
 		 src/body/parser.pdf \
 		 src/body/function.pdf \

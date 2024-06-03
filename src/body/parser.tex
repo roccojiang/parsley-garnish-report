@@ -3,7 +3,7 @@
 \begin{document}
 
 \section{Parser Representation}\label{sec:parser-representation}
-\todo{
+\TODO{
   This is an INTERMEDIATE SYMBOLIC REPRESENTATION (?)
   This section is about simplifying in our semantic domain (parsers)
 }
@@ -202,7 +202,7 @@ lazy val expr: Parsley[String] = chain.postfix(string("b"))(string("a").map(f))
 These simplifications are applied akin to peephole optimisations in a bottom-up traversal of the recursive \scala{Parser} \textsc{adt}.
 There are many instances of Parsers, so this leads to a lot of boilerplate code recursing through each case, which is prone to error when we implement it.
 To avoid this, we decouple the application of a generic transformation function from the recursive traversal through the datatype.
-This is still a hand-written traversal, but heavily inspired by the generic traversal patterns in \cite{mitchell_uniform_2007}.
+This is still a hand-written traversal, but heavily inspired by the generic traversal patterns in~\cite{mitchell_uniform_2007}.
 Bottom-up transformation takes a partial function, applying the transformation at nodes where it is defined.
 The resulting \scala{transform} method on parsers resembles the following (only a few cases shown for brevity):
 \begin{minted}{scala}
