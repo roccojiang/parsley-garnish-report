@@ -115,9 +115,10 @@ Consequently, the solution takes a different approach: estimating the presence o
 \Cref{fig:ambiguous-implicits-example} extends the previous example to a full Scala source file following the \emph{Implicit Lexer} pattern,
 but where the user has erroneously additionally imported the \scala{stringLift} implicit from the \emph{Implicit Conversions} pattern.
 This results in the Scala compiler throwing an error on line 6 due to ambiguous implicits.
-When run on this file, \texttt{parsley-garnish} will report a warning at line 3 similar to that shown in \cref{fig:ambiguous-implicits-warning}.
+When run on this file, \texttt{parsley-garnish} will report a warning similar to that shown in \cref{fig:ambiguous-implicits-warning}.
 
 \begin{figure}[htbp]
+\begin{subfigure}{\textwidth}
 \begin{minted}[frame=single,linenos]{scala}
 object parser {
   import parsley.syntax.character.stringLift
@@ -135,9 +136,10 @@ object lexer {
 \end{minted}
 \caption{A minimal Parsley program which fails to compile due to ambiguous implicits in the \texttt{parser} object.}
 \label{fig:ambiguous-implicits-example}
-\end{figure}
-
-\begin{figure}[htbp]
+\end{subfigure}
+%
+\begin{subfigure}{\textwidth}
+\vspace{3ex} % TODO: ew
 % TODO: maybe work out a nicer-looking frame for all these minted and fancyvrb environments
 \begin{minted}[frame=single,fontsize=\small]{text}
 warning: [AmbiguousImplicitConversions] This import may cause clashing implicit conversions:
@@ -149,8 +151,10 @@ To fix this, ensure that you only import a single implicit conversion.
   import lexer.implicits._
   ^^^^^^^^^^^^^^^^^^^^^^^^  
 \end{minted}
-\caption{The warning message produced by the \texttt{AmbiguousImplicitConversions} lint rule.}
+\caption{The warning message reported at line 3 by the \emph{Ambiguous Implicit Conversions} lint rule.}
 \label{fig:ambiguous-implicits-warning}
+\end{subfigure}
+\caption{Example of the \emph{Ambiguous Implicit Conversions} lint rule in action.}
 \end{figure}
 
 \subsection*{Implementation}
