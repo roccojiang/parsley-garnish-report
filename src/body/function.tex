@@ -158,7 +158,7 @@ trait Function {
       case v @ Var(name) =>
         boundVars.getOrElse(v, HVar(name))
       case Translucent(term, env) =>
-        HTranslucent(term, env.map { case (v, func) => v -> reflect0(func, boundVars) })
+        HTranslucent(term, env.mapValues(reflect0(_, boundVars)))
 
       case Id => HAbs(f => f)
       case Flip => HAbs(f => HAbs(x => HAbs(y => HApp(HApp(f, y), x))))
@@ -180,6 +180,7 @@ trait HOAS {
       case g          => HApp(g.eval, x.map(_.eval))
     }
     case HTranslucent(t, env) => HTranslucent(t, env.map { case (k, v) => k -> v.eval })
+    case HTranslucent(t, env) => HTranslucent(t, env.mapValues(_.eval))
     case _ => this
   }
 
@@ -188,7 +189,7 @@ trait HOAS {
       case HAbs(_, g) => g(x).whnf
       case g          => HApp(g, x)
     }
-    case HTranslucent(t, env) => HTranslucent(t, env.map { case (k, v) => k -> v.whnf })
+    case HTranslucent(t, env) => HTranslucent(t, env.mapValues(_.whnf))
     case _ => this
   }
 }
@@ -203,7 +204,7 @@ trait HOAS {
       Abs(params, f(params.map(x => HVar(x.name))).reify)
     case HApp(f, xs) => App(f.reify, xs.map(_.reify))
     case HVar(name) => Var(name)
-    case HTranslucent(t, env) => Translucent(t, env.map { case (v, f) => v -> f.reify })
+    case HTranslucent(t, env) => Translucent(t, env.mapValues(_.reify))
   }
 }
 \end{minted}
