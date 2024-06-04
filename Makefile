@@ -10,8 +10,8 @@ all: main.pdf \
 		 src/body/body.pdf \
 		 src/body/parser.pdf \
 		 src/body/function.pdf \
-		 src/project/project.pdf \
 		 src/evaluation/evaluation.pdf \
+		 src/conclusion/conclusion.pdf \
 		 src/appendix/appendix.pdf
 
 main: main.pdf

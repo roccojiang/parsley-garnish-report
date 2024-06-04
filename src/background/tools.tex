@@ -2,13 +2,7 @@
 
 \begin{document}
 
-\section{Linting and Static Analysis}
-
-% TODO: talk about how my approach is formal methods, not data-driven
-
-% TODO: might be worth talking about soundness and completeness
-% Most practical static checkers for JavaScript [3, 2, 1, 4] and other languages [29, 11] take a pragmatic view and favor a relatively low false positive rate over soundness
-
+\section{Linters}
 \textbf{Linting} is the process of analysing source code to identify and report issues related to coding style and potential logical errors.
 The term originates from the \texttt{lint} program~\cite{johnson_lint_1978}, which examined C source code for bugs, as well as wasteful code patterns that may be legal but error-prone.
 The tool was also utilised to enforce portability restrictions which aided users in writing portable code that could be compiled on multiple platforms.
@@ -24,18 +18,17 @@ In addition to detecting issues, many linters provide \emph{auto-fix} capabiliti
 This feature is often integrated into \textsc{ide}s as well: the popular Language Server Protocol for defining \textsc{ide} features enables these auto-fix features via \emph{code actions}~\cite{gunasinghe_lsp_2022}.
 When a section of code is highlighted by a linter warning, a user can apply a code action to automatically fix the issue with a single click.
 
-Linters and related static analysis tools are increasingly becoming more important in modern software development, as modern code continues to become more complex and difficult to reason about.
-Industry leaders, such as Google~\cite{sadowski_analysis-google_2018} and Meta/Facebook~\cite{calcagno_moving-facebook_2015}, have embraced these tools as integral components of their software development workflows.
-The use of automated tools to detect potential issues is not only faster but in some cases more effective than human review, saving developer time and reducing error rates in the development process.
+% Linters and related static analysis tools are increasingly becoming more important in modern software development, as modern code continues to become more complex and difficult to reason about.
+% Industry leaders, such as Google~\cite{sadowski_analysis-google_2018} and Meta/Facebook~\cite{calcagno_moving-facebook_2015}, have embraced these tools as integral components of their software development workflows.
+% The use of automated tools to detect potential issues is not only faster but in some cases more effective than human review, saving developer time and reducing error rates in the development process.
 
-\subsection{Types of Issues Detected by Linters}
+\subsection{Categories of Lint Rules}
 
-Many linters are configurable with a set of rules, which specify the categories of issues that the linter should detect.
+Many linters are configurable with a set of \emph{rules}, which specify the categories of issues that the linter should detect.
 These rules can be enabled or disabled by users, allowing them to customise the linter to their needs.
 Rules are usually grouped by purpose: some rules are concerned with simply improving code style, while others are concerned with detecting suspicious code patterns indicative of potential bugs.
 
 \subsubsection{Style checks and code quality}
-
 Linters can suggest opportunities to improve code by utilising language features in a more idiomatic manner.
 Snippets of code that violate these stylistic rules are not necessarily incorrect, but should be fixed as they may be harder to read or maintain in the long term.
 Furthermore, many idiomatic practices exist to avoid common pitfalls that could lead to unintended behaviour.
@@ -83,7 +76,6 @@ In this case, the accompanying linter can benefit users and improve developer pr
 For instance, the \emph{xUnit.net} testing framework for C\# is accompanied by the \texttt{xunit.analyzers}\footnote{\url{https://github.com/xunit/xunit.analyzers}} package which provides linting rules to enforce best practices specific to \emph{xUnit}.
 
 \subsubsection{Code smells and opportunities for refactoring}
-
 Code refactoring is a well-established practice in software development.
 In his influential book \emph{Refactoring: Improving the Design of Existing Code}~\cite{fowler_refactoring_2018}, Fowler defines \textbf{refactoring} as ``the process of changing a software system in such a way that it does not alter the external behaviour of the code yet improves its internal structure''.
 Refactoring may be employed to eliminate \textbf{code smells}, which are surface indications that could indicate deeper problems in the system.
@@ -140,57 +132,54 @@ The linter may then suggest a code action to automatically apply an \emph{Extrac
   \label{fig:extract-function-intellij}
 \end{figure}
 
-\subsubsection{Possible bugs or errors}
+\subsubsection{Likely bugs or errors}
+In some cases, linters may be able to detect with relatively high confidence that a piece of code is likely to contain a bug.
+Rules that detect more egregious issues like this are helpful for even experienced users to avoid common pitfalls.
+For example, \emph{Clippy} has \texttt{clippy::correctness} rules which identify code very likely to be incorrect or useless, and \texttt{clippy::suspicious} rules for code that is \emph{very sus} but could be a false positive.
+\emph{ESLint} also provides several rules to warn against code patterns that are likely to cause runtime errors, such as re-assigning a \texttt{const} variable.
 
-Linters may also directly attempt to detect more serious issues in code, such as possible logic errors.
-This can be helpful for even experienced users to avoid common pitfalls.
-For example, \emph{Clippy} has \texttt{clippy::suspicious} and \texttt{clippy::correctness} rule categories to identify code that is very likely to be incorrect or useless.
-\emph{ESLint} provides several rules to warn against code patterns that are likely to cause runtime errors, such as re-assigning a \texttt{const} variable.
-
-Again, linters may attempt to provide auto-fixes for these issues where possible.
+Again, linters may attempt to provide code fixes for these issues where possible.
 However, these issues are usually more complex, which may limit the effectiveness or usefulness of auto-fixes: in the case of a suspicious code pattern, the programmer's intent may not be clear, causing the linter to suggest a fix that does not align with the user's expectations.
 
 \subsection{Implementing Linters}
+\subsubsection{Static vs Dynamic Analysis}
+\emph{Static analysis} analyses source code to extract information about its behaviour without executing the program itself. 
+% Static analysis tools can perform a variety of tasks, ranging from detecting possible bugs~\cite{johnson_lint_1978,hovemeyer_finding-bugs_2004} to formal software verification of program properties~\cite{blanchet_static-analyzer_2003}.
+This is in contrast to \emph{dynamic analysis}, which is performed on programs as they are run.
+Although dynamic analyses can yield more precise results as they observe the actual runtime behaviour of the program, they are more heavyweight as a result.
+Generally, linters are static analysis tools, as by design they must be lightweight and fast to provide real-time feedback to users as they write code.
 
-\TODO{This is the old static analysis section - rework this}
-
-The vast majority of linters are implemented using static program analysis, analysing source code to extract information about its behaviour without executing the program itself. 
-This is in contrast to dynamic analysis, which is performed on programs as they are run.
-Although dynamic analysis can yield more precise results as it observes the actual runtime behaviour of the program, it is also more heavyweight as a result.
-
-Given their need to be scalable and efficient enough to handle entire codebases, linters are designed to be fast and lightweight.
-In most practical cases, therefore, dynamic analysis is too slow and resource-intensive to be used for the purpose of linting.
-However, dynamic languages such as JavaScript present challenges for static analysis due to their dynamic runtime nature.
+In some instances, however, dynamic languages such as JavaScript present challenges for static analysis due to their dynamic runtime nature.
 This has led to the exploration of linters that incorporate dynamic analysis techniques to identify issues that static methods cannot detect~\cite{gong_dlint_2015}.
-Despite these developments, state-of-the-art JavaScript linters utilised in industry, such as \emph{ESLint}, still solely rely on static analysis.
+% Despite these developments, state-of-the-art JavaScript linters utilised in industry, such as \emph{ESLint}, still solely rely on static analysis.
+Regardless, since Scala is strongly and statically-typed it does not suffer from the same downsides, so the focus of this thesis will be on implementing \texttt{parsley-garnish} using static analysis.
 
+% TODO: discussion of parsley-debug's dynamic analysis capabilities (should this go here?)
+
+\subsubsection{Metaprogramming}
+Linters that provide code fixes are \emph{metaprograms}: they are programs that manipulate programs.
+Auto-fixes and refactorings are performed as source-to-source transformations, which may be implemented as simple text-based replacements or more robust rewrite rules that operate on the abstract syntax tree (\textsc{ast}) of the source code.
+
+Analyses over \textsc{ast}s are typically semantic-aware, respecting scoping rules and type information to provide more accurate code fixes.
+This semantic information is often provided by the compiler, 
 \TODO{
-* parsley is a scala library
-* scala is a static language, strongly typed
-* this section will therefore focus on the traditional static analysis approach, since dynamic analysis is not as relevant here
-
+so there's the choice of lint-on-compile vs lint-after-compile
 https://scalacenter.github.io/scalafix/docs/users/related-projects.html
-Lint on compile vs lint after compile?
 }
 
-\subsubsection{AST stuff}
+\subsubsection{Code-Fixing Approaches}
+% TODO: might be worth talking about soundness and completeness
+% Most practical static checkers for JavaScript [3, 2, 1, 4] and other languages [29, 11] take a pragmatic view and favor a relatively low false positive rate over soundness
 
 \TODO{
-* how does HLint work? seems like its sometimes prone to false positives
+  Our approach is formal methods using domain-specific knowledge of parser laws
+  Not data-driven or ML/LLM approach
 }
 
-Static analysis tools can reason about how to safely refactor code in an automated manner, performing refactorings as source-to-source transformations.
-These transformations may be implemented as simple text-based replacements or more robust rewrite rules that operate on the abstract syntax tree (\textsc{ast}) of the source code.
 
-
-% TODO: justification why we don't use dynamic analysis? linters - static, lightweight
-
-These tools can perform a variety of tasks, ranging from detecting possible bugs~\cite{johnson_lint_1978,hovemeyer_finding-bugs_2004} to formal software verification of program properties~\cite{blanchet_static-analyzer_2003}.
-
-\section{Implementing Linters for Scala}
+\section{Writing Linters for Scala}
 
 \TODO{
-  Metaprogramming. Linters are metaprograms that inspect and manipulate Scala source code.
   DSL linting is hard but luckily Parsley is an eDSL so we can just use Scala metaprogramming utilities
 }
 
@@ -265,7 +254,7 @@ To maintain flexibility and not tie \texttt{parsley-garnish} to a particular com
 Furthermore, documentation is less clear on how to write a Scala plugin for IntelliJ compared to the Scalafix documentation.
 
 WartRemover\footnote{\url{https://www.wartremover.org/}} is a linter implemented as a compiler plugin, with support for writing custom rules.
-However, it only can emit diagnostics and does not support auto-fixes, making it less suitable for \texttt{parsley-garnish}'s goals.
+However, it only can emit diagnostics and does not support code fixes, making it unsuitable for \texttt{parsley-garnish}'s goals.
 
 ScalaStyle\footnote{\url{http://www.scalastyle.org/}} is primarily a style checker which also supports custom rules.
 However, it is only able to perform syntactic analyses and does not have access to semantic information, restricting the types of analyses it can perform.

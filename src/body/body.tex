@@ -12,6 +12,9 @@
 }
 
 \ourchapter{Design and Implementation}
+
+
+The purpose of this chapter is to describe the intermediate representations of parsers (\cref{sec:parser-representation}) and functions (\cref{sec:function-representation}).
 \subfile{parser}
 \subfile{function}
 
@@ -76,11 +79,11 @@ val p = 'g' ~> "arnish"
 p.parse("garnish")
 // [error] type mismatch;
 //   found   : String("arnish")
-//   required: parsley.Parsley[?]
+//   required: Parsley[?]
 //  Note that implicit conversions are not applicable because they are ambiguous:
-//   both method stringLift in object character of type (str: String): parsley.Parsley[String]
-//   and method implicitSymbol in class ImplicitSymbol of type (s: String): parsley.Parsley[Unit]
-//   are possible conversion functions from String("arnish") to parsley.Parsley[?]
+//   both method stringLift in object character of type (str: String): Parsley[String]
+//   and method implicitSymbol in class ImplicitSymbol of type (s: String): Parsley[Unit]
+//   are possible conversion functions from String("arnish") to Parsley[?]
 //    val p = 'g' ~> "arnish"
 //                   ^^^^^^^^
 \end{minted}

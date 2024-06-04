@@ -5,6 +5,7 @@
 \section{Parser Representation}\label{sec:parser-representation}
 \TODO{
   This is an INTERMEDIATE SYMBOLIC REPRESENTATION (?)
+  more specialised than general-purpose scala ast
   This section is about simplifying in our semantic domain (parsers)
 }
 
@@ -146,8 +147,10 @@ This is obviously unacceptable and completely obfuscates the intent of the parse
 For human readability of the transformed output, it is therefore important to simplify the parser as much as possible.
 Now that the parsers are represented as objects, it is easy to pattern match on their constructors.
 This improved static inspectability allows us to perform simplifications using the laws that govern parser combinators -- these often form a natural simplification in one direction.
-This is similar to the high-level optimisations performed in the Parsley backend as described by~\textcite{willis_staged_2023}, using the same parser laws.
+This is similar to the high-level optimisations performed in the Parsley backend as described by \textcite{willis_staged_2023}, using the same parser laws.
+
 \Cref{fig:parser-laws} shows the subset of parser laws utilised by \texttt{parsley-garnish} for parser simplification.
+Most of the laws in \cref{fig:parser-laws} have already been shown to hold for Parsley in~\cite{willis_garnishing_2018}; an additional proof for \cref{eqn:alt-fmap-absorb} can be found in \cref{appendix:parser-law-proofs}.
 
 \begin{figure}[htbp]
 \centering
@@ -170,9 +173,7 @@ This is similar to the high-level optimisations performed in the Parsley backend
 \label{fig:parser-laws}
 \end{figure}
 
-Most of the laws in \cref{fig:parser-laws} have already been shown to hold for Parsley in~\cite{willis_garnishing_2018}.
-An additional proof for \cref{eqn:alt-fmap-absorb} can be found in \cref{appendix:parser-law-proofs}.
-
+% TODO: vertical spacing here is a bit unsightly, maybe add a \paragraph for these "running example" bits?
 In the previous example, it is evident that the most noise results from the \scala{empty} combinators.
 These can be eliminated using \cref{eqn:alt-left-neutral,eqn:alt-right-neutral,eqn:alt-empty-absorb,eqn:alt-fmap-absorb}:
 \begin{minted}{scala}
