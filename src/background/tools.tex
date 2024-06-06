@@ -143,16 +143,26 @@ However, these issues are usually more complex, which may limit the effectivenes
 
 \subsection{Implementing Linters}
 \subsubsection{Static vs Dynamic Analysis}
-\emph{Static analysis} analyses source code to extract information about its behaviour without executing the program itself. 
+\emph{Static analysis} analyses source code to extract information about its behaviour without executing the program itself.
 % Static analysis tools can perform a variety of tasks, ranging from detecting possible bugs~\cite{johnson_lint_1978,hovemeyer_finding-bugs_2004} to formal software verification of program properties~\cite{blanchet_static-analyzer_2003}.
-This is in contrast to \emph{dynamic analysis}, which is performed on programs as they are run.
-Although dynamic analyses can yield more precise results as they observe the actual runtime behaviour of the program, they are more heavyweight as a result.
-Generally, linters are static analysis tools, as by design they must be lightweight and fast to provide real-time feedback to users as they write code.
+This is in contrast to \emph{dynamic analysis}, which is performed on programs as they run to observe their actual runtime behaviour.
+Both techniques have their own advantages and disadvantages, and the choice between them depends on the desired properties of a tool.
+Dynamic analysers are \emph{precise} in that they only observe what a program can actually do, but requires a whole system that can be executed.
+On the other hand, static analysers can be more lightweight and can be applied to incomplete systems, since they do not require the program to be run.
+However, the trade-off is that static analysis is generally more \emph{imprecise} since it must approximate the possible behaviours of the program.
 
-In some instances, however, dynamic languages such as JavaScript present challenges for static analysis due to their dynamic runtime nature.
-This has led to the exploration of linters that incorporate dynamic analysis techniques to identify issues that static methods cannot detect~\cite{gong_dlint_2015}.
+Linters should be fast and lightweight, as it is desirable for them to provide feedback to the user in real-time within the \textsc{ide}.
+Furthermore, it is desirable for them to be able to provide warnings on incomplete programs and analyse even just fragments of code for suspicious code patterns.
+For these reasons, the vast majority of linters are static analysis tools.
+
+% TODO: might be worth talking about soundness and completeness
+% https://stackoverflow.com/questions/12884623/static-and-dynamic-code-analysis
+% Most practical static checkers for JavaScript [3, 2, 1, 4] and other languages [29, 11] take a pragmatic view and favor a relatively low false positive rate over soundness
+
+% In some instances, however, dynamic languages such as JavaScript present challenges for static analysis due to their dynamic runtime nature.
+% This has led to the exploration of linters that incorporate dynamic analysis techniques to identify issues that static methods cannot detect~\cite{gong_dlint_2015}.
 % Despite these developments, state-of-the-art JavaScript linters utilised in industry, such as \emph{ESLint}, still solely rely on static analysis.
-Regardless, since Scala is strongly and statically-typed it does not suffer from the same downsides, so the focus of this thesis will be on implementing \texttt{parsley-garnish} using static analysis.
+% Regardless, since Scala is strongly and statically-typed it does not suffer from the same downsides, so the focus of this thesis will be on implementing \texttt{parsley-garnish} using static analysis.
 
 % TODO: discussion of parsley-debug's dynamic analysis capabilities (should this go here?)
 
@@ -161,15 +171,11 @@ Linters that provide code fixes are \emph{metaprograms}: they are programs that 
 Auto-fixes and refactorings are performed as source-to-source transformations, which may be implemented as simple text-based replacements or more robust rewrite rules that operate on the abstract syntax tree (\textsc{ast}) of the source code.
 
 Analyses over \textsc{ast}s are typically semantic-aware, respecting scoping rules and type information to provide more accurate code fixes.
-This semantic information is often provided by the compiler, 
-\TODO{
-so there's the choice of lint-on-compile vs lint-after-compile
-https://scalacenter.github.io/scalafix/docs/users/related-projects.html
-}
+This semantic information is often provided by the compiler -- some linters opt to run during compilation as a compiler plugin, while others run as a separate tool after compilation.
+Lint-on-compile and lint-after-compile tools both have their own advantages and disadvantages, and the choice between them depends on the use case~\cite{sadowski_analysis-google_2018}.
 
 \subsubsection{Code-Fixing Approaches}
-% TODO: might be worth talking about soundness and completeness
-% Most practical static checkers for JavaScript [3, 2, 1, 4] and other languages [29, 11] take a pragmatic view and favor a relatively low false positive rate over soundness
+% Partial verificationtechniques have been proposed. These techniques prove thatsome desired property of a program holds for all possible ex-ecutions.  Such techniques may be complete or incomplete;if incomplete, then the analysis may be unable to prove thatthe desired property holds for some correct programs.  Fi-nally,unsoundtechniques can identify “probable” bugs, butmay miss some real bugs and also may emit some inaccuratewarnings.
 
 \TODO{
   Our approach is formal methods using domain-specific knowledge of parser laws
@@ -229,7 +235,7 @@ Since it is built on Scalameta, a major advantage of Scalafix is that it is also
 Originally, Scalafix was designed to help automate the process of migrating code from Scala 2 to 3, which involved many breaking changes to the language~\cite{geirsson_scalafix_2016}.
 However, Scalafix has since evolved into a general-purpose tool for implementing generic code transformations and analyses.
 Scalafix rules can be either \emph{syntactic} or \emph{semantic} depending on whether they require semantic information, such as type signatures, to perform their analysis~\cite{scalacenter_scalafix_2024}.
-Syntactic rules are faster to run, operating purely on the \textsc{ast} without requiring compilation, but are more limited in the analyses they can perform.
+Syntactic rules are faster to run, operating purely on the \textsc{ast} without needing to invoke compilation, but are more limited in the analyses they can perform.
 Semantic rules, on the other hand, are more complicated to run: they require augmenting the Scala compiler with the SemanticDB compiler plugin to provide Scalafix with the required semantic information.
 They are also slower as a result, since they require the source file to be compiled.
 
@@ -301,7 +307,7 @@ The approach taken by \texttt{parsley-garnish} is to represent intended rewrites
 \Cref{fig:quasiquote-ex} shows how \emph{quasiquotes}~\cite{shabalin_quasiquotes_2013} can be used as syntactic sugar to construct trees in a convenient manner:
 \begin{itemize}
   \item \scala{q"..."} is the quasiquote's string interpolation syntax to build a \scala{Term} node, which is a subclass of \scala{Tree}.
-  \item \scala{$x} splices the value of the expression \scala{x} into the constructed tree. Ordinarily, spliced values need to be an instance of a \scala{Tree}, but simple values such as integers (in this case) can be automatically lifted into the appropriate tree node.
+  \item \scala{${...}} is the \emph{splice} or \emph{unquote} operation to insert a term into the constructed tree. Ordinarily, spliced values need to be an instance of a \scala{Tree}, but simple values such as integers (in this case) can be automatically lifted into the appropriate tree node.
   \item \scala{Tree.structure} represents the resulting \scala{Tree} data structure as a string, useful for debugging.
   \item \scala{Tree.syntax} pretty-prints the tree back into its source code representation, which can then be fed into a \scala{Patch}.
 \end{itemize}
