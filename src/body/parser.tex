@@ -53,11 +53,13 @@ Use the left-recursion factoring~(\cref{sec:factor-leftrec}) rule as a basis/con
 
 % TODO: fix the above "intro" ------------------------------------------------------------------------------
 
-Consider the following left-recursive parser:
+\paragraph{Running example}
+The left-recursion factoring rule~(\cref{sec:factor-leftrec}) performs the most complex analyses and transformations on parsers in \texttt{parsley-garnish}.
+Thus, it is a good example to motivate the design requirements for the parser representation.
+The following left-recursive parser and its transformation into its \scala{postfix} form will serve as a running example for this \namecref{sec:parser-representation}:
 \begin{minted}{scala}
 lazy val expr: Parsley[String] = (expr, string("a")).zipped(_ + _) | string("b")
 \end{minted}
-The transformations necessary to remove left recursion from this parser~(\cref{sec:factor-leftrec}), will serve as a running example to motivate the requirements for the parser representation.
 
 \subsection{Detecting Named Parsers}
 Before any analysis on parsers can be performed, it is first necessary to identify which \textsc{ast} nodes correspond to parsers.
@@ -169,7 +171,8 @@ val lefts = {
 Other than the capitalised \scala{Empty} constructor, this would be perfectly valid \texttt{parsley} code.
 
 \subsection{Simplifying Parsers Using Parser Laws}\label{sec:simplify-parsers}
-After left-recursion factoring is complete, the recombined parsers from the unfolding process end up very noisy and difficult to read.
+Recombining unfolded parsers during left-recursion factoring introduces many necessary, but extraneous ``glue'' combinators.
+Even though the transformed parser is semantically correct, it ends up very noisy syntactically.
 Consider the resulting parser from factoring out the left-recursion in \scala{expr}:
 % lazy val expr: Parsley[String] = chain.postfix(
 %   empty | (empty.map(a => b => a + b) | empty <*> expr) <*> string("a")
@@ -190,7 +193,7 @@ lazy val expr: Parsley[String] = chain.postfix(
 )
 \end{minted}
 %
-The intent of this parser is completely obfuscated -- it would obviously be unacceptable for the output of the transformation to be left in this form.
+The intent of this parser is completely obfuscated -- it would be unacceptable for the output of the transformation to be left in this form.
 For human readability, this parser term must be simplified as much as possible, using domain-specific knowledge about parser combinators.
 This is where the deep embedding approach comes to shine; simplifications are easily expressed by pattern matching on \scala{Parser} constructors.
 

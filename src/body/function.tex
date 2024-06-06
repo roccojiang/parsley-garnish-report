@@ -73,9 +73,15 @@ Use HOAS to leverage the meta-language (i.e. Scala) as our semantic model -- bla
 No rewriting = no worrying about avoiding capture.
 Shift that burden onto the scala compiler.
 
-\TODO{
-  Add diagram showing $\text{\textlbrackdbl} - \text{\textrbrackdbl}$
-}
+\begin{figure}
+\begin{equation*}
+% https://tikzcd.yichuanshen.de/#N4Igdg9gJgpgziAXAbVABwnAlgFyxMJZABgBpiBdUkANwEMAbAVxiRAB12cYAPHYAMoBPMDjo8AviAml0mXPkIoATOSq1GLNp259BMALZ1RWAMZwpE9TCgBzeEVAAzAE4QDSMiBwQkARmo4AAssJxwkAFpVDWZWRA4uXn4dJIYAIxc6UwBrKDSGCQACCMKUvTKcFwys3PzLWRBXd39qH09AkLDI6IY6NJgGAAV5PAI2Bhgu6npY7US+XGAXGFChSwoJIA
+\begin{tikzcd}
+  \text{Syntax} \arrow[rr, "\text{\textlbrackdbl} - \text{\textrbrackdbl}", shift left=2] &  & \text{Semantics} \arrow[ll, "\textit{reify}", shift left=2]
+\end{tikzcd}
+\end{equation*}
+\caption{Normalisation by evaluation in a semantic model.}
+\end{figure}
 
 \subsection{Converting Scalameta Terms to the Function \textsc{adt}}
 Three cases:
