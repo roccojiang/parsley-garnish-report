@@ -8,9 +8,7 @@
   And shows a shortcoming of scalameta quasiquotes
 }
 
-\Cref{sec:parser-representation} showed that it is useful to lift \textsc{ast} nodes corresponding to parser terms into an intermediate representation \scala{Parser}, 
-
-The work in \cref{sec:parser-representation} showed that it is possible to lift \textsc{ast} nodes corresponding to parser terms into a more statically inspectable \scala{Parser} datatype.
+\Cref{sec:parser-representation} showed that it is useful to lift \textsc{ast} nodes corresponding to parser terms into an intermediate \scala{Parser} representation.
 Furthermore, \cref{sec:simplify-parsers} demonstrated that this representation allows parsers to be transformed into a simpler form.
 However, so far, the functions passed to lifting combinators have been treated in an opaque manner, and have not been subject to the same simplifications as parsers.
 This is unsatisfactory, as these functions are essential to combining and sequencing parsers to build more complex parsers.
