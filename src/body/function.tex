@@ -98,13 +98,28 @@ Normalisation can thus be viewed simply as a process of evaluation, but in the p
 This \namecref{sec:normalisation-approach} first explains the traditional notion of normalisation by rewriting, before introducing normalisation by evaluation as a more elegant and efficient alternative.
 
 \subsubsection{Normalisation by Rewriting}
-Essentially term-rewriting, similar to how Parsers are simplified.
-Strong reduction -- allow beta reduction to occur deep inside lambda terms, in all redexes of a term, until no more reductions can be made.
-To beta normal form, not just beta-WHNF (weak head normal form) % TODO: does jamie's thesis have more elaboration on terminology
-% TODO: cite https://inria.hal.science/inria-00434283/document ? for NbE but also some of the terminology used
+The \scala{Lambda} datatype could be normalised by term-rewriting, in the same way that parsers get simplified.
+The notion of simplification comes from the single-step $\beta$-reduction, defined on the $n$-ary lambda calculus in \cref{fig:beta-reduction}.
+Reduction takes place only if the expected number of arguments in $\mathbf{x} = x_1, \ldots, x_n$ are equal to the number of arguments in $\mathbf{N} = N_1, \ldots, N_n$; otherwise, evaluation is stuck.
 
-Aside: Untyped lambda calculus is not strongly normalising, but these terms are converted from valid typed Scala programs.
-Although not formally proven, it is reasonable to assume that these terms are a subset of the simple lambda calculus that are strongly normalising -- they won't be particularly complex.
+\begin{figure}[htbp]
+\begin{equation*}
+(\lambda \mathbf{x} . M) \mathbf{N} \rightarrow_\beta M[\mathbf{N}/\mathbf{x}] \hspace{3em} (\text{if } | \mathbf{x} | = | \mathbf{N} | )
+\end{equation*}
+\caption{The $\beta$-reduction rule for the $n$-ary lambda calculus.}
+\label{fig:beta-reduction}
+\end{figure}
+
+The goal is to achieve $\beta$ normal form ($\beta$-\textsc{nf}) by allowing $\beta$-reduction to occur deep inside $\lambda$-terms, in all redexes of a term, until no more reductions can be made.
+Normally in the untyped $\lambda$-calculus, $\beta$-reduction as a rewriting rule does not manage to be strongly normalising as desired, and may lead to non-terminating rewrites.
+However, despite the \scala{Lambda} representation itself being untyped, all \scala{Lambda} terms are converted from valid typed Scala expressions.
+Scala 3 is modelled on the theoretic foundations of the Dependent Object Types (\textsc{dot}) calculus, which has been shown to be strongly normalisable~\cite{wang_strong_2017}.
+Although not proven for Scala 2, it is reasonable to assume that the same result holds, at least for the subset of expressions that are represented in the \scala{Lambda} representation.
+
+In \cref{fig:beta-reduction}, the syntax $M[N/x]$ denotes term substitution, where all free occurrences of $x$ in $M$ are replaced with $N$.
+The difficulty lies in making sure that substitution avoids \emph{variable capture}, when $N$ contains free variables that are bound in the scope where $x$ is found.
+
+Capture-avoiding substitution is a notoriously tricky and subtle problem.
 
 \scala{Function} has one binding construct -- the n-ary abstraction. This introduces variables and the need for capture-avoiding substitution.
 Capture-avoiding substitution is hard, many approaches e.g. de Bruijn indices (but inefficient to open/close terms so much, so the correct choice is levels).
@@ -126,7 +141,7 @@ Shift that burden onto the scala compiler.
   \text{Syntax} \arrow[rr, "\text{\textlbrackdbl} - \text{\textrbrackdbl}", shift left=2] &  & \text{Semantics} \arrow[ll, "\textit{reify}", shift left=2]
 \end{tikzcd}
 \end{equation*}
-\vspace{1ex}
+\vspace{0.5ex}
 \begin{equation*}
 \textit{normalise} = \textit{reify} \circ \text{\textlbrackdbl} - \text{\textrbrackdbl}
 \end{equation*}
