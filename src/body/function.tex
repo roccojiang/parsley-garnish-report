@@ -9,48 +9,93 @@
 }
 
 \Cref{sec:parser-representation} showed that it is useful to lift \textsc{ast} nodes corresponding to parser terms into an intermediate \scala{Parser} representation.
-Furthermore, \cref{sec:simplify-parsers} demonstrated that this representation allows parsers to be transformed into a simpler form.
-However, so far, the functions passed to lifting combinators have been treated in an opaque manner, and have not been subject to the same simplifications as parsers.
-This is unsatisfactory, as these functions are essential to combining and sequencing parsers to build more complex parsers.
-
-Additionally, the transformations on parsers during left-recursion factoring involve mapping over parsers with higher-order functions such as \scala{flip} to reverse the order of arguments, and \scala{compose} to compose functions.
-Looking back at the running example in the previous \namecref{sec:parser-representation}, the function passed to the \scala{map} combinator has ended up in an unnecessarily complex form:
-\begin{minted}{scala}
-val f: Function = FLIP(COMPOSE(a => b => a + b)(ID))
-\end{minted}
-It would be ideal to make functions inspectable in a similar manner to parsers, so that they can be \emph{normalised} into a semantically equivalent but visually simpler form.
-
-\subsection{Motivation}
-Where are functions used in parsley?
-Lowest-level: map and family
+Crucially, \cref{sec:simplify-parsers} demonstrates how this representation lends itself to reducing parsers to a simpler form.
+This \namecref{sec:function-representation} extends this idea to representing functions in a similar, statically-inspectable manner, and explores why this machinery is not just desirable but necessary for \texttt{parsley-garnish}.
 
 % TODO: there's some decent stuff in Ch8 of david davie's masters thesis briefly summing up how to articulate related things in a succinct manner
-\subsection{Approach}
+\subsection{Representing Functions}
+Utilising parser laws as a basis for term simplification for the \scala{Parser} \textsc{adt} has managed to tame the jumble of parser combinators resulting from the left-recursing factoring transformation~\cref{sec:factor-leftrec}.
+However, the functions passed to lifting combinators such as \scala{map} have so far been treated as opaque, and have not been subject to the same simplifications as parsers.
 
-It may be useful to view this as statically evaluating as much as possible -- however, not all inputs are known so we cannot fully evaluate the result value.
-Normalisation is therefore just evaluation, but in the presence of unknown terms.
+Continuing from the running example from the previous \namecref{sec:parser-representation}, the function passed to the \scala{map} combinator has ended up in an unnecessarily complex form:
+\begin{minted}{scala}
+val f: Function = flip(compose(a => b => a + b)(identity))
+\end{minted}
+%
+This is because the transformations on parsers during left-recursion factoring involve mapping over parsers with higher-order functions such as \scala{flip} to reverse the order of arguments, and \scala{compose} to compose functions.
+These are used to ensure that unfolded parsers are recombined in a lawful manner, but results in a lot of syntactic noise.
+Yet again, leaving the transformed terms in this form would be unacceptable for the linter.
+It is vital that these functions are partially evaluated and \emph{normalised} into a semantically equivalent but visually simpler form.
+To achieve this, a representation of functions is needed that is amenable to the same kind of static inspection as the \scala{Parser} \textsc{adt}.
 
-Assume functions passed to parsers are pure, because we assume sane users.
-So it is reasonable to model functions as a lambda calculus, and this can also be achieved with an ADT.
-As an aside, this is fine -- Scala 3 has been formalised to the DOT calculus, and the subset that we are interested in is equivalent to the lambda calculus.
-In the simple lambda calculus all functions are curried i.e. each function only takes one argument, and multi-argument functions are represented as a chain of single-argument functions.
-In Scala, uncurried functions are preferred for performance reasons, but it allows currying as functions can have multiple parameter lists.
-We could desugar all this and curry the functions, but we want to be able to easily transform our output back into Scala code.
-So we extend the lambda calculus to be able to represent multi-argument functions using n-ary abstraction and application.
+\subsubsection{Defunctionalisation}
+In the same way that representing parsers as datatypes allows them to be statically inspectable, the aforementioned higher-order functions can also be rendered as datatypes to allow them to be analysed in a similar manner.
+This is an example of \emph{defunctionalisation}, a technique to eliminate higher-order functions by transforming them into specialised first-order equivalents~\cite{reynolds_defunc_1972,danvy_defunctionalization_2001}.
 
+Ideally for type safety, this could be represented as a generalised algebraic data type (\textsc{gadt})~\cite{cheney_gadt_2003} with a type parameter documenting the type that the function term represents:
+\begin{minted}{scala}
+trait Function[+T]
+case class Identity[A]() extends Function[A => A]
+case class Flip[A, B, C]() extends Function[(A => B => C) => B => A => C]
+case class Compose[A, B, C]() extends Function[(B => C) => (A => B) => A => C]
+\end{minted}
+
+\subsubsection{Lambda Calculus}
+The defunctionalised constructs alone are not enough to fully represent the functions passed to combinators.
+There needs to be a way to apply them to arguments, and to represent the arguments themselves -- the core language to do so is the lambda calculus~\cite{church_lambda_1936}.
+In the $\lambda$-calculus, each function only takes one argument, and multi-argument functions are represented as a chain of single-argument functions: this is known as \emph{currying}.
+In Scala, functions are allowed to have multiple parameter lists to make them curried, although uncurried functions are preferred for performance reasons.
+Since these functions will be transformed from Scala code and back, it is desirable to maintain a high-level equivalence between these two representations.
+Thus, \cref{fig:lambda-calculus} shows the $\lambda$-calculus extended to represent multi-argument functions using $n$-ary abstraction and application.
+
+\begin{figure}
+% annoying \enspace hack to get operators aligned along the centre
+\begin{align*}
+M, N &\mathrel{::=} x & \text{(variable)} \\
+&\mathrel{\enspace\mid\enspace} \lambda(x_1, \ldots, x_n).M & \text{($n$-ary abstraction)} \\
+&\mathrel{\enspace\mid\enspace} M(N_1, \ldots, N_n) & \text{($n$-ary application)}
+\end{align*}
+\caption{The untyped $\lambda$-calculus extended with $n$-ary abstraction and application.}
+\label{fig:lambda-calculus}
+\end{figure}
+
+\subsubsection{The Function \textsc{adt}}
+The syntactic representation of functions is thus represented as the uni-typed \scala{Function} \textsc{adt} in \cref{fig:function-adt}.
+The \scala{Lambda} trait is a subset of the entire \scala{Function} trait, representing $\lambda$-terms, with the addition of a \scala{Translucent} term to encapsulate open terms holding a \scala{scala.meta.Term} which cannot be evaluated further.
+
+\begin{figure}
 \begin{minted}{scala}
 trait Function
 
+// Core expression language
 trait Lambda extends Function
 case class Abs(xs: List[Var], f: Function) extends Lambda
 case class App(f: Function, xs: List[Function]) extends Lambda
 case class Var(name: VarName) extends Lambda
 case class Translucent(t: Term, env: Map[VarName, Function]) extends Lambda
 
+// Defunctionalised higher-order functions
 case object Identity extends Function
 case object Flip extends Function
 case object Compose extends Function
+...
 \end{minted}
+\caption{The \scala{Function} \textsc{adt} for representing functions.}
+\label{fig:function-adt}
+\end{figure}
+
+The original intention was to represent \scala{Function} as a type-parameterised \textsc{adt} for improved type safety, where \scala{Lambda} would use a variant of the simply typed $\lambda$-calculus.
+This would've also allowed \scala{Parser} to be parameterised by the result type of the parser.
+However, attempting to implement this ran into two main hurdles:
+\begin{itemize}
+  \item \scala{Var} and \scala{Translucent} terms would need to be created with concrete type parameters of their inferred types. Scalafix's semantic \textsc{api} is not powerful enough to guarantee that all terms can be queried for their inferred types -- in fact, the built-in Scalafix rule \emph{Explicit Result Types} calls the Scala 2 presentation compiler to extract information like this\footnote{\url{https://github.com/scalacenter/scalafix/issues/1583}}. This solution is not ideal as it is brittle and breaks Scalafix's cross-compatibility promises.
+  \item Scala 2's type inference for \textsc{gadt}s is less than ideal, requiring extra type annotations and unsafe casts which ultimately defeat the original purpose of type safety. This situation is improved, although not completely solved, in Dotty~\cite{parreaux_towards_2019} -- but Scalafix does not yet support Scala 3.
+\end{itemize}
+
+\subsection{Achieving Normalisation}\label{sec:normalisation-approach}
+Partial evaluation and normalisation are related concepts: it is useful to view normalisation as statically evaluating as many terms as possible, but since not all terms have known values, the expression cannot be fully evaluated to a result value.
+Normalisation can thus be viewed simply as a process of evaluation, but in the presence of unknown terms.
+This \namecref{sec:normalisation-approach} first explains the traditional notion of normalisation by rewriting, before introducing normalisation by evaluation as a more elegant and efficient alternative.
 
 \subsubsection{Normalisation by Rewriting}
 Essentially term-rewriting, similar to how Parsers are simplified.
@@ -63,6 +108,7 @@ Although not formally proven, it is reasonable to assume that these terms are a 
 
 \scala{Function} has one binding construct -- the n-ary abstraction. This introduces variables and the need for capture-avoiding substitution.
 Capture-avoiding substitution is hard, many approaches e.g. de Bruijn indices (but inefficient to open/close terms so much, so the correct choice is levels).
+* There is a dizzying array of existing literature and techniques on to represent binders without names
 Attempted a barendregt's but the optimised form (not freshening on every substitution) might be subtly incorrect, not sure tbh.
 
 \subsubsection{Normalisation by Evaluation}
@@ -79,6 +125,10 @@ Shift that burden onto the scala compiler.
 \begin{tikzcd}
   \text{Syntax} \arrow[rr, "\text{\textlbrackdbl} - \text{\textrbrackdbl}", shift left=2] &  & \text{Semantics} \arrow[ll, "\textit{reify}", shift left=2]
 \end{tikzcd}
+\end{equation*}
+\vspace{1ex}
+\begin{equation*}
+\textit{normalise} = \textit{reify} \circ \text{\textlbrackdbl} - \text{\textrbrackdbl}
 \end{equation*}
 \caption{Normalisation by evaluation in a semantic model.}
 \end{figure}

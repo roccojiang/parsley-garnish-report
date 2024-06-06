@@ -187,8 +187,8 @@ lazy val expr: Parsley[String] = chain.postfix(
   empty | (empty.map(%\textcolor{gray}{a => b => a + b}%) | empty <*> expr) <*> string("a")
     | string("b") | empty
 )(
-  (empty.map(%\textcolor{gray}{Flip}%) <*> expr | pure(%\textcolor{gray}{Identity}%).map(%\textcolor{gray}{Compose(a => b => a + b)}%))
-    .map(%\textcolor{gray}{Flip}%) <*> string("a")
+  (empty.map(%\textcolor{gray}{flip}%) <*> expr | pure(%\textcolor{gray}{identity}%).map(%\textcolor{gray}{compose(a => b => a + b)}%))
+    .map(%\textcolor{gray}{flip}%) <*> string("a")
     | empty | empty
 )
 \end{minted}
@@ -230,32 +230,32 @@ Most of the laws in \cref{fig:parser-laws} have already been shown to hold for P
 In the previous example, it is evident that the most noise results from the \scala{empty} combinators.
 These can be eliminated using \cref{eqn:alt-left-neutral,eqn:alt-right-neutral,eqn:alt-empty-absorb,eqn:alt-fmap-absorb}:
 % lazy val expr: Parsley[String] = chain.postfix(string("b"))(
-%   (pure(Identity).map(Compose(a => b => a + b))).map(Flip) <*> string("a")
+%   (pure(identity).map(compose(a => b => a + b))).map(flip) <*> string("a")
 % )
 \begin{minted}[escapeinside=\%\%]{scala}
 lazy val expr: Parsley[String] = chain.postfix(string("b"))(
-  (pure(%\textcolor{gray}{Identity}%).map(%\textcolor{gray}{Compose(a => b => a + b)}%)).map(%\textcolor{gray}{Flip}%) <*> string("a")
+  (pure(%\textcolor{gray}{identity}%).map(%\textcolor{gray}{compose(a => b => a + b)}%)).map(%\textcolor{gray}{flip}%) <*> string("a")
 )
 \end{minted}
 %
 The complicated term in the postfix operator can then be simplified as follows:
-% (pure(Identity).map(Compose(a => b => a + b))).map(Flip) <*> string("a")
-% pure(Compose(a => b => a + b)(Identity)).map(Flip) <*> string("a")
-% pure(Flip(Compose(a => b => a + b)(Identity))) <*> string("a")
-% string("a").map(Flip(Compose(a => b => a + b)(Identity)))
+% (pure(identity).map(compose(a => b => a + b))).map(flip) <*> string("a")
+% pure(compose(a => b => a + b)(identity)).map(flip) <*> string("a")
+% pure(flip(compose(a => b => a + b)(identity))) <*> string("a")
+% string("a").map(flip(compose(a => b => a + b)(identity)))
 \begin{minted}[baselinestretch=1.5,escapeinside=\%\%]{scala}
-    (pure(%\textcolor{gray}{Identity}%).map(%\textcolor{gray}{Compose(a => b => a + b)}%)).map(%\textcolor{gray}{Flip}%) <*> string("a")
+    (pure(%\textcolor{gray}{identity}%).map(%\textcolor{gray}{compose(a => b => a + b)}%)).map(%\textcolor{gray}{flip}%) <*> string("a")
 % \proofstep{\cref{eqn:app-homomorphism,eqn:app-fmap}} %
-    pure(%\textcolor{gray}{Compose(a => b => a + b)(Identity)}%).map(%\textcolor{gray}{Flip}%) <*> string("a")
+    pure(%\textcolor{gray}{compose(a => b => a + b)(identity)}%).map(%\textcolor{gray}{flip}%) <*> string("a")
 % \proofstep{\cref{eqn:app-homomorphism,eqn:app-fmap}} %
-    pure(%\textcolor{gray}{Flip(Compose(a => b => a + b)(Identity))}%) <*> string("a")
+    pure(%\textcolor{gray}{flip(compose(a => b => a + b)(identity))}%) <*> string("a")
 % \proofstep{\cref{eqn:app-fmap}} %
-    string("a").map(%\textcolor{gray}{Flip(Compose(a => b => a + b)(Identity))}%)
+    string("a").map(%\textcolor{gray}{flip(compose(a => b => a + b)(identity))}%)
 \end{minted}
 %
 This results in the most simplified form of the parser:
 \begin{minted}[escapeinside=\%\%]{scala}
-val f: Function = %\textcolor{gray}{Flip(Compose(a => b => a + b)(Identity))}%
+val f: Function = %\textcolor{gray}{flip(compose(a => b => a + b)(identity))}%
 lazy val expr: Parsley[String] = chain.postfix(string("b"))(string("a").map(%\textcolor{gray}{f}%))
 \end{minted}
 
