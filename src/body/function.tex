@@ -143,23 +143,26 @@ Although an elegant representation, De Bruijn terms are notoriously difficult to
 Furthermore, performing substitutions with De Bruijn terms has an overhead as variable positions have to be shifted.
 To avoid this, hybrid representations combining named and nameless representations exist~\cite{mcbride_imnotanumber_2004,chargueraud_locally_2012}, but they become rather complex solutions for what should be a relatively simple $\lambda$-calculus implementation for \texttt{parsley-garnish}'s needs.
 
+\paragraph{Higher-order abstract syntax}
+\emph{Higher-order abstract syntax} (\textsc{hoas})~\cite{pfenning_hoas_1988} is a representation that uses the meta-language's own functions to represent the object language's terms.
+\TODO{
+  we will use this
+  but also with nbe as shown in the next subsubsection
+}
+
 % \scala{Function} has one binding construct -- the n-ary abstraction. This introduces variables and the need for capture-avoiding substitution.
 
 \subsubsection{Normalisation by Evaluation}
 An interesting alternative approach stems from a notion of \emph{reduction-free} normalisation, based on an undirected notion of term equivalence, rather than directed reduction.
 % TODO: this is good framing for using this to also see if parsers are equivalent
 \emph{Normalisation by Evaluation} (\textsc{nbe}) evaluates syntactical terms into a semantic model, which is then \emph{reified} back into the syntactic model~\cite{filinski_nbe_2004}.
-This denotational model (denoted by $\text{\textlbrackdbl} - \text{\textrbrackdbl}$) is specifically constructed to be \emph{residualising}, meaning that terms can be extracted out into the original syntactic representation.
-
-% Use HOAS to leverage the meta-language (i.e. Scala) as our semantic model -- blazingly fast! (theoretically lol)
-% No rewriting = no worrying about avoiding capture.
-% Shift that burden onto the scala compiler.
+Normalisation is then just defined as the composition of these two operations, as illustrated in \cref{fig:nbe}.
 
 \begin{figure}
 \begin{equation*}
 % https://tikzcd.yichuanshen.de/#N4Igdg9gJgpgziAXAbVABwnAlgFyxMJZABgBpiBdUkANwEMAbAVxiRAB12cYAPHYAMoBPMDjo8AviAml0mXPkIoATOSq1GLNp259BMALZ1RWAMZwpE9TCgBzeEVAAzAE4QDSMiBwQkARmo4AAssJxwkAFpVDWZWRA4uXn4dJIYAIxc6UwBrKDSGCQACCMKUvTKcFwys3PzLWRBXd39qH09AkLDI6IY6NJgGAAV5PAI2Bhgu6npY7US+XGAXGFChSwoJIA
 \begin{tikzcd}
-  \text{Syntax} \arrow[rr, "\text{\textlbrackdbl} - \text{\textrbrackdbl}", shift left=2] &  & \text{Semantics} \arrow[ll, "\textit{reify}", shift left=2]
+  \text{Syntactic domain} \arrow[rr, "\text{\textlbrackdbl} - \text{\textrbrackdbl}", shift left=2] &  & \text{Semantic domain} \arrow[ll, "\textit{reify}", shift left=2]
 \end{tikzcd}
 \end{equation*}
 \vspace{0.5ex}
@@ -167,56 +170,85 @@ This denotational model (denoted by $\text{\textlbrackdbl} - \text{\textrbrackdb
 \textit{normalise} = \textit{reify} \circ \text{\textlbrackdbl} - \text{\textrbrackdbl}
 \end{equation*}
 \caption{Normalisation by evaluation in a semantic model.}
+\label{fig:nbe}
 \end{figure}
 
-\subsection{Converting Scalameta Terms to the Function \textsc{adt}}
-Three cases:
-\begin{enumerate}
-    \item \scala{Term.Function} nodes, representing lambda expressions
-    \item \scala{Term.AnonymousFunction} nodes, representing lambda expressions using placeholder syntax
-    \item Any other term, which will be $eta$-expanded if possible
-\end{enumerate}
+The denotational model (denoted by $\text{\textlbrackdbl} - \text{\textrbrackdbl}$) is specifically constructed to be \emph{residualising}, meaning that terms can be extracted out into the original syntactic representation.
 
-\subsubsection{Lambda Expressions}
-Often found as relatively simple functions to glue together parsers, or transform the result of a parser:
+\TODO{
+  Represent semantic model with HOAS
+}
+
+\begin{minted}{scala}
+trait HOAS
+case class HAbs(n: Int, f: List[HOAS] => HOAS) extends HOAS
+case class HApp(f: HOAS, xs: List[HOAS]) extends HOAS
+case class HVar(name: VarName) extends HOAS
+case class HTranslucent(t: Term, env: Map[VarName, HOAS]) extends HOAS
+\end{minted}
+%
+Abs represents n-ary $\lambda$-abstraction; App is n-ary function application; Var represents opaque free variables.
+Translucent is treated as opaque during normalisation, but contains normalisable terms in an environment, where they are substituted back in after normalisation.
+
+% Use HOAS to leverage the meta-language (i.e. Scala) as our semantic model -- blazingly fast! (theoretically lol)
+% No rewriting = no worrying about avoiding capture.
+% Shift that burden onto the scala compiler.
+
+\subsection{Converting Scalameta Terms to the Function \textsc{adt}}
+There are three cases to consider when converting \scala{scala.meta.Term} nodes into \scala{Function} terms.
+
+\paragraph{Lambda Expressions}
+Writing parsers often involves defining simple lambda expressions used to glue together parsers, or to transform the result of a parser:
 \begin{minted}{scala}
 val asciiCode: Parsley[Int] = item.map(char => char.toInt)
 \end{minted}
 
-Choose a particularly convoluted example:
+These lambda expressions are represented in the Scalameta \textsc{ast} as \scala{Term.Function} nodes, which are recursively traversed to collect all parameter lists.
+This is folded into a chain of $n$-ary abstractions, with the final term being the body of the lambda, which is wrapped into a \scala{Translucent} term.
+To ensure that the parameter names in the \scala{Translucent} body term are unique, the parameters are $\alpha$-converted to fresh names.
+Take the following example to see why this is helpful:
+% this is the "gensym" approach
 \begin{minted}{scala}
-a => (a, b) => a + b
+  a => (a, b) => a + b
 \end{minted}
-In this example, the \scala{a} in the function body refers to the \scala{a} in the second parameter list, as it shadows the \scala{a} in the first parameter list.
-
-Conversion ``flattens'' the lambda expression into a chain of n-ary abstractions, with the final term being the body of the lambda.
-Because we lose scoping information this way, perform $\alpha$-conversion on variables.
-% TODO: this is "gensym" approach
-The body becomes a \scala{Translucent} term.
-
+Although any sane Scala programmer would not write this, this convoluted example shows how variable shadowing can occur -- the \scala{a} in the function body refers to the \scala{a} in the second parameter list, as it shadows the \scala{a} in the first parameter list.
+The resulting \scala{Function} term would then resemble the following $\lambda$-calculus expression:
 \begin{lstlisting}
-\(_l1). \(_l2, _l3). Translucent(%\textbf{\_l2 + \_l3}%, env = {%\textbf{\_l1}% -> _l1, %\textbf{\_l2}% -> _l2, %\textbf{\_l3}% -> _l3})
+  \(_l1). \(_l2, _l3). Translucent(%\textbf{\_l2 + \_l3}%, env = {%\textbf{\_l1}% -> _l1, %\textbf{\_l2}% -> _l2, %\textbf{\_l3}% -> _l3})
 \end{lstlisting}
-Values in bold are Scalameta tree nodes, so the body term's environment maps \scala{Term.Name} nodes to their corresponding variable terms.
+Values shown in bold are \scala{scala.meta.Term} nodes, so the lambda body's environment maps \scala{Term.Name} nodes to their corresponding variable terms.
+When the term is pretty-printed, the \scala{Term.Name} nodes are replaced with the corresponding \scala{Function} terms -- this is similar to the splicing operation on quasiquotes.
 
-Fold on parameter lists
-
-\subsubsection{Placeholder Syntax}
-Scala supports placeholder syntax for terseness, so the earlier parser can be rewritten as:
+\paragraph{Placeholder Syntax}
+Scala supports a placeholder syntax using underscores to make lambda expressions more concise, so the earlier parser can be rewritten as:
 \begin{minted}{scala}
 val asciiCode: Parsley[Int] = item.map(_.toInt)
 \end{minted}
 
-Placeholder syntax only results in a single parameter list, so this just becomes a single n-ary lambda
+Scalameta differentiates between regular lambda expressions and those using placeholder syntax, representing the latter as \scala{Term.AnonymousFunction} nodes.
+This makes it easy to identify which approach to be taken during conversion.
+To convert this case, each successive underscore in the expression body is replaced with a fresh variable name.
+Using placeholder syntax only results in a fully uncurried function with a single parameter list\footnote{\url{https://www.scala-lang.org/files/archive/spec/2.13/06-expressions.html#anonymous-functions}} -- this is filled with the freshly generated variable names in order of their occurrence in the expression body.
 
-\subsubsection{Eta-Expansion}
+\paragraph{Eta-Expansion}
+If the term is not a lambda expression, \texttt{parsley-garnish} attempts to $\eta$-expand the term if possible.
+For example, an idiomatic parser written using the \emph{Parser Bridges} pattern~\cite{willis_design_2022} could resemble the following:
 \begin{minted}{scala}
 case class AsciiCode(code: Int)
 object AsciiCode extends ParserBridge1[Char, AsciiCode] {
   def apply(char: Char): AsciiCode = AsciiCode(char.toInt)
 }
-val asciiCode = AsciiCode(item) // desugars to item.map(AsciiCode.apply)
+val asciiCode = AsciiCode(item)
 \end{minted}
+%
+When \texttt{parsley-garnish} converts \scala{asciiCode} to a \scala{Parser}, it desugars the bridge constructor into something resembling \scala{item.map(AsciiCode.apply)}.
+The $\eta$-expanded form of \scala{AsciiCode.apply} would be as follows:
+\begin{minted}{scala}
+(char: Char) => AsciiCode.apply(char)
+\end{minted}
+%
+To $\eta$-expand \scala{scala.meta.Term} nodes, \texttt{parsley-garnish} attempts to look up the method signature of its symbol using Scalafix's semantic \textsc{api}.
+This is not always possible -- in that case, the term can't be statically inspected any further and is just wrapped in a \scala{Translucent} term.
 
 \subsection{Normalising Function Terms}
 \begin{figure}[htbp]
@@ -231,17 +263,7 @@ val asciiCode = AsciiCode(item) // desugars to item.map(AsciiCode.apply)
 \caption{Normalisation by evaluation for the \scala{Function} datatype.}
 \end{figure}
 
-\begin{minted}{scala}
-trait HOAS
-case class HAbs(n: Int, f: List[HOAS] => HOAS) extends HOAS
-case class HApp(f: HOAS, xs: List[HOAS]) extends HOAS
-case class HVar(name: VarName) extends HOAS
-case class HTranslucent(t: Term, env: Map[VarName, HOAS]) extends HOAS
-\end{minted}
-%
-Abs represents n-ary $\lambda$-abstraction; App is n-ary function application; Var represents opaque free variables.
-Translucent is treated as opaque during normalisation, but contains normalisable terms in an environment, where they are substituted back in after normalisation.
-
+\TODO{the code below is outdated}
 \subsubsection{Reflection}
 
 \begin{minted}{scala}
