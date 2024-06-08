@@ -34,15 +34,21 @@ This is an example of \emph{defunctionalisation}, a technique to eliminate highe
 
 Ideally for type safety, this could be represented as a generalised algebraic data type (\textsc{gadt})~\cite{cheney_gadt_2003} with a type parameter documenting the type that the function term represents:
 \begin{minted}{scala}
-trait Function[+T]
-case class Identity[A]() extends Function[A => A]
-case class Flip[A, B, C]() extends Function[(A => B => C) => B => A => C]
-case class Compose[A, B, C]() extends Function[(B => C) => (A => B) => A => C]
+trait Defunc[+T]
+case class Identity[A]() extends Defunc[A => A]
+case class Flip[A, B, C]() extends Defunc[(A => B => C) => B => A => C]
+case class Compose[A, B, C]() extends Defunc[(B => C) => (A => B) => A => C]
 \end{minted}
+
+\TODO{
+  Facilitates more high-level parser simplifications
+}
 
 \subsubsection{Lambda Calculus}
 The defunctionalised constructs alone are not enough to fully represent the functions passed to combinators.
 There needs to be a way to apply them to arguments, and to represent the arguments themselves -- the core language to do so is the lambda calculus~\cite{church_lambda_1936}.
+% TODO: clunky wording
+Furthermore, once the defunctionalised functions have exhausted their usefulness in high-level parser simplifications, they also need to be lowered to $\lambda$-terms to be normalised.
 In the $\lambda$-calculus, each function only takes one argument, and multi-argument functions are represented as a chain of single-argument functions: this is known as \emph{currying}.
 In Scala, functions are allowed to have multiple parameter lists to make them curried, although uncurried functions are preferred for performance reasons.
 Since these functions will be transformed from Scala code and back, it is desirable to maintain a high-level equivalence between these two representations.
@@ -75,9 +81,10 @@ case class Var(name: VarName) extends Lambda
 case class Translucent(t: Term, env: Map[VarName, Function]) extends Lambda
 
 // Defunctionalised higher-order functions
-case object Identity extends Function
-case object Flip extends Function
-case object Compose extends Function
+trait Defunc extends Function
+case object Identity extends Defunc
+case object Flip extends Defunc
+case object Compose extends Defunc
 ...
 \end{minted}
 \caption{The \scala{Function} \textsc{adt} for representing functions.}
