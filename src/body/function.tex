@@ -44,34 +44,31 @@ M, N &\mathrel{::=} x & \text{variable} \\
 \end{figure}
 
 % TODO: there's some decent stuff in Ch8 of david davie's masters thesis briefly summing up how to articulate related things in a succinct manner
-\subsection{Normalisation}\label{sec:normalisation-approach}
-Deciding on a concrete \scala{adt} representation for the $\lambda$-calculus is a surprisingly complex problem.
-The trickiness mostly arises from the representation of names and how this affects normalisation.
+\subsection{Normalisation Approaches}\label{sec:normalisation-approach}
+Deciding on a concrete \textsc{adt} representation for the $\lambda$-calculus is a surprisingly complex problem.
+This \namecref{sec:normalisation-approach} explores the different approaches to normalisation, and the effect this has on how the $\lambda$-calculus may be represented as a datatype.
+We first explain the traditional notion of reduction-based normalisation, before introducing normalisation by evaluation as a more elegant alternative.
 
+% TODO: tbh could've just stopped at HOAS, but in our case, NbE was an easily attainable logical next step to more aggressively use meta-language constructs
 
-Deciding how to represent our $n$-ary $\lambda$-calculus as an \scala{adt} depends on how we plan to normalise these terms.
-
-\TODO{
 % TODO: this is based on NbE ideas!! move accordingly
-Partial evaluation and normalisation are related concepts: it is useful to view normalisation as statically evaluating as many terms as possible, but since not all terms have known values, the expression cannot be fully evaluated to a result value.
-Normalisation can thus be viewed simply as a process of evaluation, but in the presence of unknown terms.
-This \namecref{sec:normalisation-approach} first explains the traditional notion of normalisation by rewriting, before introducing normalisation by evaluation as a more elegant and efficient alternative.
-}
+% Partial evaluation and normalisation are related concepts: it is useful to view normalisation as statically evaluating as many terms as possible, but since not all terms have known values, the expression cannot be fully evaluated to a result value.
+% Normalisation can thus be viewed simply as a process of evaluation, but in the presence of unknown terms.
 
 \subsubsection{Reduction-Based Normalisation}
 In the $\lambda$-calculus, terms are reduced in size by applying $\beta$-reduction: \cref{fig:beta-reduction} shows how this can be defined for the $n$-ary $\lambda$-calculus.
 Unlike the standard $\lambda$-calculus, reduction will only take place if the expected number of arguments in $\overline{\mathbf{x}}$ are equal to the number of arguments in $\overline{\mathbf{N}}$; otherwise, the term is left as is.
-This is therefore a \emph{directed} notion of reduction, which can be implemented as a term-rewriting system, in a similar way to how \scala{Parser} terms are simplified.
 
+This rule is therefore a \emph{directed} notion of reduction, which can be implemented as a term-rewriting system, in a similar way to how \scala{Parser} terms are simplified.
 The goal is to achieve beta normal form ($\beta$-\textsc{nf}) by allowing $\beta$-reduction to occur deep inside $\lambda$-terms, in all redexes of a term, until no more reductions can be made.
-Normally in the untyped $\lambda$-calculus, $\beta$-reduction as a rewriting rule does not manage to be strongly normalising as desired, and may lead to non-terminating rewrites.
-However, despite the \scala{Lambda} representation itself being untyped, all \scala{Lambda} terms are converted from valid typed Scala expressions.
-Scala 3 is modelled on the theoretic foundations of the Dependent Object Types (\textsc{dot}) calculus, which has been shown to be strongly normalisable~\cite{wang_strong_2017}.
-Although not proven for Scala 2, it is reasonable to assume that the same result holds, at least for the subset of expressions that are represented in the \scala{Lambda} representation.
+% Normally in the untyped $\lambda$-calculus, $\beta$-reduction does not manage to be strongly normalising as desired, and may lead to non-terminating rewrites.
+% However, this is not an issue for us: despite the \scala{Lambda} representation itself permitting untyped terms, all \scala{Lambda} terms are converted from valid typed Scala expressions.
+% Scala 3 is modelled on the Dependent Object Types (\textsc{dot}) calculus, which has been shown to be strongly normalisable~\cite{wang_strong_2017}.
+% Although not proven for Scala 2, it is reasonable to assume that the same result holds, at least for the subset of expressions that are represented in the \scala{Lambda} representation.
 
 \begin{figure}[htbp]
 \begin{equation*}
-(\lambda \overline{\mathbf{x}} .\ M)\ \overline{\mathbf{N}} \rightarrow_\beta M[\overline{\mathbf{N}}/\overline{\mathbf{x}}] \hspace{3em} \text{if } | \overline{\mathbf{x}} | = | \overline{\mathbf{N}} |
+(\lambda \overline{\mathbf{x}} .\ M)\ \overline{\mathbf{N}} \rightarrow_\beta M[\overline{\mathbf{N}}/\overline{\mathbf{x}}] \hspace{3em} (\text{if } | \overline{\mathbf{x}} | = | \overline{\mathbf{N}} |)
 \end{equation*}
 \caption{The $\beta$-reduction rule for the $n$-ary lambda calculus.}
 \label{fig:beta-reduction}
@@ -84,14 +81,31 @@ There are a plethora of different approaches to solve this, mostly boiling down 
 
 \paragraph{Naïve substitution}
 Representing variable names as strings is the most straightforward approach in terms of understandability.
+The example below shows how the simply-typed $\lambda$-calculus can be represented as a generalised algebraic data type (\textsc{gadt}) in Scala:
+
+\begin{minted}{scala}
+type VarName = String
+
+trait Lambda
+case class Abs[A, B](x: Var[A], f: Lambda[B]) extends Lambda[A => B]
+case class App[A, B](f: Lambda[A => B], x: Lambda[A]) extends Lambda[B]
+case class Var[A](name: VarName) extends Lambda[A]
+
+// λf. λx. f x
+val f = Var("f")
+val x = Var("x")
+val expr = Abs(f, Abs(x, App(f, x)))
+\end{minted}
+%
 Naïvely substituting these terms, however, seems logically simple but can be very tricky to get right.
 This approach requires calculating the free variables in a scope before performing substitution, renaming bound variables if it would lead to variable capture.
-This is not used in any real implementation of the $\lambda$-calculus due to its inefficiency, as it requires traversing the term tree multiple times.
+This is not used in any real implementation of the $\lambda$-calculus due to its inefficiency, as it requires traversing the whole term tree multiple times.
 
 \paragraph{Barendregt's convention}
-Renaming all bound variables to be unique satisfies \textbf{Barendregt's convention}~\cite{barendregt_lambda_1984}, which removes the need to check for variable capture during substitution.
-However, variables still have to be renamed during substitution -- this administrative renaming has relatively high performance overhead and chews through a scarily large number of fresh variable names.
-This approach can be massively optimised though: the Haskell \textsc{ghc} compiler uses a technique dubbed ``the Rapier''~\cite{peytonjones_secrets_2002}, maintaining invariants to avoid renaming on substitution when unnecessary.
+Renaming all bound variables to be unique satisfies \emph{Barendregt's convention}~\cite{barendregt_lambda_1984}, which removes the need to check for variable capture during substitution.
+However, to maintain this invariant, variables must also be renamed during substitution -- this administrative renaming has relatively high performance overhead and chews through a scarily large number of fresh variable names.
+The approach has been successfully optimised to very impressive performance, though:
+the Haskell \textsc{ghc} compiler uses Barendregt's convention with a technique dubbed ``the Rapier''~\cite{peytonjones_secrets_2002}, maintaining invariants to avoid renaming on substitution when unnecessary.
 Unfortunately, maintaining the invariants to keep this transformation correct becomes very difficult~\cite{maclaurin_thefoil_2023}.
 
 \paragraph{Nameless and hybrid representations}
@@ -102,33 +116,21 @@ Furthermore, performing substitutions with De Bruijn terms has an overhead as va
 To avoid this, hybrid representations combining named and nameless representations exist~\cite{mcbride_imnotanumber_2004,chargueraud_locally_2012}, but they become rather complex solutions for what should be a relatively simple $\lambda$-calculus implementation for \texttt{parsley-garnish}'s needs.
 
 \paragraph{Higher-order abstract syntax}
-Using \emph{Higher-order abstract syntax} (\textsc{hoas})~\cite{pfenning_hoas_1988} sidesteps variable binders entirely by borrowing binding and substitution from the meta-language.
-The previous techniques were examples of first-order abstract syntax, representing variables and unknowns with identifiers, whether with names or indices.
-A simple \textsc{foas} approach would build an expression using identifiers for bound variables like so:
-\begin{minted}{scala}
-trait FOAS
-case class Abs[A, B](x: Var[A], f: FOAS[B]) extends FOAS[A => B]
-case class App[A, B](f: FOAS[A => B], x: FOAS[A]) extends FOAS[B]
-case class Var[A](name: String) extends FOAS[A]
+Using \emph{higher-order abstract syntax} (\textsc{hoas})~\cite{pfenning_hoas_1988} sidesteps variable binders entirely by borrowing substitution from the meta-language.
+This makes it the meta-language's responsibility to handle variable capture instead.
+In contrast, the previous techniques were examples of first-order abstract syntax, which represents variables and unknowns with identifiers (whether with names or indices).
+A \textsc{hoas} approach does not name bound variables, instead representing them as bindings in the meta-language:
 
-// λx. λy. add x y
-val x = Var("x")
-val y = Var("y")
-val expr = Abs(x, Abs(y, App(App(Var("add"), x), y)))
-\end{minted}
-%
-A \textsc{hoas} approach differs in the representation of lambda abstractions, so that bound variables do not get named but are instead represented using bindings in the meta-language (in this case, Scala):
-\begin{minted}[texcomments]{scala}
+\begin{minted}{scala}
 trait HOAS
 case class Abs[A, B](f: HOAS[A] => HOAS[B]) extends HOAS[A => B]
 case class App[A, B](f: HOAS[A => B], x: HOAS[A]) extends HOAS[B]
-case class Var[A](name: String) extends HOAS[A]
 
-// λx. λy. add x y
-val expr = Abs(x => Abs(y => App(App(Var("add"), x), y)))
+// λf. λx. f x
+val expr = Abs(f => Abs(x => App(f, x)))
 \end{minted}
 %
-Therefore, \textsc{hoas} performs substitution through Scala's function application, which makes this extremely fast compared to the other approaches.
+Therefore, this representation performs substitution through Scala's function application, which makes it extremely fast compared to the other approaches.
 However, since lambda abstractions are represented as lambda expressions within Scala itself, the function body becomes wrapped under Scala's variable binding, making them difficult to work with.
 
 % TODO we use this but with nbe, syntax - named, semantics - hoas, normalising by evaluation = automatically alpha converts terms by renaming
@@ -137,7 +139,8 @@ However, since lambda abstractions are represented as lambda expressions within 
 \subsubsection{Normalisation by Evaluation}
 An interesting alternative approach stems from a notion of \emph{reduction-free} normalisation, based on an undirected notion of term equivalence, rather than directed reduction.
 % TODO: this is good framing for using this to also see if parsers are equivalent
-\emph{Normalisation by Evaluation} (\textsc{nbe}) evaluates syntactical terms into a semantic model, which is then \emph{reified} back into the syntactic model~\cite{filinski_nbe_2004}.
+\emph{Normalisation by Evaluation} (\textsc{nbe})~\cite{filinski_nbe_2004} achieves this by evaluating syntactical terms into a semantic model, then \emph{reifying} them back into the syntactic model.
+The denotational model (denoted by $\text{\textlbrackdbl} - \text{\textrbrackdbl}$) is specifically constructed to be \emph{residualising}, meaning that terms can be extracted out into the original syntactic representation.
 Normalisation is then just defined as the composition of these two operations, as illustrated in \cref{fig:nbe}.
 
 \begin{figure}
@@ -155,26 +158,7 @@ Normalisation is then just defined as the composition of these two operations, a
 \label{fig:nbe}
 \end{figure}
 
-The denotational model (denoted by $\text{\textlbrackdbl} - \text{\textrbrackdbl}$) is specifically constructed to be \emph{residualising}, meaning that terms can be extracted out into the original syntactic representation.
-
-\TODO{
-  Represent semantic model with HOAS
-}
-
-\begin{minted}{scala}
-trait HOAS
-case class HAbs(n: Int, f: List[HOAS] => HOAS) extends HOAS
-case class HApp(f: HOAS, xs: List[HOAS]) extends HOAS
-case class HVar(name: VarName) extends HOAS
-case class HTranslucent(t: Term, env: Map[VarName, HOAS]) extends HOAS
-\end{minted}
-%
-Abs represents n-ary $\lambda$-abstraction; App is n-ary function application; Var represents opaque free variables.
-Translucent is treated as opaque during normalisation, but contains normalisable terms in an environment, where they are substituted back in after normalisation.
-
-% Use HOAS to leverage the meta-language (i.e. Scala) as our semantic model -- blazingly fast! (theoretically lol)
-% No rewriting = no worrying about avoiding capture.
-% Shift that burden onto the scala compiler.
+\subsection{The Function \textsc{adt}}
 
 \subsubsection{Evaluating Performance of Normalisation Strategies}
 
