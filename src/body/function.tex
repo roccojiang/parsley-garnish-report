@@ -93,14 +93,23 @@ However, attempting to implement this ran into two main hurdles:
 \end{itemize}
 
 \subsection{Achieving Normalisation}\label{sec:normalisation-approach}
+\TODO{
+% TODO: this is based on NbE ideas!! move accordingly
 Partial evaluation and normalisation are related concepts: it is useful to view normalisation as statically evaluating as many terms as possible, but since not all terms have known values, the expression cannot be fully evaluated to a result value.
 Normalisation can thus be viewed simply as a process of evaluation, but in the presence of unknown terms.
 This \namecref{sec:normalisation-approach} first explains the traditional notion of normalisation by rewriting, before introducing normalisation by evaluation as a more elegant and efficient alternative.
+}
 
-\subsubsection{Normalisation by Rewriting}
-The \scala{Lambda} datatype could be normalised by term-rewriting, in the same way that parsers get simplified.
-The notion of simplification comes from the single-step $\beta$-reduction, defined on the $n$-ary lambda calculus in \cref{fig:beta-reduction}.
-Reduction takes place only if the expected number of arguments in $\mathbf{x} = x_1, \ldots, x_n$ are equal to the number of arguments in $\mathbf{N} = N_1, \ldots, N_n$; otherwise, evaluation is stuck.
+\subsubsection{Reduction-Based Normalisation}
+In the $\lambda$-calculus, terms are reduced in size by applying $\beta$-reduction: \cref{fig:beta-reduction} shows how this can be defined for the $n$-ary $\lambda$-calculus.
+Unlike the standard $\lambda$-calculus, reduction will only take place if the expected number of arguments in $\mathbf{x} = x_1, \ldots, x_n$ are equal to the number of arguments in $\mathbf{N} = N_1, \ldots, N_n$; otherwise, the term is left as is.
+This is therefore a \emph{directed} notion of reduction, which can be implemented as a term-rewriting system, in a similar way to how \scala{Parser} terms are simplified.
+
+The goal is to achieve beta normal form ($\beta$-\textsc{nf}) by allowing $\beta$-reduction to occur deep inside $\lambda$-terms, in all redexes of a term, until no more reductions can be made.
+Normally in the untyped $\lambda$-calculus, $\beta$-reduction as a rewriting rule does not manage to be strongly normalising as desired, and may lead to non-terminating rewrites.
+However, despite the \scala{Lambda} representation itself being untyped, all \scala{Lambda} terms are converted from valid typed Scala expressions.
+Scala 3 is modelled on the theoretic foundations of the Dependent Object Types (\textsc{dot}) calculus, which has been shown to be strongly normalisable~\cite{wang_strong_2017}.
+Although not proven for Scala 2, it is reasonable to assume that the same result holds, at least for the subset of expressions that are represented in the \scala{Lambda} representation.
 
 \begin{figure}[htbp]
 \begin{equation*}
@@ -110,29 +119,41 @@ Reduction takes place only if the expected number of arguments in $\mathbf{x} = 
 \label{fig:beta-reduction}
 \end{figure}
 
-The goal is to achieve $\beta$ normal form ($\beta$-\textsc{nf}) by allowing $\beta$-reduction to occur deep inside $\lambda$-terms, in all redexes of a term, until no more reductions can be made.
-Normally in the untyped $\lambda$-calculus, $\beta$-reduction as a rewriting rule does not manage to be strongly normalising as desired, and may lead to non-terminating rewrites.
-However, despite the \scala{Lambda} representation itself being untyped, all \scala{Lambda} terms are converted from valid typed Scala expressions.
-Scala 3 is modelled on the theoretic foundations of the Dependent Object Types (\textsc{dot}) calculus, which has been shown to be strongly normalisable~\cite{wang_strong_2017}.
-Although not proven for Scala 2, it is reasonable to assume that the same result holds, at least for the subset of expressions that are represented in the \scala{Lambda} representation.
-
 In \cref{fig:beta-reduction}, the syntax $M[N/x]$ denotes term substitution, where all free occurrences of $x$ in $M$ are replaced with $N$.
-The difficulty lies in making sure that substitution avoids \emph{variable capture}, when $N$ contains free variables that are bound in the scope where $x$ is found.
-
+Substitution must avoid \emph{variable capture}, when $N$ contains free variables that are bound in the scope where $x$ is found~\cite{van-bakel_tsfpl_2022}.
 Capture-avoiding substitution is a notoriously tricky and subtle problem.
+There are a plethora of different approaches to solve this, mostly boiling down to how variable names get represented:
 
-\scala{Function} has one binding construct -- the n-ary abstraction. This introduces variables and the need for capture-avoiding substitution.
-Capture-avoiding substitution is hard, many approaches e.g. de Bruijn indices (but inefficient to open/close terms so much, so the correct choice is levels).
-* There is a dizzying array of existing literature and techniques on to represent binders without names
-Attempted a barendregt's but the optimised form (not freshening on every substitution) might be subtly incorrect, not sure tbh.
+\paragraph{Naïve substitution}
+Representing variable names as strings is the most straightforward approach in terms of understandability.
+Naïvely substituting these terms, however, seems logically simple but can be very tricky to get right.
+This approach requires calculating the free variables in a scope before performing substitution, renaming bound variables if it would lead to variable capture.
+This is not used in any real implementation of the $\lambda$-calculus due to its inefficiency, as it requires traversing the term tree multiple times.
+
+\paragraph{Barendregt's convention}
+Renaming all bound variables to be unique satisfies \textbf{Barendregt's convention}~\cite{barendregt_lambda_1984}, which removes the need to check for variable capture during substitution.
+However, variables still have to be renamed during substitution -- this administrative renaming has relatively high performance overhead and chews through a scarily large number of fresh variable names.
+This approach can be massively optimised though: the Haskell \textsc{ghc} compiler uses a technique dubbed ``the Rapier''~\cite{peytonjones_secrets_2002}, maintaining invariants to avoid renaming on substitution when unnecessary.
+Unfortunately, maintaining the invariants to keep this transformation correct becomes very difficult~\cite{maclaurin_thefoil_2023}.
+
+\paragraph{Nameless and hybrid representations}
+Nameless representations like \emph{De Bruijn indices}~\cite{debruijn_lambda_1972} eschew names entirely, instead representing variables as the number of binders between the variable and its binding site.
+Although an elegant representation, De Bruijn terms are notoriously difficult to work with, as they are not easily human-readable.
+% https://proofassistants.stackexchange.com/questions/900/when-should-i-use-de-bruijn-levels-instead-of-indices
+Furthermore, performing substitutions with De Bruijn terms has an overhead as variable positions have to be shifted.
+To avoid this, hybrid representations combining named and nameless representations exist~\cite{mcbride_imnotanumber_2004,chargueraud_locally_2012}, but they become rather complex solutions for what should be a relatively simple $\lambda$-calculus implementation for \texttt{parsley-garnish}'s needs.
+
+% \scala{Function} has one binding construct -- the n-ary abstraction. This introduces variables and the need for capture-avoiding substitution.
 
 \subsubsection{Normalisation by Evaluation}
-Fortunately, there is a cheat to completely circumvent the nightmare of capture-avoiding substitution.
-Unlike traditional normalisation techniques, NbE bypasses rewriting entirely, instead appealing to their denotational semantics. (fuck yeah bitches)
-Interpret the term into a denotational model which can then be evaluated, and reify the result back into a term.
-Use HOAS to leverage the meta-language (i.e. Scala) as our semantic model -- blazingly fast! (theoretically lol)
-No rewriting = no worrying about avoiding capture.
-Shift that burden onto the scala compiler.
+An interesting alternative approach stems from a notion of \emph{reduction-free} normalisation, based on an undirected notion of term equivalence, rather than directed reduction.
+% TODO: this is good framing for using this to also see if parsers are equivalent
+\emph{Normalisation by Evaluation} (\textsc{nbe}) evaluates syntactical terms into a semantic model, which is then \emph{reified} back into the syntactic model~\cite{filinski_nbe_2004}.
+This denotational model (denoted by $\text{\textlbrackdbl} - \text{\textrbrackdbl}$) is specifically constructed to be \emph{residualising}, meaning that terms can be extracted out into the original syntactic representation.
+
+% Use HOAS to leverage the meta-language (i.e. Scala) as our semantic model -- blazingly fast! (theoretically lol)
+% No rewriting = no worrying about avoiding capture.
+% Shift that burden onto the scala compiler.
 
 \begin{figure}
 \begin{equation*}
@@ -178,11 +199,15 @@ The body becomes a \scala{Translucent} term.
 \end{lstlisting}
 Values in bold are Scalameta tree nodes, so the body term's environment maps \scala{Term.Name} nodes to their corresponding variable terms.
 
+Fold on parameter lists
+
 \subsubsection{Placeholder Syntax}
 Scala supports placeholder syntax for terseness, so the earlier parser can be rewritten as:
 \begin{minted}{scala}
 val asciiCode: Parsley[Int] = item.map(_.toInt)
 \end{minted}
+
+Placeholder syntax only results in a single parameter list, so this just becomes a single n-ary lambda
 
 \subsubsection{Eta-Expansion}
 \begin{minted}{scala}

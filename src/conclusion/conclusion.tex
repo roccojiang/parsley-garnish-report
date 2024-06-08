@@ -26,6 +26,10 @@ Actually I feel like I've borrowed a lot of stuff from metaprogramming optimisat
 
 \ourchapter{Conclusion}
 \section{Review}
+The left-recursion factoring transformation could be implemented in a staged version of \texttt{parsley} to eliminate left-recursion at compile-time with no run-time overhead.
+However, from a design perspective this is potentially controversial as it obfuscates the \textsc{peg} semantics of the parser combinator library, allowing \textsc{cfg}-like parsers to be written directly.
+One could also argue (pedagogical perspective? not really) that the higher-level abstraction of the \scala{chain} combinators is a more desirable form to write parsers for left-associative operations, rather than a lower-level left-recursive grammar rule.
+
 \section{Future Work}
 
 \end{document}

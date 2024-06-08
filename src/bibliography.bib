@@ -585,3 +585,123 @@
   doi       = {10.4230/LIPIcs.ECOOP.2017.27},
   annote    = {Keywords: Scala, DOT, strong normalization, logical relations, recursive types}
 }
+
+@misc{van-bakel_tsfpl_2022,
+  author = {{van Bakel}, Steffen},
+  title  = {Lecture Notes on Type Systems for Programming Languages},
+  year   = {2022},
+  url    = {https://www.doc.ic.ac.uk/~svb/TSfPL/}
+}
+
+@incollection{barendregt_lambda_1984,
+  series    = {Studies in {Logic} and the {Foundations} of {Mathematics}},
+  title     = {Chapter 2 - {Conversion}},
+  volume    = {103},
+  url       = {https://www.sciencedirect.com/science/article/pii/B9780444875082500101},
+  booktitle = {The {Lambda} {Calculus}},
+  publisher = {Elsevier},
+  author    = {Barendregt, Henk P.},
+  year      = {1984},
+  doi       = {https://doi.org/10.1016/B978-0-444-87508-2.50010-1},
+  note      = {ISSN: 0049-237X},
+  pages     = {22--49}
+}
+
+@article{peytonjones_secrets_2002,
+  author     = {{Peyton Jones}, Simon and Marlow, Simon},
+  title      = {Secrets of the Glasgow Haskell Compiler inliner},
+  year       = {2002},
+  issue_date = {July 2002},
+  publisher  = {Cambridge University Press},
+  address    = {USA},
+  volume     = {12},
+  number     = {5},
+  issn       = {0956-7968},
+  url        = {https://doi.org/10.1017/S0956796802004331},
+  doi        = {10.1017/S0956796802004331},
+  abstract   = {Higher-order languages such as Haskell encourage the programmer to build abstractions by composing functions. A good compiler must inline many of these calls to recover an efficiently executable program. In principle, inlining is dead simple: just replace the call of a function by an instance of its body. But any compiler-writer will tell you that inlining is a black art, full of delicate compromises that work together to give good performance without unnecessary code bloat. The purpose of this paper is, therefore, to articulate the key lessons we learned from a full-scale “production” inliner, the one used in the Glasgow Haskell compiler. We focus mainly on the algorithmic aspects, but we also provide some indicative measurements to substantiate the importance of various aspects of the inliner.},
+  journal    = {J. Funct. Program.},
+  month      = jul,
+  pages      = {393--434},
+  numpages   = {42}
+}
+
+@inproceedings{maclaurin_thefoil_2023,
+  author    = {Maclaurin, Dougal and Radul, Alexey and Paszke, Adam},
+  title     = {The Foil: Capture-Avoiding Substitution With No Sharp Edges},
+  year      = {2023},
+  isbn      = {9781450398312},
+  publisher = {Association for Computing Machinery},
+  address   = {New York, NY, USA},
+  url       = {https://doi.org/10.1145/3587216.3587224},
+  doi       = {10.1145/3587216.3587224},
+  abstract  = {Correctly manipulating program terms in a compiler is surprisingly difficult because of the need to avoid name capture. The rapier from Peyton&nbsp;Jones and Marlow [9] is a cutting-edge technique for fast, stateless capture-avoiding substitution for expressions represented with explicit names. It is, however, a sharp tool—its invariants are tricky and need to be maintained throughout the whole compiler that uses it. We describe the foil, an elaboration of the rapier that uses Haskell’s type system to enforce the rapier’s invariants statically, preventing a class of hard-to-find bugs, but without adding any run-time overheads.},
+  booktitle = {Proceedings of the 34th Symposium on Implementation and Application of Functional Languages},
+  articleno = {8},
+  numpages  = {10},
+  location  = {<conf-loc>, <city>Copenhagen</city>, <country>Denmark</country>, </conf-loc>},
+  series    = {IFL '22}
+}
+
+@article{debruijn_lambda_1972,
+  title    = {Lambda calculus notation with nameless dummies, a tool for automatic formula manipulation, with application to the Church-Rosser theorem},
+  journal  = {Indagationes Mathematicae (Proceedings)},
+  volume   = {75},
+  number   = {5},
+  pages    = {381-392},
+  year     = {1972},
+  issn     = {1385-7258},
+  doi      = {https://doi.org/10.1016/1385-7258(72)90034-0},
+  url      = {https://www.sciencedirect.com/science/article/pii/1385725872900340},
+  author   = {N.G {de Bruijn}},
+  abstract = {In ordinary lambda calculus the occurrences of a bound variable are made recognizable by the use of one and the same (otherwise irrelevant) name at all occurrences. This convention is known to cause considerable trouble in cases of substitution. In the present paper a different notational system is developed, where occurrences of variables are indicated by integers giving the “distance” to the binding λ instead of a name attached to that λ. The system is claimed to be efficient for automatic formula manipulation as well as for metalingual discussion. As an example the most essential part of a proof of the Church-Rosser theorem is presented in this namefree calculus.}
+}
+
+@inproceedings{mcbride_imnotanumber_2004,
+  author    = {McBride, Conor and McKinna, James},
+  title     = {Functional pearl: i am not a number--i am a free variable},
+  year      = {2004},
+  isbn      = {1581138504},
+  publisher = {Association for Computing Machinery},
+  address   = {New York, NY, USA},
+  url       = {https://doi.org/10.1145/1017472.1017477},
+  doi       = {10.1145/1017472.1017477},
+  abstract  = {In this paper, we show how to manipulate syntax with binding using a mixed representation of names for free variables (with respect to the task in hand) and de Bruijn indices [5] for bound variables. By doing so, we retain the advantages of both representations: naming supports easy, arithmetic-free manipulation of terms; de Bruijn indices eliminate the need for α-conversion. Further, we have ensured that not only the user but also the implementation need never deal with de Bruijn indices, except within key basic operations.Moreover, we give a hierarchical representation for names which naturally reflects the structure of the operations we implement. Name choice is safe and straightforward. Our technology combines easily with an approach to syntax manipulation inspired by Huet's 'zippers'[10].Without the ideas in this paper, we would have struggled to implement EPIGRAM [19]. Our example-constructing inductive elimination operators for datatype families-is but one of many where it proves invaluable.},
+  booktitle = {Proceedings of the 2004 ACM SIGPLAN Workshop on Haskell},
+  pages     = {1--9},
+  numpages  = {9},
+  keywords  = {abstract syntax, bound variables, de Bruijn representation, free variables, fresh names, haskell, implementing epigram, induction principles},
+  location  = {Snowbird, Utah, USA},
+  series    = {Haskell '04}
+}
+
+@article{chargueraud_locally_2012,
+  author   = {Chargu{\'e}raud, Arthur},
+  title    = {The Locally Nameless Representation},
+  journal  = {Journal of Automated Reasoning},
+  year     = {2012},
+  month    = oct,
+  day      = {01},
+  volume   = {49},
+  number   = {3},
+  pages    = {363--408},
+  abstract = {This paper provides an introduction to the locally nameless approach to the representation of syntax with variable binding, focusing in particular on the use of this technique in formal proofs. First, we explain the benefits of representing bound variables with de Bruijn indices while retaining names for free variables. Then, we explain how to describe and manipulate syntax in that form, and show how to define and reason about judgments on locally nameless terms.},
+  issn     = {1573-0670},
+  doi      = {10.1007/s10817-011-9225-2},
+  url      = {https://doi.org/10.1007/s10817-011-9225-2}
+}
+
+@inproceedings{filinski_nbe_2004,
+  author    = {Filinski, Andrzej and Korsholm Rohde, Henning},
+  editor    = {Walukiewicz, Igor},
+  title     = {A Denotational Account of Untyped Normalization by Evaluation},
+  booktitle = {Foundations of Software Science and Computation Structures},
+  year      = {2004},
+  url       = {https://doi.org/10.1007/978-3-540-24727-2_13},
+  doi       = {10.1007/978-3-540-24727-2_13},
+  publisher = {Springer Berlin Heidelberg},
+  address   = {Berlin, Heidelberg},
+  pages     = {167--181},
+  abstract  = {We show that the standard normalization-by-evaluation construction for the simply-typed $\lambda$$\beta$$\eta$-calculus has a natural counterpart for the untyped $\lambda$$\beta$-calculus, with the central type-indexed logical relation replaced by a ``recursively defined'' invariant relation, in the style of Pitts. In fact, the construction can be seen as generalizing a computational-adequacy argument for an untyped, call-by-name language to normalization instead of evaluation.},
+  isbn      = {978-3-540-24727-2}
+}
