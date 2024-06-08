@@ -65,9 +65,15 @@ M, N &\mathrel{::=} x & \text{(variable)} \\
 \label{fig:lambda-calculus}
 \end{figure}
 
+% TODO: maybe move this after normalisation
 \subsubsection{The Function \textsc{adt}}
 The syntactic representation of functions is thus represented as the uni-typed \scala{Function} \textsc{adt} in \cref{fig:function-adt}.
-The \scala{Lambda} trait is a subset of the entire \scala{Function} trait, representing $\lambda$-terms, with the addition of a \scala{Translucent} term to encapsulate open terms holding a \scala{scala.meta.Term} which cannot be evaluated further.
+\scala{Defunc} is the higher-level representation of defunctionalised higher-order functions, which are desugared into \scala{Lambda} terms for normalisation.
+\scala{Lambda} represents $n$-ary $\lambda$-terms, extended with the following:
+\begin{itemize}
+  \item Optional explicit type annotations for variables -- these are not used for type-checking, but are there to preserve Scala type annotations originally written by the user.
+  \item \scala{Translucent} terms to encapsulate open terms holding a \scala{scala.meta.Term} which cannot be normalised further. These carry an environment of variable bindings to substitute back in during pretty-printing -- this is analogous to splicing into quoted expressions in the meta-programming world.
+\end{itemize}
 
 \begin{figure}
 \begin{minted}{scala}
@@ -77,7 +83,7 @@ trait Function
 trait Lambda extends Function
 case class Abs(xs: List[Var], f: Function) extends Lambda
 case class App(f: Function, xs: List[Function]) extends Lambda
-case class Var(name: VarName) extends Lambda
+case class Var(name: VarName, displayType: Option[scala.meta.Type]) extends Lambda
 case class Translucent(t: Term, env: Map[VarName, Function]) extends Lambda
 
 // Defunctionalised higher-order functions
@@ -151,12 +157,36 @@ Furthermore, performing substitutions with De Bruijn terms has an overhead as va
 To avoid this, hybrid representations combining named and nameless representations exist~\cite{mcbride_imnotanumber_2004,chargueraud_locally_2012}, but they become rather complex solutions for what should be a relatively simple $\lambda$-calculus implementation for \texttt{parsley-garnish}'s needs.
 
 \paragraph{Higher-order abstract syntax}
-\emph{Higher-order abstract syntax} (\textsc{hoas})~\cite{pfenning_hoas_1988} is a representation that uses the meta-language's own functions to represent the object language's terms.
-\TODO{
-  we will use this
-  but also with nbe as shown in the next subsubsection
-}
+\emph{Higher-order abstract syntax} (\textsc{hoas})~\cite{pfenning_hoas_1988} sidesteps variable binders entirely by borrowing binding and substitution from the meta-language.
+The previous techniques were examples of first-order abstract syntax, representing variables and unknowns with identifiers, whether with names or indices.
+A simple \textsc{foas} approach would build an expression using identifiers for bound variables like so:
+\begin{minted}{scala}
+trait FOAS
+case class Abs[A, B](x: Var[A], f: FOAS[B]) extends FOAS[A => B]
+case class App[A, B](f: FOAS[A => B], x: FOAS[A]) extends FOAS[B]
+case class Var[A](name: String) extends FOAS[A]
 
+// λx. λy. add x y
+val x = Var("x")
+val y = Var("y")
+val expr = Abs(x, Abs(y, App(App(Var("add"), x), y)))
+\end{minted}
+%
+A \textsc{hoas} approach differs in the representation of lambda abstractions, so that bound variables do not get named but are instead represented using bindings in the meta-language (in this case, Scala):
+\begin{minted}[texcomments]{scala}
+trait HOAS
+case class Abs[A, B](f: HOAS[A] => HOAS[B]) extends HOAS[A => B]
+case class App[A, B](f: HOAS[A => B], x: HOAS[A]) extends HOAS[B]
+case class Var[A](name: String) extends HOAS[A]
+
+// λx. λy. add x y
+val expr = Abs(x => Abs(y => App(App(Var("add"), x), y)))
+\end{minted}
+%
+Therefore, \textsc{hoas} performs substitution through Scala's function application, which makes this extremely fast compared to the other approaches.
+However, since lambda abstractions are represented as lambda expressions within Scala itself, the function body becomes wrapped under Scala's variable binding, making them difficult to work with.
+
+% TODO we use this but with nbe, syntax - named, semantics - hoas, normalising by evaluation = automatically alpha converts terms by renaming
 % \scala{Function} has one binding construct -- the n-ary abstraction. This introduces variables and the need for capture-avoiding substitution.
 
 \subsubsection{Normalisation by Evaluation}
@@ -200,6 +230,8 @@ Translucent is treated as opaque during normalisation, but contains normalisable
 % Use HOAS to leverage the meta-language (i.e. Scala) as our semantic model -- blazingly fast! (theoretically lol)
 % No rewriting = no worrying about avoiding capture.
 % Shift that burden onto the scala compiler.
+
+\subsubsection{Evaluating Performance of Normalisation Strategies}
 
 \subsection{Converting Scalameta Terms to the Function \textsc{adt}}
 There are three cases to consider when converting \scala{scala.meta.Term} nodes into \scala{Function} terms.
