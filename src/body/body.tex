@@ -33,14 +33,12 @@ Not sure how to lay out the complex rules yet -- so far this is just the left-re
 The other complex rule(s) will likely share implementation details with the Parser/Func representation, so work from there.
 }
 
-\section{Avoid Redefining Existing Parsers}
+\section{Simplify Parser}
 \TODO{
+% TODO: how tf do I discuss this bit without the info from Parser internals??
 * Catch cases when user manually writes out a parser that is already defined in the library
-}
-
-\section{Simplify Complex Parsers}
-\TODO{
-* Apply parser laws, re-using Parser and Func representations to do cool things <- should this be a separate rule?
+* Apply parser laws, re-using Parser and Func representations to do cool things
+prettify = resugar . normaliseFunctions . simplify
 }
 
 \section{Ambiguous Implicit Conversions}

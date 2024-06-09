@@ -4,6 +4,7 @@
 
 \section{Function Representation}\label{sec:function-representation}
 % TODO: This section is about simplifying in the general domain, so really Squid can do all of this? Still an interesting approach ig --  And shows a shortcoming of scalameta quasiquotes
+% TODO: hygiene
 
 \Cref{sec:parser-representation} showed that it is useful to lift Scala \textsc{ast} nodes to a specialised \scala{Parser} \textsc{ast}, making it easier to manipulate and inspect parsers.
 Crucially, this allowed us to simplify parsers via term-rewriting rules based on parser laws.
@@ -43,28 +44,9 @@ M, N &\mathrel{::=} x & \text{variable} \\
 \label{fig:lambda-calculus}
 \end{figure}
 
-% TODO: there's some decent stuff in Ch8 of david davie's masters thesis briefly summing up how to articulate related things in a succinct manner
-\subsection{Normalisation Approaches}\label{sec:normalisation-approach}
-Deciding on a concrete \textsc{adt} representation for the $\lambda$-calculus is a surprisingly complex problem.
-This \namecref{sec:normalisation-approach} explores the different approaches to normalisation, and the effect this has on how the $\lambda$-calculus may be represented as a datatype.
-We first explain the traditional notion of reduction-based normalisation, before introducing normalisation by evaluation as a more elegant alternative.
-
-% TODO: tbh could've just stopped at HOAS, but in our case, NbE was an easily attainable logical next step to more aggressively use meta-language constructs
-
-% TODO: this is based on NbE ideas!! move accordingly
-% Partial evaluation and normalisation are related concepts: it is useful to view normalisation as statically evaluating as many terms as possible, but since not all terms have known values, the expression cannot be fully evaluated to a result value.
-% Normalisation can thus be viewed simply as a process of evaluation, but in the presence of unknown terms.
-
-\subsubsection{Reduction-Based Normalisation}
-In the $\lambda$-calculus, terms are reduced in size by applying $\beta$-reduction: \cref{fig:beta-reduction} shows how this can be defined for the $n$-ary $\lambda$-calculus.
-Unlike the standard $\lambda$-calculus, reduction will only take place if the expected number of arguments in $\overline{\mathbf{x}}$ are equal to the number of arguments in $\overline{\mathbf{N}}$; otherwise, the term is left as is.
-
-This rule is therefore a \emph{directed} notion of reduction, which can be implemented as a term-rewriting system, in a similar way to how \scala{Parser} terms are simplified.
-The goal is to achieve beta normal form ($\beta$-\textsc{nf}) by allowing $\beta$-reduction to occur deep inside $\lambda$-terms, in all redexes of a term, until no more reductions can be made.
-% Normally in the untyped $\lambda$-calculus, $\beta$-reduction does not manage to be strongly normalising as desired, and may lead to non-terminating rewrites.
-% However, this is not an issue for us: despite the \scala{Lambda} representation itself permitting untyped terms, all \scala{Lambda} terms are converted from valid typed Scala expressions.
-% Scala 3 is modelled on the Dependent Object Types (\textsc{dot}) calculus, which has been shown to be strongly normalisable~\cite{wang_strong_2017}.
-% Although not proven for Scala 2, it is reasonable to assume that the same result holds, at least for the subset of expressions that are represented in the \scala{Lambda} representation.
+\subsubsection{$\beta$-Reduction and $\alpha$-Conversion}
+In the $\lambda$-calculus, terms are evaluated via $\beta$-reduction: \cref{fig:beta-reduction} shows how this can be defined for the $n$-ary $\lambda$-calculus.
+Unlike the standard $\lambda$-calculus, reduction will only take place if the expected number of arguments in $\overline{\mathbf{x}}$ are equal to the number of arguments in $\overline{\mathbf{N}}$; otherwise, evaluation is stuck.
 
 \begin{figure}[htbp]
 \begin{equation*}
@@ -74,14 +56,34 @@ The goal is to achieve beta normal form ($\beta$-\textsc{nf}) by allowing $\beta
 \label{fig:beta-reduction}
 \end{figure}
 
-In \cref{fig:beta-reduction}, the syntax $M[N/x]$ denotes term substitution, where all free occurrences of $x$ in $M$ are replaced with $N$.
+The syntax $M[N/x]$ denotes term substitution, where all free occurrences of $x$ in $M$ are replaced with $N$.
 Substitution must avoid \emph{variable capture}, when $N$ contains free variables that are bound in the scope where $x$ is found~\cite{van-bakel_tsfpl_2022}.
-Capture-avoiding substitution is a notoriously tricky and subtle problem.
-There are a plethora of different approaches to solve this, mostly boiling down to how variable names get represented:
+This requires performing $\alpha$-conversion, which renames bound variables to avoid capture.
+In the $\lambda$-calculus, two terms are considered $\alpha$-equivalent if they can be transformed into each other by renaming bound variables: the term $\lambda x. x$ is equivalent to $\lambda y. y$.
 
-\paragraph{Naïve substitution}
+For example, substitution without $\alpha$-conversion incorrectly $\beta$-reduces the following term:
+\begin{align*}
+(\lambda x. \lambda y. x y) y\ &\rightarrow_\beta (\lambda y. x y)\ [y / x] \\
+&= \lambda y. y y
+\end{align*}
+The $y$ we wanted to substitute was originally a free variable, distinct from the $y$ bound in the lambda $\lambda y. x y$.
+% some weird spacing hacks because $y$ is weirdly slanted
+However, after substitution, it became captured under the lambda, where the two $y\ $ terms are now indistinguishable in the incorrect expression $\lambda y. y y$.
+The correct $\beta$-reduction with capture-avoiding substitution would instead proceed as follows:
+\begin{align*}
+(\lambda x. \lambda y. x y) y\ &\rightarrow_\beta (\lambda y. x y)\ [y / x] \\
+&=_\alpha (\lambda z. x z)\ [y / x] \\
+&= \lambda z. y z
+\end{align*}
+
+\subsection{Representing Names}
+There exists a plethora of approaches to implementing the $\lambda$-calculus, mostly differing in how they represent variable names.
+This affects how variable capture is handled, and also how $\alpha$-equivalence of two terms can be determined.
+For \texttt{parsley-garnish}, cheap $\alpha$-equivalence is desirable to help check equivalence of parser terms, which is useful for some transformations.
+
+\paragraph{Naïve capture-avoiding substitution}
 Representing variable names as strings is the most straightforward approach in terms of understandability.
-The example below shows how the simply-typed $\lambda$-calculus can be represented as a generalised algebraic data type (\textsc{gadt}) in Scala:
+The example below shows how the simply-typed $\lambda$-calculus can be represented as a generalised algebraic data type (\textsc{gadt})~\cite{cheney_gadt_2003} in Scala:
 
 \begin{minted}{scala}
 type VarName = String
@@ -100,6 +102,7 @@ val expr = Abs(f, Abs(x, App(f, x)))
 Naïvely substituting these terms, however, seems logically simple but can be very tricky to get right.
 This approach requires calculating the free variables in a scope before performing substitution, renaming bound variables if it would lead to variable capture.
 This is not used in any real implementation of the $\lambda$-calculus due to its inefficiency, as it requires traversing the whole term tree multiple times.
+Checking $\alpha$-equivalence is also tedious, requiring another full traversal of the term tree to compare variable names.
 
 \paragraph{Barendregt's convention}
 Renaming all bound variables to be unique satisfies \emph{Barendregt's convention}~\cite{barendregt_lambda_1984}, which removes the need to check for variable capture during substitution.
@@ -108,11 +111,15 @@ The approach has been successfully optimised to very impressive performance, tho
 the Haskell \textsc{ghc} compiler uses Barendregt's convention with a technique dubbed ``the Rapier''~\cite{peytonjones_secrets_2002}, maintaining invariants to avoid renaming on substitution when unnecessary.
 Unfortunately, maintaining the invariants to keep this transformation correct becomes very difficult~\cite{maclaurin_thefoil_2023}.
 
+\texttt{parsley-garnish} originally used a named approach with Barendregt's convention, generating fresh variable names using an atomic counter.
+However, this required an extra $\alpha$-conversion pass to clean up variable names before pretty-printing the term, since the fresh variable names were very ugly.
+
 \paragraph{Nameless and hybrid representations}
 Nameless representations like \emph{De Bruijn indices}~\cite{debruijn_lambda_1972} eschew names entirely, instead representing variables as the number of binders between the variable and its binding site.
+This makes $\alpha$-equivalence trivial to check, as it is just a matter of comparing the indices.
 Although an elegant representation, De Bruijn terms are notoriously difficult to work with, as they are not easily human-readable.
 % https://proofassistants.stackexchange.com/questions/900/when-should-i-use-de-bruijn-levels-instead-of-indices
-Furthermore, performing substitutions with De Bruijn terms has an overhead as variable positions have to be shifted.
+Furthermore, performing substitutions with De Bruijn terms has an overhead as variable positions have to be shifted -- this is undesirable given that the purpose of our \textsc{adt} is to normalise $\lambda$-terms.
 To avoid this, hybrid representations combining named and nameless representations exist~\cite{mcbride_imnotanumber_2004,chargueraud_locally_2012}, but they become rather complex solutions for what should be a relatively simple $\lambda$-calculus implementation for \texttt{parsley-garnish}'s needs.
 
 \paragraph{Higher-order abstract syntax}
@@ -136,11 +143,29 @@ However, since lambda abstractions are represented as lambda expressions within 
 % TODO we use this but with nbe, syntax - named, semantics - hoas, normalising by evaluation = automatically alpha converts terms by renaming
 % \scala{Function} has one binding construct -- the n-ary abstraction. This introduces variables and the need for capture-avoiding substitution.
 
+\subsection{Implementing Normalisation}\label{sec:normalisation-approach}
+One remaining hurdle stands before deciding on an \textsc{adt} representation: how normalisation will be implemented.
+This \namecref{sec:normalisation-approach} explores two different notions of normalisation, and the effect this has on how the $\lambda$-calculus may be represented as a datatype.
+
+% TODO: tbh could've just stopped at HOAS, but in our case, NbE was an easily attainable logical next step to more aggressively use meta-language constructs
+
+% TODO: this is based on NbE ideas!! move accordingly
+% Partial evaluation and normalisation are related concepts: it is useful to view normalisation as statically evaluating as many terms as possible, but since not all terms have known values, the expression cannot be fully evaluated to a result value.
+% Normalisation can thus be viewed simply as a process of evaluation, but in the presence of unknown terms.
+
+\subsubsection{Reduction-Based Normalisation}
+The $\beta$-reduction rule is a \emph{directed} notion of reduction, which can be implemented as a syntax-directed term-rewriting system, in a similar way to how \scala{Parser} terms are simplified.
+The goal is to achieve beta normal form ($\beta$-\textsc{nf}) by allowing $\beta$-reduction to occur deep inside $\lambda$-terms, in all redexes of a term, until no more reductions can be made.
+% Normally in the untyped $\lambda$-calculus, $\beta$-reduction does not manage to be strongly normalising as desired, and may lead to non-terminating rewrites.
+% However, this is not an issue for us: despite the \scala{Lambda} representation itself permitting untyped terms, all \scala{Lambda} terms are converted from valid typed Scala expressions.
+% Scala 3 is modelled on the Dependent Object Types (\textsc{dot}) calculus, which has been shown to be strongly normalisable~\cite{wang_strong_2017}.
+% Although not proven for Scala 2, it is reasonable to assume that the same result holds, at least for the subset of expressions that are represented in the \scala{Lambda} representation.
+
 \subsubsection{Normalisation by Evaluation}
 An interesting alternative approach stems from a notion of \emph{reduction-free} normalisation, based on an undirected notion of term equivalence, rather than directed reduction.
-% TODO: this is good framing for using this to also see if parsers are equivalent
-\emph{Normalisation by Evaluation} (\textsc{nbe})~\cite{filinski_nbe_2004} achieves this by evaluating syntactical terms into a semantic model, then \emph{reifying} them back into the syntactic model.
-The denotational model (denoted by $\text{\textlbrackdbl} - \text{\textrbrackdbl}$) is specifically constructed to be \emph{residualising}, meaning that terms can be extracted out into the original syntactic representation.
+\emph{Normalisation by Evaluation} (\textsc{nbe})~\cite{filinski_nbe_2004} achieves this by evaluating syntactical terms into a semantic model, then \emph{reifying} them back into the syntactic domain.
+The denotational model (denoted by $\text{\textlbrackdbl} - \text{\textrbrackdbl}$) generally requires implementing a separate datatype from the syntactic \textsc{ast} representation of functions.
+The semantics is specifically constructed to be \emph{residualising}, meaning that terms can be extracted out into the original syntactic representation.
 Normalisation is then just defined as the composition of these two operations, as illustrated in \cref{fig:nbe}.
 
 \begin{figure}
@@ -159,10 +184,6 @@ Normalisation is then just defined as the composition of these two operations, a
 \end{figure}
 
 \subsection{The Function \textsc{adt}}
-
-\subsubsection{Evaluating Performance of Normalisation Strategies}
-
-\subsection{Representing Functions}
 % TODO: remove defunc and merge into lambda
 \subsubsection{Defunctionalisation}
 In the same way that representing parsers as datatypes allows them to be statically inspectable, the aforementioned higher-order functions can also be rendered as datatypes to allow them to be analysed in a similar manner.
@@ -225,6 +246,8 @@ However, attempting to implement this ran into two main hurdles:
   \item \scala{Var} and \scala{Translucent} terms would need to be created with concrete type parameters of their inferred types. Scalafix's semantic \textsc{api} is not powerful enough to guarantee that all terms can be queried for their inferred types -- in fact, the built-in Scalafix rule \emph{Explicit Result Types} calls the Scala 2 presentation compiler to extract information like this\footnote{\url{https://github.com/scalacenter/scalafix/issues/1583}}. This solution is not ideal as it is brittle and breaks Scalafix's cross-compatibility promises.
   \item Scala 2's type inference for \textsc{gadt}s is less than ideal, requiring extra type annotations and unsafe casts which ultimately defeat the original purpose of type safety. This situation is improved, although not completely solved, in Dotty~\cite{parreaux_towards_2019} -- but Scalafix does not yet support Scala 3.
 \end{itemize}
+
+\subsubsection{Evaluating Performance of Normalisation Strategies}
 
 \subsection{Converting Scalameta Terms to the Function \textsc{adt}}
 There are three cases to consider when converting \scala{scala.meta.Term} nodes into \scala{Function} terms.
