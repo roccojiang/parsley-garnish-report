@@ -17,71 +17,11 @@ Staged metaprogramming applies optimisations at compile-time, whereas these ``op
 
 % TODO: our parser representation is akin to Haskell parsley's deep-embedded combinator tree, albeit representing all combinators rather than just the core ones
 
-For example, given two \textsc{ast} nodes \scala{Term.Name("p")} and \scala{Term.Name("q")} corresponding to named parsers \scala{p} and \scala{q}, suppose a transformation involves combining them with the \emph{ap} combinator \scala{<*>}.
-One may consider using quasiquotes to achieve this: \scala{q"p <*> q"} would automatically expand to \scala{Term.ApplyInfix(Term.Name("p"), Term.Name("<*>"), Type.ArgClause(Nil), Term.ArgClause(List(Term.Name("q")), None))}.
-However, this loses the static inspectability of the individual parsers \scala{p} and \scala{q} -- although quasiquotes can be used as extractor patterns to recover the original \textsc{ast} nodes, their usage as such is discouraged as they can easily result in unintended match errors. % TODO: cite? footnote? https://scalameta.org/docs/trees/guide.html#with-quasiquotes-1
-The recommended approach is to pattern match on the \textsc{ast} nodes directly, which is obviously unergonomic even for this small example: to extract the \textsc{rhs} term \scala{q}, one would have to perform a nested pattern match on the \scala{Term.ApplyInfix} term and its \scala{Term.ArgClause} node representing the arguments of the infix function application.
-
-It is hopefully obvious that this would a very painful process for the rule author.
-It would be desirable to abstract away from the low-level syntactic \textsc{ast} representation, and instead treat these \textsc{ast} nodes as what they semantically represent -- parsers.
-
-Instead, \cref{fig:parser-adt} shows how parser terms can be represented as an algebraic data type \textsc{adt}, in the same way \texttt{parsley} itself uses a deep embedding to represent parsers as pure data objects.
-The reasoning behind this approach is the same as that for \textsc{parsley} -- this representation allows parsers to be easily inspected and analysed via pattern matching on constructors.
-
-\begin{figure}[htbp]
-\begin{minted}{scala}
-trait Parser
-case class NonTerminal(ref: Symbol) extends Parser
-case class Pure(f: Function) extends Parser
-case object Empty extends Parser
-case class Choice(p: Parser, q: Parser) extends Parser
-case class Ap(p: Parser, q: Parser) extends Parser
-...
-\end{minted}
-\caption{A subset of the core combinators in the \scala{Parser} \textsc{adt}.}
-\label{fig:parser-adt}
-\end{figure}
-
-% Instead, represent parsers as an algebraic data type \textsc{adt} in the same way that Parsley itself uses a deep embedding to represent combinators as objects.
-% Methods on these objects can then be used to manipulate them, and the resulting object can still be pattern matched, maintaining the static inspectability of the parsers.
-% So then it's just like writing parsers in Parsley itself: \scala{p <*> q} constructs a \scala{Ap(p, q)} node which can still be pattern matched on.
-% And similar to Parsley, representing everything as objects makes it easy to optimise using pattern matching on constructors.
-% This representation also then gives us for free the implementation for lint rules such as \emph{Simplify Complex Parsers} rule, which applies parser laws to simplify parsers.
-
 This \namecref{sec:parser-representation} explores the motivation behind this and the design choices made in the implementation.
 Use the left-recursion factoring~(\cref{sec:factor-leftrec}) rule as a basis/context to demonstrate the utility of this representation.
 
 % TODO: fix the above "intro" ------------------------------------------------------------------------------
 
-\paragraph{Running example}
-The left-recursion factoring rule~(\cref{sec:factor-leftrec}) performs the most complex analyses and transformations on parsers in \texttt{parsley-garnish}.
-Thus, it is a good example to motivate the design requirements for the parser representation.
-The following left-recursive parser and its transformation into its \scala{postfix} form will serve as a running example for this \namecref{sec:parser-representation}:
-\begin{minted}{scala}
-lazy val expr: Parsley[String] = (expr, string("a")).zipped(_ + _) | string("b")
-\end{minted}
-
-\subsection{Detecting Named Parsers}
-Before any analysis on parsers can be performed, it is first necessary to identify which \textsc{ast} nodes correspond to parsers.
-\texttt{parsley-garnish} builds a map of all parsers defined within a source file, indexed by the unique symbol of its name.
-
-Identifying these \textsc{ast} nodes of interest involves pattern matching on \scala{val}, \scala{var}, and \scala{def} definitions with a type inferred to be some \scala{Parsley[_]} -- this information is accessed by querying the Scalafix semantic \textsc{api} for the node's symbol information.
-% In this example, the type of \scala{expr} is explicitly given as the Scala compiler requires this due to being a recursive definition.
-Consider the labelled \scala{ast} structure of the \scala{expr} parser:
-\begin{minted}{scala}
-Defn.Val(
-  mods = List(Mod.Lazy()),
-  pats = List(Pat.Var(Term.Name("expr"))),
-  decltpe = Some(
-    Type.Apply(Type.Name("Parsley"), Type.ArgClause(List(Type.Name("String"))))
-  ),
-  rhs = Term.ApplyInfix(...)
-)
-\end{minted}
-%
-The qualified symbol \scala{expr} is used as the key in the map, and the \scala{rhs} term is lifted the intermediate parser representation for analysis.
-A reference to the original \textsc{ast} node is also kept so any lint diagnostics or code rewrites can be applied to the correct location in the source file.
-Thus, a full traversal through the source file builds a map of all named parsers, representing all non-terminals in the grammar defined within that file.
 
 \subsection{Converting Scalameta Terms to the Parser \textsc{adt}}
 Having identified the \textsc{ast} nodes which represent parsers, they need to be transformed into the appropriate \scala{Parser} representation.
