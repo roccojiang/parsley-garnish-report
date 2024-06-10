@@ -22,63 +22,6 @@ Use the left-recursion factoring~(\cref{sec:factor-leftrec}) rule as a basis/con
 
 % TODO: fix the above "intro" ------------------------------------------------------------------------------
 
-
-\subsection{Converting Scalameta Terms to the Parser \textsc{adt}}
-Having identified the \textsc{ast} nodes which represent parsers, they need to be transformed into the appropriate \scala{Parser} representation.
-This involves pattern matching on the \scala{scala.meta.Term} to determine which parser combinator it represents, and then constructing the appropriate \scala{Parser} instance.
-
-Each \scala{Parser} defines a partial function, \scala{fromTerm}, which creates an instance of that parser from the appropriate \scala{scala.meta.Term}.
-These \scala{fromTerm} methods are combined to define a \scala{toParser} extension method on \scala{scala.meta.Term} -- this is where \textsc{ast} nodes are lifted to their corresponding \scala{Parser} representation.
-% Use Scalafix's \scala{SymbolMatcher} to match tree nodes that resolve to a specific set of symbols.
-% This makes use of semantic information from SemanticDB, so we are sure that a \scala{<*>} is actually within the \scala{parsley.Parsley} package, rather than some other function with the same name.
-% This is much more robust compared to HLint, which suffers from false positives due to its reliance on syntactic information only.
-
-The top-level combinator that makes up \scala{expr}'s definition is the choice combinator, \scala{|}.
-Scalameta represents this infix application of the \scala{|} operator as so:
-\begin{minted}{scala}
-Term.ApplyInfix(
-  lhs = Term.Apply(...), // AST node for (expr, string("a")).zipped(_ + _)
-  op = Term.Name("|"),
-  targClause = Type.ArgClause(List()),
-  argClause = Term.ArgClause(
-    List(
-      Term.Apply(
-        Term.Name("string"),
-        Term.ArgClause(List(Lit.String("b")), None)
-      )
-    ),
-    None
-  )
-)
-\end{minted}
-%
-This structure therefore guides the implementation of the pattern match in \scala{Choice.fromTerm}:
-\begin{minted}{scala}
-object Choice {
-  val matcher = SymbolMatcher.normalized("parsley.Parsley.`|`", "parsley.Parsley.`<|>`")
-
-  def fromTerm(implicit doc: SemanticDocument): PartialFunction[Term, Choice] = {
-    case Term.ApplyInfix(p, matcher(_), _, Term.ArgClause(List(q), _)) =>
-      Choice(p.toParser, q.toParser)
-  }
-}
-\end{minted}
-%
-The definition of this method is fairly self-explanatory: it matches on a \scala{ApplyInfix} term where the operator is the \scala{|} combinator, and recursively applies \scala{toParser} to its \textsc{lhs} and \textsc{rhs} nodes.
-Finishing off, the \scala{expr} parser is therefore converted to the following \scala{Parser} instance:
-% Choice(
-%   Zipped(Function(_ + _), List(NonTerminal(expr), Str(a))),
-%   Str(b)
-% )
-\begin{minted}[escapeinside=\%\%]{scala}
-Choice(
-  Zipped(%\textcolor{gray}{Function(\_ + \_)}%, List(NonTerminal(expr), Str(a))),
-  Str(b)
-)
-\end{minted}
-The exact representation of the \scala{Function} is not important at this momenet -- this is covered in the next \namecref{sec:function-representation}.
-For brevity, the remaining code snippets in this \namecref{sec:parser-representation} will simplify the function representations and continue to grey them out.
-
 \subsection{Building New Parsers From Existing Parsers}
 Now that raw \textsc{ast} terms can be lifted to the higher-level parser representation, it is easy to build new parsers from existing parsers.
 This is crucial for left-recursion factoring, which ``unfolds'' parsers into separate parsers representing the left-recursive and non-left-recursive parts.

@@ -13,7 +13,7 @@ The following left-recursive parser and its transformation into its \scala{postf
 lazy val example: Parsley[String] = (example, string("a")).zipped(_ + _) | string("b")
 \end{minted}
 
-\subsection{The Need for an Intermediate \textsc{ast}}
+\subsection{The Need for an Intermediate \textsc{ast}}\label{sec:parser-ast-motivation}
 The transformations described by \textcite{baars_leftrec_2004} require an explicit representation of the grammar and production rules so that they can be inspected and manipulated before generating code.
 They achieve this by representing parsers as a deep-embedded datatype in the form of an intermediate \textsc{ast}, in a similar manner to \texttt{parsley}.
 
@@ -37,7 +37,7 @@ Thus, extracting the parsers necessitates a long-winded pattern match like so:
 \begin{minted}{scala}
 val ap = SymbolMatcher.normalized("parsley.Parsley.`<*>`")
 
-def deconstruct(parser: Term)(implicit doc: SemanticDocument) = parser match {
+def deconstruct(parser: Term) = parser match {
   case Term.ApplyInfix(p, ap(_), _, Term.ArgClause(List(q), _)) => (p, q)
 }
 \end{minted}
@@ -56,7 +56,7 @@ trait Parser
 
 case class NonTerminal(ref: Symbol) extends Parser
 
-case class Pure(f: Function) extends Parser
+case class Pure(x: Term) extends Parser
 case object Empty extends Parser
 
 case class Ap(p: Parser, q: Parser) extends Parser
@@ -81,6 +81,21 @@ def deconstruct(parser: Parser) = parser match {
   case p <|> q  => (p, q) // using extractor object
 }
 \end{minted}
+%
+As an example, the \scala{example} parser is then represented as a \scala{Parser} object resembling the following (where quasiquote notation is used to keep the lambda expression term \scala{q"_ + _"} concise):
+\begin{minted}{scala}
+// (example, string("a")).zipped(_ + _) | string("b")
+Choice(
+  Zipped(
+    q"_ + _",
+    List(
+      NonTerminal(Sym("path/to/package/ObjectName.example.")),
+      Str("a")
+    )
+  ),
+  Str("b")
+)
+\end{minted}
 
 % Instead, represent parsers as an algebraic data type \textsc{adt} in the same way that Parsley itself uses a deep embedding to represent combinators as objects.
 % Methods on these objects can then be used to manipulate them, and the resulting object can still be pattern matched, maintaining the static inspectability of the parsers.
@@ -88,13 +103,19 @@ def deconstruct(parser: Parser) = parser match {
 % And similar to Parsley, representing everything as objects makes it easy to optimise using pattern matching on constructors.
 % This representation also then gives us for free the implementation for lint rules such as \emph{Simplify Complex Parsers} rule, which applies parser laws to simplify parsers.
 
-\subsection{Lifting Scalameta Terms to the Intermediate Parser \textsc{ast}}
+\subsection{Lifting to the Intermediate Parser \textsc{ast}}
 Converting the raw Scala \textsc{ast} to the intermediate \textsc{ast} therefore requires the following basic operations:
 \begin{enumerate}
   \item Identifying all named parsers defined in the source program -- these correspond to non-terminal symbols in the grammar.
   \item Lifting the definition each parser into the intermediate \textsc{ast}, as a \scala{Parser} object.
-  \item Building a map to represent the high-level grammar: the unique symbol of each named parser is mapped to its corresponding \scala{Parser} object and a reference to its original node in the Scala \textsc{ast}.
+  \item Collecting these into a map to represent the high-level grammar: the unique symbol of each named parser is mapped to its corresponding \scala{Parser} object, along with some extra meta-information required for the transformation.
 \end{enumerate}
+%
+Most importantly, this meta-information includes a reference to a parser's original node in the Scala \textsc{ast}, so that any lint diagnostics or code rewrites can be applied to the correct location in the source file.
+This is simply defined as:
+\begin{minted}{scala}
+case class ParserDefn(name: Term.Name, parser: Parser, tpe: Type.Name, originalTree: Term)
+\end{minted}
 
 \subsubsection{Identifying Named Parsers}
 Finding \textsc{ast} nodes corresponding to the definition sites of named parsers involves pattern matching on \scala{val}, \scala{var}, and \scala{def} definitions with a type inferred to be some \scala{Parsley[_]}.
@@ -105,7 +126,7 @@ Consider the labelled \textsc{ast} structure of the \scala{example} parser:
 // ^^^^     ^^^^^^^  ^^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 // mods      pats        decltpe                             rhs
 
-val tree = Defn.Val(
+val exampleTree = Defn.Val(
   mods = List(Mod.Lazy()),
   pats = List(Pat.Var(Term.Name("example"))),
   decltpe = Some(
@@ -128,7 +149,7 @@ tree match {
         println(s"type = $returnType")
         println(s"structure of type object = ${returnType.structure}")
     }
-}  
+}
 // qualified symbol = path/to/package/ObjectName.example.
 // type = Parsley[String]
 // structure of type object = TypeRef(
@@ -137,10 +158,72 @@ tree match {
 //   List(TypeRef(NoType, Symbol("scala/Predef.String#"), List()))
 // )
 \end{minted}
-Having identified that the type of this \textsc{ast} node is \scala{Parsley[String]}, \texttt{parsley-garnish} can then proceed to convert the \scala{rhs} term into a \scala{Parser} \textsc{adt} object.
+Seeing that the type of this \textsc{ast} node is \scala{Parsley[String]}, \texttt{parsley-garnish} can then proceed to convert the \scala{rhs} term into a \scala{Parser} \textsc{adt} object.
 The map entry uses the fully qualified symbol for \scala{example} as the key, and the lifted \scala{Parser} object as the value.
-It also includes a reference to the original \scala{rhs} term so that any lint diagnostics or code rewrites can be applied to the correct location in the source file.
 
 % Thus, a full traversal through the source file builds a map of all named parsers, representing all non-terminals in the grammar defined within that file.
+
+\subsubsection{Converting Scalameta Terms to the Parser \textsc{adt}}
+Having identified the \textsc{ast} nodes which represent parsers, they need to be transformed into the appropriate \scala{Parser} representation.
+This involves pattern matching on the \scala{scala.meta.Term} to determine which parser combinator it represents, and then constructing the appropriate \scala{Parser} instance.
+
+Each \scala{Parser} defines a partial function \scala{fromTerm} to instantiate a parser from the appropriate \scala{scala.meta.Term}.
+These \scala{fromTerm} methods perform the ugly work of pattern matching on the low-level syntactic constructs of the Scala \textsc{ast}.
+All \scala{fromTerm} methods are combined to define the \scala{toParser} extension method on \scala{scala.meta.Term} -- this is where \textsc{ast} nodes are lifted to their corresponding \scala{Parser} representation.
+
+The pattern matching example from \cref{sec:parser-ast-motivation} makes a reappearance in the definition of \scala{Ap.fromTerm}, where the arguments to the \scala{<*>} combinator are recursively lifted to \scala{Parser} objects:
+% Use Scalafix's \scala{SymbolMatcher} to match tree nodes that resolve to a specific set of symbols.
+% This makes use of semantic information from SemanticDB, so we are sure that a \scala{<*>} is actually within the \scala{parsley.Parsley} package, rather than some other function with the same name.
+% This is much more robust compared to HLint, which suffers from false positives due to its reliance on syntactic information only.
+\begin{minted}{scala}
+// Type signatures in Parsley:
+// p: Parsley[A => B], q: =>Parsley[A], p <*> q: Parsley[B]
+case class Ap(p: Parser, q: Parser) extends Parser
+object Ap {
+  val matcher = SymbolMatcher.normalized("parsley.Parsley.`<*>`")
+
+  def fromTerm: PartialFunction[Term, Ap] = {
+    case Term.ApplyInfix(p, matcher(_), _, Term.ArgClause(List(q), _)) =>
+      Ap(p.toParser, q.toParser)
+  }
+}
+\end{minted}
+%
+Where a combinator takes a non-parser argument, this is treated as a black box and kept as a raw \textsc{ast} node:
+\begin{minted}{scala}
+// x: A, pure(x): Parsley[A]
+case class Pure(x: Term) extends Parser
+object Pure {
+  val matcher = SymbolMatcher.normalized("parsley.ParsleyImpl.pure")
+
+  def fromTerm: PartialFunction[Term, Pure] = {
+    case Term.Apply(matcher(_), Term.ArgClause(List(expr), _)) => Pure(expr)
+  }
+}
+\end{minted}
+
+\subsubsection{Building the Grammar Map}
+The overall process of converting the source file \textsc{ast} to a high-level map of the grammar can therefore be expressed as a single traversal over the \textsc{ast}:
+\begin{minted}{scala}
+object VariableDecl {
+  def unapply(tree: Tree): ParserDefn = tree match {
+    case Defn.Val(_, List(Pat.Var(varName)), _, body) if isParsleyType(varName) =>
+      ParserDefn(
+        name = varName,
+        parser = body.toParser,
+        tpe = getParsleyType(varName),
+        originalTree = body
+      )
+    // similar cases for Defn.Var and Defn.Def
+  }
+}
+
+val nonTerminals: Map[Symbol, ParserDefn] = doc.tree.collect {
+  case VariableDecl(parserDef) => parserDefn.name.symbol -> parserDef
+}.toMap
+\end{minted}
+
+\subsection{Implementing the Left-Recursion Transformation}
+\TODO{TODO}
 
 \end{document}
