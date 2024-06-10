@@ -1,0 +1,16 @@
+\documentclass[../../main.tex]{subfiles}
+
+\begin{document}
+
+\ourchapter{Simplifying Parsers and Expressions}
+Writing domain-specific lint rules unlocks the potential for more powerful and interesting transformations utilising specialised domain knowledge.
+Desirable:
+* inspectability for analysis (that's what we're here for!) and optimisation
+The purpose of this chapter is to describe the intermediate representations of parsers (\cref{sec:parser-representation}) and functions (\cref{sec:function-representation}).
+Show that terms must be simplified to a normal form
+Demonstrate equivalence to dsl optimisations in staged metaprogramming
+
+\subfile{impl/parser}
+\subfile{impl/expr}
+
+\end{document}

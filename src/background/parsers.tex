@@ -92,10 +92,10 @@ Except for the possibly cryptic-looking implementation of \texttt{num} to parse 
   \label{fig:simple-grammar-parser}
 \end{figure}
 
-\subsection{Design Patterns for Parsley}
 % TODO
-\TODO{(This background section is a work-in-progress, and will likely expand to include more information about the specific problems and design patterns I choose to explore in the project.)}
+\TODO{Types of left recursion}
 
+% TODO: merge design patterns into the parsley section
 \textcite{willis_design_2022} describe several design patterns for writing maintainable parsers using parser combinators in Scala.
 They identified common problems and anti-patterns in parser design, and proposed solutions in the form of design patterns.
 This provides a guideline for writing idiomatic \texttt{parsley} code for practical parser design, which enables opportunities for the development of linting and refactoring rules.
@@ -103,7 +103,7 @@ This provides a guideline for writing idiomatic \texttt{parsley} code for practi
 This thesis hopes to explore how these common problems can be formalised into code smells and suspicious code patterns that can be automatically detected using linting rules.
 Some of the design patterns are also theoretically amenable to automated refactoring, which we hope to explore and implement in \texttt{parsley-garnish}.
 
-\subsection{Haskell Parsley}
+\subsection{Parsley Haskell}
 \TODO{TODO: Should I introduce the idea that haskell parsley uses staged metaprogramming for optimisation purposes here?}
 
 \end{document}

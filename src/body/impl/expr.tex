@@ -1,8 +1,8 @@
-\documentclass[../../main.tex]{subfiles}
+\documentclass[../../../main.tex]{subfiles}
 
 \begin{document}
 
-\section{Function Representation}\label{sec:function-representation}
+\section{Representing and Normalising Expressions}\label{sec:function-representation}
 % TODO: This section is about simplifying in the general domain, so really Squid can do all of this? Still an interesting approach ig --  And shows a shortcoming of scalameta quasiquotes
 % TODO: hygiene
 
@@ -24,7 +24,7 @@ Therefore, these functions must be \emph{normalised} into a semantically equival
 This \namecref{sec:function-representation} explores how function term normalisation can be achieved. % TODO: drawing parallels to...?
 
 \subsection{The $n$-ary Lambda Calculus}
-Once again, to avoid the complexity of manipulating raw Scalameta \textsc{ast} nodes, we can build an intermediate \textsc{ast} representation for function terms to make them easier to work with.
+Once again, the complexity of manipulating raw Scalameta \textsc{ast} nodes can be avoided by building a new intermediate \textsc{ast} representation for function terms.
 
 Scala, as a functional programming language, uses an extension of the $\lambda$-calculus~\cite{church_lambda_1936} as its theoretical foundations~\cite{cremet_core_2006,amin_essence_2016}.
 The function terms that we want to normalise are equivalent to $\lambda$-terms, just with extra syntactic sugar.
@@ -145,13 +145,11 @@ However, since lambda abstractions are represented as lambda expressions within 
 
 \subsection{Implementing Normalisation}\label{sec:normalisation-approach}
 One remaining hurdle stands before deciding on an \textsc{adt} representation: how normalisation will be implemented.
-This \namecref{sec:normalisation-approach} explores two different notions of normalisation, and the effect this has on how the $\lambda$-calculus may be represented as a datatype.
+Partial evaluation and normalisation are related concepts -- it is useful to view normalisation as statically evaluating as many terms as possible, but since not all terms have known values, the expression cannot be fully evaluated to a result value.
+Normalisation can thus be viewed simply as a process of evaluation, but in the presence of unknown terms.
+This \namecref{sec:normalisation-approach} briefly explains the traditional notion of reduction-based normalisation, before introducing normalisation by evaluation as a more elegant and efficient alternative.
 
 % TODO: tbh could've just stopped at HOAS, but in our case, NbE was an easily attainable logical next step to more aggressively use meta-language constructs
-
-% TODO: this is based on NbE ideas!! move accordingly
-% Partial evaluation and normalisation are related concepts: it is useful to view normalisation as statically evaluating as many terms as possible, but since not all terms have known values, the expression cannot be fully evaluated to a result value.
-% Normalisation can thus be viewed simply as a process of evaluation, but in the presence of unknown terms.
 
 \subsubsection{Reduction-Based Normalisation}
 The $\beta$-reduction rule is a \emph{directed} notion of reduction, which can be implemented as a syntax-directed term-rewriting system, in a similar way to how \scala{Parser} terms are simplified.
@@ -184,31 +182,44 @@ Normalisation is then just defined as the composition of these two operations, a
 \end{figure}
 
 \subsection{The Function \textsc{adt}}
+\texttt{parsley-garnish} opts to implement normalisation with \textsc{nbe}, which results in a two-staged representation of function terms:
+\begin{enumerate}
+  \item Scalameta terms are lifted to the \scala{Function} \textsc{adt}, which represents the syntax of terms using a simple named approach.
+  \item \scala{Sem} uses \textsc{hoas} to leverage Scala's semantics as the denotational model. During normalisation, \scala{Function} terms are evaluated into \scala{Sem}, then reified back into \scala{Function}.
+\end{enumerate}
+%
+This helps achieve the following:
+\begin{itemize}
+  \item The syntactic \scala{Function} \textsc{adt} is represented in a simple manner, which is easy to construct and manipulate as opposed to a \textsc{hoas} representation. This allows function terms to be pattern matched on, as part of parser simplifications.
+  \item Lifting the syntactic constructs to Scala semantics with \textsc{hoas} allows for extremely efficient normalisation, and easier guarantees of correctness with respect to variable capture.
+  \item Reifying \scala{Sem} terms back into syntactic \scala{Function} terms automatically $\alpha$-converts names, giving us $\alpha$-equivalence for free.
+\end{itemize}
+
 % TODO: remove defunc and merge into lambda
-\subsubsection{Defunctionalisation}
-In the same way that representing parsers as datatypes allows them to be statically inspectable, the aforementioned higher-order functions can also be rendered as datatypes to allow them to be analysed in a similar manner.
-This is an example of \emph{defunctionalisation}, a technique to eliminate higher-order functions by transforming them into specialised first-order equivalents~\cite{reynolds_defunc_1972,danvy_defunctionalization_2001}.
+% \subsubsection{Defunctionalisation}
+% In the same way that representing parsers as datatypes allows them to be statically inspectable, the aforementioned higher-order functions can also be rendered as datatypes to allow them to be analysed in a similar manner.
+% This is an example of \emph{defunctionalisation}, a technique to eliminate higher-order functions by transforming them into specialised first-order equivalents~\cite{reynolds_defunc_1972,danvy_defunctionalization_2001}.
 
-Ideally for type safety, this could be represented as a generalised algebraic data type (\textsc{gadt})~\cite{cheney_gadt_2003} with a type parameter documenting the type that the function term represents:
-\begin{minted}{scala}
-trait Defunc[+T]
-case class Identity[A]() extends Defunc[A => A]
-case class Flip[A, B, C]() extends Defunc[(A => B => C) => B => A => C]
-case class Compose[A, B, C]() extends Defunc[(B => C) => (A => B) => A => C]
-\end{minted}
+% Ideally for type safety, this could be represented as a generalised algebraic data type (\textsc{gadt})~\cite{cheney_gadt_2003} with a type parameter documenting the type that the function term represents:
+% \begin{minted}{scala}
+% trait Defunc[+T]
+% case class Identity[A]() extends Defunc[A => A]
+% case class Flip[A, B, C]() extends Defunc[(A => B => C) => B => A => C]
+% case class Compose[A, B, C]() extends Defunc[(B => C) => (A => B) => A => C]
+% \end{minted}
 
-\TODO{
-  Facilitates more high-level parser simplifications
-}
+% \TODO{
+%   Facilitates more high-level parser simplifications
+% }
 
 \subsubsection{Lambda Calculus}
-The defunctionalised constructs alone are not enough to fully represent the functions passed to combinators.
-There needs to be a way to apply them to arguments, and to represent the arguments themselves -- the core language to do so is the lambda calculus~\cite{church_lambda_1936}.
+% The defunctionalised constructs alone are not enough to fully represent the functions passed to combinators.
+% There needs to be a way to apply them to arguments, and to represent the arguments themselves -- the core language to do so is the lambda calculus~\cite{church_lambda_1936}.
 % TODO: clunky wording
-Furthermore, once the defunctionalised functions have exhausted their usefulness in high-level parser simplifications, they also need to be lowered to $\lambda$-terms to be normalised.
+% Furthermore, once the defunctionalised functions have exhausted their usefulness in high-level parser simplifications, they also need to be lowered to $\lambda$-terms to be normalised.
 
 % TODO: maybe move this after normalisation
-\subsubsection{The Function \textsc{adt}}
+% \subsubsection{The Function \textsc{adt}}
 The syntactic representation of functions is thus represented as the uni-typed \scala{Function} \textsc{adt} in \cref{fig:function-adt}.
 \scala{Defunc} is the higher-level representation of defunctionalised higher-order functions, which are desugared into \scala{Lambda} terms for normalisation.
 \scala{Lambda} represents $n$-ary $\lambda$-terms, extended with the following:
@@ -309,13 +320,21 @@ This is not always possible -- in that case, the term can't be statically inspec
 \begin{figure}[htbp]
 \begin{equation*}
 % Created here (but modified slightly) https://tikzcd.yichuanshen.de/#N4Igdg9gJgpgziAXAbVABwnAlgFyxMJZARgBoAGAXVJADcBDAGwFcYkQAdDnGADx2AAJAPIBBAMoBfEJNLpMufIRQBmCtTpNW7Lj35CxUgHq6+AsADNps+djwEiZAEwaGLNok7czwAGLMwAGN7MGs5EAw7JSI1Fxo3bU9TfQAZegBbACMoejDbRQcUcnV4rQ8vPQFxGHT6MDxAuDyIhRCiYrjNdx1vfXEAT3r6XmsNGCgAc3giUAsAJwh0pGKQHAgkMi7EirMcARg3aRpGekyYRgAFVujPRhgLHBlw+cWNmjWkNS3y5L2BOZgWAs-SOIBOZ0u10KYPujxsIBeS0QTne60QKwSP16f2AAIsd2CoPB5yuUWhdweT1mCyRKNWaK+mJ6lT2wEgc1qjCwcBgkgABABePm-VkAoEg4UcQJYOaBSUs-aHSXS2Xy3b-e4EnD8kDHU4kqHKEBzLATAAWcOeNKQdI+iE2XLA5RycDN41133YyGQfIAtHzKJQZJRJEA
-\begin{tikzcd}[sep=5em]
-  \text{Semantics} & \text{HOAS} \arrow[rr, "\texttt{eval}"]                                                                                                                                         &  & \text{HOAS}^\text{nf} \arrow[dd, "\texttt{reify}"] \\
-                   &                                                                                                                                                                                 &  &                                                    \\
-  \text{Syntax}    & \text{Function} \arrow[uu, "\texttt{reflect}"] \arrow[rr, "\substack{\texttt{normalise} \\ =\ \texttt{reify}\ \circ\ \texttt{eval}\ \circ\ \texttt{reflect}}"'] \arrow[rruu, "{\text{\textlbrackdbl} - \text{\textrbrackdbl}}", dashed] &  & \text{Lambda}                                     
-\end{tikzcd}
+% \begin{tikzcd}[sep=5em]
+%   \text{Semantics} & \text{HOAS} \arrow[rr, "\texttt{eval}"]                                                                                                                                         &  & \text{HOAS}^\text{nf} \arrow[dd, "\texttt{reify}"] \\
+%                    &                                                                                                                                                                                 &  &                                                    \\
+%   \text{Syntax}    & \text{Function} \arrow[uu, "\texttt{reflect}"] \arrow[rr, "\substack{\texttt{normalise} \\ =\ \texttt{reify}\ \circ\ \texttt{eval}\ \circ\ \texttt{reflect}}"'] \arrow[rruu, "{\text{\textlbrackdbl} - \text{\textrbrackdbl}}", dashed] &  & \text{Lambda}                                     
+% \end{tikzcd}
+% https://tikzcd.yichuanshen.de/#N4Igdg9gJgpgziAXAbVABwnAlgFyxMJZARgBoAWAXVJADcBDAGwFcYkQAdDnGADxwHA4AYyb0AdAFsYOCQBUYAJ0kBfECtLpMufIRRkATNTpNW7Lj37AAorzSK1GrdjwEiAZlIAGYwxZtETm4+HGAAZRhVdU0QDBddD1IjGj8zQIsQmztFAAIACgASLgAjGXoCgFoM-hFgMAAzFQBKRxi4nTcUTyoU0wCgywFQkTEpMvEFZRVq0PyijlLZSpnahubW5w69ZABWJN8+82CrABl6SWKoeg3Y7VdtvfcD-yPB4AARGHrmMGEb9vuRD2PRML3SxyGwAAwtAYP87gkUAB2fa9MEDTJnC5XFQ5LhcPEQ4CFEplZYQ2oAdwAFmsWtFNoDkRRnmkMfxBDDYNMiXNSbIuGSqhThHVGvSnLd4p1kF5vKz+sAuHBJExGITBrhwpF6GA8MI4Cp4dLtnLkqC2UqOCq1RqQlqThBKRUTjBaDB1WEAJ56+i8I0MqVbIhyp5oy3K1WMdUzLUACSwAHNqS63R6ct7ff7HMYYFBE-AiKB6ooIJIkGQQDgIEgDDRSmAoEh3HKLf0ZoI3aZ6DwbiWy7WaNXm+H2xDBIoYFh6l6+6Xy4hK8PEJ4QIwsGB+lc4NS8yBR0c4MxinBZMIANZWwaCSDKJhYOBwnIAXkJBI7oS7LB7T64wiwijCHaHKhJO06zmoNCMPQpSMAACginQgIoSbUjggb9gurbLsQkqYSOVY1og5B4fOSAooRSAAGykQOiBUUORE7LRC57JRiAABwsUgHGMUgACcKiUCoQA
+\begin{tikzcd}[row sep=3.75em,column sep=0.9em]
+  {\small \textit{Semantics}}         &                                                                                                                                                           &  & \text{Sem} \arrow[dd, "\texttt{reify}"]               &  &                          &  &                                                            \\
+                                      &                                                                                                                                                           &  &                                                       &  &                          &  &                                                            \\
+  {\small \textit{Low-Level Syntax}}  & \text{Expr} \arrow[rruu, "\texttt{evaluate}", bend left] \arrow[rr, "\substack{\texttt{normalise}\ = \\ \texttt{evaluate}\ \circ\ \texttt{reify}}"', dashed] &  & \text{Expr ($\beta$-\textsc{nf})} \arrow[dd]          &  & \text{Lambda} \arrow[rr] &  & \text{Lambda ($\beta$-\textsc{whnf})} \arrow[dd] \\
+  {\small \textit{High-Level Syntax}} &                                                                                                                                                           &  &                                                       &  & \text{Defunc} \arrow[u]  &  &                                                            \\
+                                      & \texttt{scala.meta.Term} \arrow[uu]                                                                                                                       &  & \texttt{scala.meta.Term}\text{ ($\beta$-\textsc{nf})} &  & \texttt{Code} \arrow[u]  &  & \texttt{Code}\text{ ($\beta\eta$-\textsc{nf})}            
+  \end{tikzcd}
 \end{equation*}
-\caption{Normalisation by evaluation for the \scala{Function} datatype.}
+\caption{Normalisation by evaluation for the \scala{Expr} datatype.}
 \end{figure}
 
 \TODO{the code below is outdated}

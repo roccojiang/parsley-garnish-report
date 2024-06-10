@@ -1,0 +1,20 @@
+\documentclass[../../main.tex]{subfiles}
+
+\begin{document}
+
+\section{Simplify Parser}
+\TODO{
+* Catch cases when user manually writes out a parser that is already defined in the library
+* Apply parser laws, re-using Parser and Func representations to do cool things
+prettify = resugar . normaliseFunctions . simplify
+}
+
+\section{Convert to Parser Bridge}
+\TODO{
+* This would be cool, idk if I have time though, but this should also piggyback off of Func
+* the pos bridges don't actually exist, so we can ignore that case and just say its too much code synthesis
+* shouldn't be too bad? idk
+* indicate limitations that this will only work if the ADT is defined in the same file, in order to extend it
+}
+
+\end{document}

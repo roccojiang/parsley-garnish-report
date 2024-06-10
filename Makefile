@@ -3,16 +3,22 @@ LATEXMK = latexmk -lualatex -shell-escape
 TEX_FILES := $(shell find . -name '*.tex')
 
 all: main.pdf \
-		 src/introduction/introduction.pdf \
-		 src/background/background.pdf \
-		 src/background/tools.pdf \
-		 src/background/parsers.pdf \
-		 src/body/body.pdf \
-		 src/body/parser.pdf \
-		 src/body/function.pdf \
-		 src/evaluation/evaluation.pdf \
-		 src/conclusion/conclusion.pdf \
-		 src/appendix/appendix.pdf
+	src/introduction/abstract.pdf \
+	src/introduction/acknowledgements.pdf \
+	src/introduction/introduction.pdf \
+	src/background/background.pdf \
+	src/background/tools.pdf \
+	src/background/parsers.pdf \
+	src/body/body.pdf \
+	src/body/simple-rules.pdf \
+	src/body/leftrec.pdf \
+	src/body/impl.pdf \
+	src/body/impl/parser.pdf \
+	src/body/impl/expr.pdf \
+	src/body/complex-rules.pdf \
+	src/evaluation/evaluation.pdf \
+	src/conclusion/conclusion.pdf \
+	src/appendix/appendix.pdf
 
 main: main.pdf
 
