@@ -18,7 +18,8 @@ The transformations described by \textcite{baars_leftrec_2004} require an explic
 They achieve this by representing parsers as a deep-embedded datatype in the form of an intermediate \textsc{ast}, in a similar manner to \texttt{parsley}.
 
 Since \texttt{parsley-garnish} is a linter, by nature, it has access to an explicit grammar representation in the form of the full Scala \textsc{ast} of the source program.
-However, this \textsc{ast} is a general-purpose representation that becomes \TODO{hard to work with when trying to do domain-specific manipulations on grammars}.
+However, this \textsc{ast} is only a general-purpose representation of generic Scala code, rather than the \texttt{parsley} \textsc{dsl}.
+Manipulating the \textsc{ast} becomes rather clumsy when trying to perform domain-specific operations on parsers.
 
 Take for example the task of combining two \textsc{ast} nodes \scala{Term.Name("p")} and \scala{Term.Name("q")}, representing named parsers \scala{p} and \scala{q}, with the \emph{ap} combinator \scala{<*>}.
 This operation can be concisely expressed with Scalameta quasiquotes, rather than manually writing out the full explicit \textsc{ast}:
@@ -31,70 +32,72 @@ q"p <*> q" ==
     Term.ArgClause(List(Term.Name("q")), None)
   )
 \end{minted}
-However, the reverse operation of inspecting the individual parsers \scala{p} and \scala{q} is not as straightforward.
-Although quasiquotes can be used as extractor patterns in pattern matching, this usage is discouraged due to limitations in the quasiquote design that makes it easy to accidentally introduce match errors\footnote{\url{https://scalameta.org/docs/trees/guide.html#with-quasiquotes-1}}.
+However, the  operation of inspecting the individual parsers \scala{p} and \scala{q} is not as straightforward.
+Although quasiquotes can be used as extractor patterns in pattern matching, this usage is discouraged due to limitations in their design that makes it easy to accidentally introduce match errors\footnote{\url{https://scalameta.org/docs/trees/guide.html#with-quasiquotes-1}}.
 Thus, extracting the parsers necessitates a long-winded pattern match like so:
 \begin{minted}{scala}
 val ap = SymbolMatcher.normalized("parsley.Parsley.`<*>`")
 
-def deconstruct(parser: Term) = parser match {
+def deconstructAp(parser: Term) = parser match {
   case Term.ApplyInfix(p, ap(_), _, Term.ArgClause(List(q), _)) => (p, q)
 }
 \end{minted}
-This involves dealing with abstract general-purpose syntax constructs like \scala{Term.ApplyInfix} and \scala{Term.ArgClause}, which are low-level details not relevant to the task of manipulating parsers.
-This is not an issue for simple one-off transformations, but for more specialised transformations like left-recursion factoring, it would be desirable to abstract away from these low-level syntactic details.
+This involves dealing with abstract general-purpose syntax constructs like \scala{Term.ApplyInfix}, which are low-level details not relevant to the task of manipulating parsers.
+Although this is not an issue for simple one-off transformations, for more specialised transformations like left-recursion factoring, it would be desirable to abstract away from these low-level syntactic details.
 This motivates the need for an higher-level, intermediate \textsc{ast} representation that is more specialised to the domain of parser combinators.
-\TODO{the past 3 sentences all start with "this", reword them}
 
 \subsubsection{The Parser \textsc{adt}}
-\texttt{parsley-garnish} uses a similar deep-embedded parser representation for the intermediate \textsc{ast} as \textcite{baars_leftrec_2004}, extended to match \texttt{parsley}'s combinators.
-\Cref{fig:parser-adt} shows how this is implemented as an algebraic data type (\textsc{adt}), with extra syntactic sugar introduced by implementing \scala{unapply} methods in extractor objects.
+\texttt{parsley-garnish} therefore takes a similar approach as \textcite{baars_leftrec_2004} and \texttt{parsley} itself, building an intermediate \textsc{ast} as a deep-embedded parser combinator tree.
+\Cref{fig:parser-adt} shows how this is implemented as a \scala{Parser} algebraic data type (\textsc{adt}).
+All \scala{Parser} types represent \texttt{parsley} combinators, with the sole exception of \scala{NonTerminal} to represent references to named parsers.
 
 \begin{figure}[htbp]
 \begin{minted}{scala}
 trait Parser
-
 case class NonTerminal(ref: Symbol) extends Parser
-
 case class Pure(x: Term) extends Parser
 case object Empty extends Parser
-
 case class Ap(p: Parser, q: Parser) extends Parser
-object <*> {
-  def unapply(parser: Ap): Option[(Parser, Parser)] = Some((parser.p, parser.q))
-}
-
 case class Choice(p: Parser, q: Parser) extends Parser
-object <|> {
-  def unapply(parser: Choice): Option[(Parser, Parser)] = Some((parser.p, parser.q))
-}
 \end{minted}
 \caption{A subset of the core combinators in the \scala{Parser} \textsc{adt}.}
 \label{fig:parser-adt}
 \end{figure}
 
-All \scala{Parser} types represent \texttt{parsley} combinators, with the exception of \scala{NonTerminal} to represent a reference to a named parser.
-Inspecting parsers is now easily done by pattern matching on constructors and/or using the extractor objects:
+\paragraph{Deconstructing parsers}
+Syntactic sugar for deconstructing parsers is provided by \scala{unapply} methods on symbolic extractor objects.
+This makes pattern matching on parsers feel more natural:
 \begin{minted}{scala}
-def deconstruct(parser: Parser) = parser match {
-  case Ap(p, q) => (p, q) // using constructor
-  case p <|> q  => (p, q) // using extractor object
+object <*> {
+  def unapply(parser: Ap): Option[(Parser, Parser)] = Some((parser.p, parser.q))
+}
+
+def deconstructAp(parser: Parser) = parser match {
+  case p <*> q => (p, q)
+}
+\end{minted}
+
+\paragraph{Constructing parsers}
+Defining infix operators as extension methods on the \scala{Parser} trait provides syntactic sugar for constructing parsers:
+\begin{minted}{scala}
+implicit class ParserOps(private val p: Parser) extends AnyVal {
+  def <*>(q: Parser): Parser = Ap(p, q)
+  def <|>(q: Parser): Parser = Choice(p, q)
+  def map(f: Term): Parser = FMap(p, f)
+}
+
+implicit class MultiParserOps(private val ps: List[Parser]) extends AnyVal {
+  def zipped(f: Term): Parser = Zipped(f, ps)
 }
 \end{minted}
 %
-As an example, the \scala{example} parser is then represented as a \scala{Parser} object resembling the following (where quasiquote notation is used to keep the lambda expression term \scala{q"_ + _"} concise):
+This makes working with \scala{Parser} terms feel closer to writing \texttt{parsley} code.
+For example, notice how constructing the \emph{code} representation of the \scala{example} parser resembles how the original parser itself would be written:
 \begin{minted}{scala}
-// (example, string("a")).zipped(_ + _) | string("b")
-Choice(
-  Zipped(
-    q"_ + _",
-    List(
-      NonTerminal(Sym("path/to/package/ObjectName.example.")),
-      Str("a")
-    )
-  ),
-  Str("b")
-)
+val exNT = NonTerminal(Sym("path/to/package/ObjectName.example."))  
+
+// val ex: Parsley[String] =     (ex,  string("a")).zipped(  _ + _ )  |  string("b")
+   val ex: Parser          = List(exNT,   Str("a")).zipped(q"_ + _") <|>    Str("b")
 \end{minted}
 
 % Instead, represent parsers as an algebraic data type \textsc{adt} in the same way that Parsley itself uses a deep embedding to represent combinators as objects.
@@ -104,7 +107,7 @@ Choice(
 % This representation also then gives us for free the implementation for lint rules such as \emph{Simplify Complex Parsers} rule, which applies parser laws to simplify parsers.
 
 \subsection{Lifting to the Intermediate Parser \textsc{ast}}
-Converting the raw Scala \textsc{ast} to the intermediate \textsc{ast} therefore requires the following basic operations:
+Converting the raw Scala \textsc{ast} to the intermediate \textsc{ast} requires the following basic operations:
 \begin{enumerate}
   \item Identifying all named parsers defined in the source program -- these correspond to non-terminal symbols in the grammar.
   \item Lifting the definition each parser into the intermediate \textsc{ast}, as a \scala{Parser} object.
@@ -225,5 +228,6 @@ val nonTerminals: Map[Symbol, ParserDefn] = doc.tree.collect {
 
 \subsection{Implementing the Left-Recursion Transformation}
 \TODO{TODO}
+
 
 \end{document}
