@@ -17,9 +17,9 @@ lazy val example: Parsley[String] = (example, string("a")).zipped(_ + _) | strin
 The transformations described by \textcite{baars_leftrec_2004} require an explicit representation of the grammar and production rules so that they can be inspected and manipulated before generating code.
 They achieve this by representing parsers as a deep-embedded datatype in the form of an intermediate \textsc{ast}, in a similar manner to \texttt{parsley}.
 
-Since \texttt{parsley-garnish} is a linter, by nature, it has access to an explicit grammar representation in the form of the full Scala \textsc{ast} of the source program.
-However, this \textsc{ast} is only a general-purpose representation of generic Scala code, rather than the \texttt{parsley} \textsc{dsl}.
-Manipulating the \textsc{ast} becomes rather clumsy when trying to perform domain-specific operations on parsers.
+Since \texttt{parsley-garnish} is a linter, by nature, it has access to an explicit grammar representation in the form of the full \scala{scala.meta.Tree} \textsc{ast} of the source program.
+However, this datatype represents general-purpose abstract Scala syntax, rather than the abstract syntax of a specialised parser combinator \textsc{dsl}.
+This makes it clumsier to perform domain-specific operations over the \textsc{ast}.
 
 Take for example the task of combining two \textsc{ast} nodes \scala{Term.Name("p")} and \scala{Term.Name("q")}, representing named parsers \scala{p} and \scala{q}, with the \emph{ap} combinator \scala{<*>}.
 This operation can be concisely expressed with Scalameta quasiquotes, rather than manually writing out the full explicit \textsc{ast}:
@@ -226,7 +226,7 @@ val nonTerminals: Map[Symbol, ParserDefn] = doc.tree.collect {
 }.toMap
 \end{minted}
 
-\subsection{Lowering back to the Scalameta \textsc{ast}}
+\subsection{Lowering Back to the Scalameta \textsc{ast}}
 After all necessary transformations have been applied to parser terms, the final step is to convert them back to a textual representation to be applied as a Scalafix patch.
 Parsers can be lowered back to \scala{scala.meta.Term} nodes by the inverse of the original \scala{fromTerm} transformation.
 The \scala{Parser} trait defines this transformation as the method \scala{term}, using quasiquotes to simplify the construction of the \scala{scala.meta.Term} nodes.
@@ -239,10 +239,12 @@ case class Zipped(func: Function, parsers: List[Parser]) extends Parser {
 This term can then be pretty-printed into a string, and applied as a Scalafix patch.
 
 \subsection{Implementing the Left-Recursion Transformation}
-\TODO{TODO}
+\TODO{TODO \\}
 
-Running the transformation on the \scala{example} parser thus yields:
-\begin{figure}
+\subsubsection{Success...?}
+Thus, running the transformation on the \scala{example} parser yields the output in \cref{fig:leftrec-example-bad}.
+%
+\begin{figure}[htbp]
 \begin{minted}{scala}
 def flip[A, B, C](f: A => B => C)(x: B)(y: A): C = f(y)(x)
 def compose[A, B, C](f: B => C)(g: A => B)(x: A): C = f(g(x))
@@ -260,7 +262,7 @@ lazy val example: Parsley[String] = chain.postfix(
 \label{fig:leftrec-example-bad}
 \end{figure}
 %
-Oh, dear.
+This is disappointing, to say the least.
 There are \emph{many} things wrong with the transformed output:
 \begin{itemize}
   \item This output is horrendously complex and unreadable. The intent of the parser is entirely obfuscated in a sea of combinators.

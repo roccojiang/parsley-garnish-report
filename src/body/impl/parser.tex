@@ -115,9 +115,9 @@ Using \scala{rewrite}, parser simplification can then be expressed in a clean an
 \begin{minted}{scala}
 def simplify: Parser = this.rewrite {
   // p.map(f).map(g) == p.map(g compose f)
-  case FMap(FMap(p, f), g) => FMap(p, composeH(g, f))
+  case FMap(FMap(p, f), g) => FMap(p, compose(g, f))
   // pure(f) <*> pure(x) == pure(f(x))
-  case Pure(f) <*> Pure(x) => Pure(app(f, x))
+  case Pure(f) <*> Pure(x) => Pure(App(f, x))
   // u <|> empty == u
   case u <|> Empty => u
   // pure(f) <|> u == pure(f)

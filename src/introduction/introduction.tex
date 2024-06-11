@@ -24,4 +24,19 @@ This project aims to explore the potential of harnessing static code analysis te
 Additionally, for certain issues that can be automatically fixed, \texttt{parsley-garnish} will provide automated actions to resolve the issue. % TODO: via code transformations - put this in the background?
 The goal of \texttt{parsley-garnish} is to be used as a companion library to \texttt{parsley}, in order to improve its ease of adoption and to help users enforce best practices.
 
+\TODO{Place this in the right bit (I think intro is good)}
+As noted by \textcite{gibbons_dsls_2014}, a deep-embedded \textsc{dsl} consists of two components:
+\begin{itemize}
+  \item A representation of the language's abstract syntax, in the form of the aforementioned datatype.
+  \item Some traversals over the datatype, which gives \emph{semantics} to that syntax.
+\end{itemize}
+A deep-embedded \textsc{dsl} and a linter for that \textsc{dsl} can share the same abstract syntax, but differ in the semantic interpretation of that syntax:
+% TODO: I'm not really getting my point across...
+\begin{itemize}
+  \item The \textsc{dsl} semantics are evaluation. In this case, \texttt{parsley} interprets its syntax to output a parser.
+  \item The linter's semantics are pretty-printing. In this case, \texttt{parsley-garnish} interprets the syntax to output a human-readable representation of the parser.
+\end{itemize}
+% semantics for parsley: evaluate parser
+% semantics for parsley-garnish: pretty-print the parser
+
 \end{document}

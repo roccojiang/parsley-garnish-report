@@ -31,5 +31,8 @@ However, from a design perspective this is potentially controversial as it obfus
 One could also argue (pedagogical perspective? not really) that the higher-level abstraction of the \scala{chain} combinators is a more desirable form to write parsers for left-associative operations, rather than a lower-level left-recursive grammar rule.
 
 \section{Future Work}
+\subsection{Expression \textsc{ast}}
+Eta reduction -- this is more complicated than in Haskell since Scala has special syntax % https://docs.scala-lang.org/scala3/book/fun-eta-expansion.html
+Proper partial evaluation, not just normalisation (if we reduce to fully closed terms 1+1 can we get it to evaluate to 2? -- except currently this would be a Translucent term)
 
 \end{document}
