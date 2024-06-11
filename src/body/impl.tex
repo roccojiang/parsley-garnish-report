@@ -8,14 +8,14 @@ This \namecref{sec:impl} takes a step back from linting rules and focuses on ens
 The following ideas are explored:
 \begin{itemize}
   \item First, \cref{sec:simplify-parsers} discusses how parser terms can be simplified via domain-specific optimisations based on parser laws.
-  \item Afterwards, \cref{sec:function-representation} discusses how expressions can be partially evaluated, to some extent. This is achieved using another intermediate \textsc{ast}, this time based on the $\lambda$-calculus, which unlocks the idea of $\beta$-reduction and normalisation as tools to reduce the complexity of these terms.
+  \item Afterwards, \cref{sec:simplify-exprs} discusses how expressions can be partially evaluated to some extent. This is achieved using another intermediate \textsc{ast}, this time based on the $\lambda$-calculus, which unlocks the idea of $\beta$-reduction and normalisation as tools to reduce the complexity of these terms.
 \end{itemize}
 
 % TODO
 % Writing domain-specific lint rules unlocks the potential for more powerful and interesting transformations utilising specialised domain knowledge.
 % Desirable:
 % * inspectability for analysis (that's what we're here for!) and optimisation
-% The purpose of this chapter is to describe the intermediate representations of parsers (\cref{sec:parser-representation}) and functions (\cref{sec:function-representation}).
+% The purpose of this chapter is to describe the intermediate representations of parsers (\cref{sec:parser-representation}) and functions (\cref{sec:simplify-exprs}).
 % Show that terms must be simplified to a normal form
 % Demonstrate equivalence to dsl optimisations in staged metaprogramming
 % Scalafix runs at the meta-level, outside of the phase distinction of compile- and run-time.
@@ -23,5 +23,11 @@ The following ideas are explored:
 
 \subfile{impl/parser}
 \subfile{impl/expr}
+
+\section*{Summary}
+This \namecref{sec:impl} introduced the idea of simplifying parsers and normalising expressions, by representing both as intermediate \textsc{ast}s to improve their static inspectability.
+It also demonstrated how these processes are related to the optimisation techniques used in both \texttt{parsley} Scala and \texttt{parsley} Haskell.
+
+With promising results applying these simplifications on the \scala{example} parser from last \namecref{sec:factor-leftrec}, the improved \scala{Parser} \textsc{ast} now unlocks the potential for more powerful and interesting transformations utilising specialised domain knowledge of parser combinators.
 
 \end{document}

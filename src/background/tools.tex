@@ -340,7 +340,7 @@ By using quasiquotes instead of raw strings, the syntactic correctness of a rewr
 However, this safety is not foolproof: quasiquotes are not guaranteed to be well-typed or well-scoped, so the rewritten program still might not be able to compile.
 They are also not \emph{hygienic}: generated code will not be able to avoid name clashes with regular code~\cite{burmako_scalameta_2017}.
 The lack of hygiene can cause issues with variable capture, allowing a variable to be unintentionally shadowed by a generated variable.
-Again, it is the rule author's responsibility to ensure that variable capture does not occur: \cref{sec:function-representation} in part discusses how this is handled in \texttt{parsley-garnish}.
+Again, it is the rule author's responsibility to ensure that variable capture does not occur: \cref{sec:simplify-exprs} in part discusses how this is handled in \texttt{parsley-garnish}.
 
 \subsubsection{Semantic Information}
 Semantic rules are implemented in the same manner as \cref{fig:syntactic-rule-ex}, but instead take the more powerful \scala{SemanticDocument} as an implicit parameter.

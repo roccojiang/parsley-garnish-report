@@ -2,26 +2,24 @@
 
 \begin{document}
 
-\section{Representing and Normalising Expressions}\label{sec:function-representation}
-% TODO: This section is about simplifying in the general domain, so really Squid can do all of this? Still an interesting approach ig --  And shows a shortcoming of scalameta quasiquotes
+\section{Representing and Normalising Expressions}\label{sec:simplify-exprs}
 
 % \Cref{sec:parser-representation} showed that it is useful to lift Scala \textsc{ast} nodes to a specialised \scala{Parser} \textsc{ast}, making it easier to manipulate and inspect parsers.
 % Crucially, this allowed us to simplify parsers via term-rewriting rules based on parser laws.
 % \Cref{sec:simplify-parsers} demonstrated why this is necessary for \texttt{parsley-garnish}: transformations such as left-recursion factoring~\cref{sec:factor-leftrec} result in complex parser terms that must be simplified to be readable.
 
-At this point, parsers such as \scala{pure} and \scala{map} still treat expressions as black boxes in the form of raw \scala{scala.meta.Term} \textsc{ast} nodes.
-No steps have been taken to improve the static inspectability of these values.
-This is evident from where we left off in the example from \cref{sec:simplify-example}:
+The previous \namecref{sec:simplify-parsers} demonstrated the process of simplifying the \scala{Parser} \textsc{ast}, but this is not the only syntactic structure that requires simplification.
+So far, parsers such as \scala{pure} and \scala{map} still treat expressions as black boxes in the form of raw \scala{scala.meta.Term} \textsc{ast} nodes.
+This is evident from where the example in \cref{sec:simplify-example} left off, where the parser itself is in a simplified form, but the function passed to \scala{map} isn't:
 \begin{minted}{scala}
-val f = flip(compose(a => b => a + b)(identity))
-// f is equivalent to (a => b => b + a)
+val f = flip(compose((_ + _).curried)(identity))
 \end{minted}
 %
-This mess is an artefact of the left-recursion factoring transformation -- recombination of unfolded parsers requires using higher-order functions such as \scala{flip} and \scala{compose}.
-Yet again, any user would find it unacceptable if \texttt{parsley-garnish} gave this as the output of a transformation.
-Therefore, these functions must be \emph{normalised} into a semantically equivalent but syntactically simpler form.
-
-This \namecref{sec:function-representation} explores how function term normalisation can be achieved. % TODO: drawing parallels to...?
+Therefore, this \namecref{sec:simplify-exprs} explores the following:
+\begin{itemize}
+  \item How expressions can be represented as another intermediate \textsc{ast}, so that they are statically inspectable enough to be simplified.
+  \item The notion of \emph{normalisation}, reducing expressions into a semantically equivalent but syntactically simpler form.
+\end{itemize}
 
 \subsection{The $n$-ary Lambda Calculus}
 Once again, the complexity of manipulating the generic Scalameta \textsc{ast} can be avoided by building a new intermediate \textsc{ast} representation for expression terms.
@@ -77,6 +75,20 @@ The correct $\beta$-reduction with capture-avoiding substitution would instead p
 &=_\alpha (\lambda z. x z)\ [y / x] \\
 &= \lambda z. y z
 \end{align*}
+
+\subsubsection{Simplifying the Example Expression}
+The example from the beginning of the \namecref{sec:simplify-exprs} can thus be evaluated by hand via $\beta$-reduction, representing the higher-order functions as $\lambda$-abstractions:
+\begin{align*}
+\mathtt{flip(compose((\_ + \_).curried)(identity))}\quad &\mathrel{=\quad\,} \mathrm{flip}\ (\mathrm{compose}\ (\lambda a. \lambda b. a + b)\ \mathrm{identity}) \\
+&\mathrel{=\quad\,} \mathrm{flip}\ ( (\lambda f. \lambda g. \lambda x. f\ (g\ x)) (\lambda a. \lambda b.\ a + b) (\lambda x. x)) \\
+&\rightarrow_{\beta*} \mathrm{flip}\ (\lambda g. \lambda x.\ (\lambda b.\ g\ x + b) (\lambda x. x)) \\
+&\rightarrow_{\beta*} \mathrm{flip}\ (\lambda x. \lambda b.\ x + b) \\
+&\mathrel{=\quad\,} (\lambda f. \lambda x. \lambda y.\ f\ y\ x) (\lambda x. \lambda b.\ x + b) \\
+&\rightarrow_{\beta*} \lambda x. \lambda y.\ y + x
+\end{align*}
+%
+This normalised expression has the same meaning as the original, but is now suitable to be placed in the code rewrite!
+The rest of the \namecref{sec:simplify-exprs} now explores how this process can be implemented in \texttt{parsley-garnish}.
 
 \subsection{Representing Names}
 There exists a plethora of approaches to implementing the $\lambda$-calculus, mostly differing in how they represent variable names.
@@ -297,9 +309,11 @@ However, attempting to implement this ran into two main hurdles:
 \end{itemize}
 
 \subsubsection{Evaluating Performance of Normalisation Strategies}
+\TODO{
+TODO: This is worthy discussion anyway, but is is worth benchmarking the performance and comparing the old and new implementations? Does this count towards evaluation?
+}
 \texttt{parsley-garnish} originally used a named approach with Barendregt's convention, generating fresh variable names using an atomic counter.
 However, this required an extra $\alpha$-conversion pass to clean up variable names before pretty-printing the term, since the fresh variable names were very ugly.
-\TODO{TODO: graphs of benchmarks and comparison (nbe is orders of magnitude faster lol)}
 
 \subsection{Lifting to the Intermediate Expression \textsc{ast}}\label{sec:lifting-expr}
 The \scala{Parser} \textsc{ast} is amended to take \scala{Expr} arguments where they used to take \scala{scala.meta.Term} values.
@@ -316,7 +330,6 @@ object Pure {
 %
 The \scala{toExpr} extension method on \scala{scala.meta.Term} is used to lift \scala{Term} \textsc{ast} nodes to \scala{Expr} terms.
 Expression lifting is invoked whenever a parser expects an expression (whether a function or simple value) as an argument.
-
 This \namecref{sec:lifting-expr} gives a high-level overview of the three cases that \scala{toExpr} handles.
 
 \subsubsection{Lambda Expressions}
@@ -387,6 +400,7 @@ trait Expr {
 }
 \end{minted}
 %
+\rj{Much code in this following section -- is it necessary or should it go in an appendix}
 \paragraph{Evaluation}
 Evaluation proceeds by carrying an environment mapping bound variables to their semantic representations.
 Evaluating a variable looks up its name in the environment, while evaluating a lambda abstraction produces a closure using the current environment -- using \textsc{hoas} allows these closures to be represented as native Scala closures.
@@ -450,31 +464,40 @@ Lowering expressions back to their \scala{scala.meta.Term} representations is ac
 
 \subsection{Discussion}
 \texttt{parsley} Haskell, as a staged parser combinator library, also has the ability to inspect and optimise the code of user-defined functions.
-The approach taken by \texttt{parsley-garnish} and \text{parsley} share many similarities, both using the $\lambda$-calculus as a core language for expressions.
-In both cases, the need to reduce expression terms is motivated by how parser simplifications involve fusion, resulting in a function application.
+The approach taken by \texttt{parsley-garnish} and \text{parsley} share many similarities, both using the $\lambda$-calculus as a core language to normalise expressions.
+In both cases, the need to reduce expression terms is motivated by how parser simplifications involve fusion, which results in function applications that can be partially evaluated.
 
-However, the two have different motivations and requirements for normalising expressions, so their approaches differ in some ways.
-\Cref{fig:nbe-vs-parsley} illustrates these differences.
+However, the two have different motivations and requirements for normalising expressions, so their approaches differ in some ways --
+\cref{fig:nbe-vs-parsley} illustrates these differences.
 
-\paragraph{Syntactic representation}
+\subsubsection{Syntactic representation}
 Unlike \texttt{parsley-garnish}, \texttt{parsley} has a two-level syntactic representation for expressions.
 \haskell{Defunc} is akin to a deep embedding of higher-order functions, representing them as a \textsc{gadt}: this process is known as \emph{defunctionalisation}~\cite{reynolds_defunc_1972,danvy_defunctionalization_2001}.
-This helps facilitate certain parser law optimisations which require pattern matching on the \scala{identity} function, for example.
-After this step, \haskell{Defunc} values are then brought into the lower-level $\lambda$-calculus representation, to be normalised by $\beta$-reduction.
+This helps facilitate certain parser law optimisations which require pattern matching on functions as well as parsers, for example:
+\begin{equation*}
+\text{\scala{pure(identity) <*> u = u}}
+\end{equation*}
+After this step, \haskell{Defunc} values are then brought into the lower-level $\lambda$-calculus representation \haskell{Lambda}, to be normalised by $\beta$-reduction.
 
-\paragraph{Normalisation strategy}
+At the moment, \texttt{parsley-garnish} does not have a need to implement any parser simplifications based on these laws, although this may change in the future.
+Adding an extra defunctionalised layer to the expression \textsc{ast} would be fairly straightforward.
+
+\subsubsection{Normalisation strategy}
 \texttt{parsley} normalises terms to full $\eta\beta$-\textsc{nf}, whereas \texttt{parsley-garnish} only normalises to $\beta$-\textsc{nf}.
 This is because $\eta$-reduction in Scala 2 is not as straightforward as in Haskell, and is not always possible -- in most cases the appropriate reduction is instead to convert lambdas to placeholder syntax.
 This is left as future work.
 
-\texttt{parsley} performs reduction-based normalisation on a \textsc{hoas} representation of lambda expressions.
+In \texttt{parsley}, normalisation is implemented as a reduction-based approach over the \textsc{hoas} \haskell{Lambda} datatype.
 Normalisation by $\beta$-reduction with Haskell function application brings this to $\beta$-\textsc{whnf}.
-Generating this into code is where this is brought to $\beta$-\textsc{nf} as desired, as well as an extra step for $\eta$-reduction to put the term into full $\eta\beta$-\textsc{nf}.
+Then, code generation brings this further to $\beta$-\textsc{nf} as desired, as well as an extra step for $\eta$-reduction to put the term into full $\eta\beta$-\textsc{nf}.
 
 The main reason why \texttt{parsley-garnish} takes a different normalisation approach is because unlike \texttt{parsley}, there is still a need for $\alpha$-equivalence checking after normalisation.
-Whereas in \texttt{parsley} the normalised forms are directly used for code generation, in \texttt{parsley-garnish} these terms continue to be analysed before being pretty-printed as code patches.
+In \texttt{parsley}, the normalised forms are immediately utilised for code generation, so they can be kept as \textsc{hoas} the entire time, without representing variables with any names.
+Conversely, in \texttt{parsley-garnish}, these normalised terms undergo further analysis before being transformed into code patches for pretty-printing.
 
 % Representation as a lambda calc has allocation overhead, but greatly simplifies function evaluation via beta reduction, instead of having to deal with high-level representations of compose/id (not too bad tbh) and flip (annoying).
+
+% TODO: scala 3 macros, squid quasiquotes?
 
 \begin{figure}[htbp]
   \begin{equation*}
@@ -496,5 +519,7 @@ Whereas in \texttt{parsley} the normalised forms are directly used for code gene
   \caption{Comparison of expression normalisation in \texttt{parsley-garnish} (left) and \texttt{parsley} Haskell (right).}
   \label{fig:nbe-vs-parsley}
 \end{figure}
+
+% TODO: This section is about simplifying in the general domain, so really Squid can do all of this? Still an interesting approach ig --  And shows a shortcoming of scalameta quasiquotes
 
 \end{document}
