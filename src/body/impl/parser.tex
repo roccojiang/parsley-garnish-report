@@ -4,38 +4,35 @@
 
 \section{Simplifying Parsers}\label{sec:simplify-parsers}
 
-% TODO: our parser representation is akin to Haskell parsley's deep-embedded combinator tree, albeit representing all combinators rather than just the core ones
-
-\TODO{This is where the deep embedding approach comes to shine: simplifications are easily expressed by pattern matching on \scala{Parser} constructors.}
-% The two only differ in the purpose of the simplification: whereas Haskell \texttt{parsley} does this to produce an optimised \textsc{ast} to be compiled as code, \texttt{parsley-garnish} simplifies the parser \textsc{ast} to be pretty-printed as text.
-\begin{itemize}
-  \item \texttt{parsley} performs rewrites on the parser \textsc{ast} to produce more optimised \emph{code}.
-  \item \texttt{parsley-garnish} performs rewrites on the parser \textsc{ast} to produce a more readable \emph{textual representation of code}.
-\end{itemize}
-
-\TODO{Place this in the right bit (I think intro is good)}
-As noted by \textcite{gibbons_dsls_2014}, a deep-embedded \textsc{dsl} consists of two components:
-\begin{itemize}
-  \item A representation of the language's abstract syntax, in the form of the aforementioned datatype.
+Reusing a similar abstract syntax representation as \texttt{parsley} itself unlocks some interesting insights for \texttt{parsley-garnish}.
+\textcite{gibbons_dsls_2014} note that a deep-embedded \textsc{dsl} consists of two components:
+\begin{enumerate}
+  \item A representation of the language's abstract \emph{syntax}, in the form of the aforementioned datatype.
   \item Some traversals over the datatype, which gives \emph{semantics} to that syntax.
-\end{itemize}
-A deep-embedded \textsc{dsl} and a linter for that \textsc{dsl} can share the same abstract syntax, but differ in the semantic interpretation of that syntax:
-% TODO: I'm not really getting my point across...
+\end{enumerate}
+%
+A deep-embedded \textsc{dsl} and a linter for that \textsc{dsl} can thus be viewed as two different semantic interpretations over the same abstract syntax:
 \begin{itemize}
-  \item The \textsc{dsl} semantics are evaluation. In this case, \texttt{parsley} interprets its syntax to output a parser.
-  \item The linter's semantics are pretty-printing. In this case, \texttt{parsley-garnish} interprets the syntax to output a human-readable representation of the parser.
+  \item The \textsc{dsl} semantics are \emph{evaluation}. The syntactic structure may be transformed for optimisation purposes before generating code to be evaluated. % For \texttt{parsley}, the evaluation produces an optimised parser.
+  \item The linter's semantics are two-fold for lint diagnostics and code rewrites:
+  \begin{itemize}
+    \item \emph{Emitting side-effects} in the form of diagnostics, based on patterns of interest within the syntactic structure.
+    \item \emph{Pretty-printing} a transformation over the syntactic structure, as a rewrite action -- crucially, unlike evaluation, the transformed output is not converted into code but rather a textual representation to be rewritten over the original source file. The output of this transformation may benefit from \emph{the same optimisation transformations as with the \textsc{dsl} semantics} to simplify the pretty-printed textual output.
+  \end{itemize}
 \end{itemize}
-% semantics for parsley: evaluate parser
-% semantics for parsley-garnish: pretty-print the parser
-
-Quote parsley Haskell: "parsers of hand-written quality"
-
-% TODO: fix the above "intro" ------------------------------------------------------------------------------
+%
+This \namecref{sec:simplify-parsers} shows that this is indeed the case for \texttt{parsley-garnish}:
+the same optimisation transformations apply for both \texttt{parsley} (the \textsc{dsl}) and \texttt{parsley-garnish} (the linter).
+The only difference lies in the purpose of performing these transformations:
+\begin{itemize}
+  \item \texttt{parsley-garnish} needs to perform simplifications on the \scala{Parser} \textsc{ast} to produce output of hand-written quality, or else the resulting parser would be unreadable.
+  \item \texttt{parsley} performs simplifications on its combinator tree to produce output of hand-written quality, in order to deliver excellent parser performance.
+\end{itemize}
 
 \subsection{Parser Laws}
 \textcite{willis_staged_2023} note that parser combinators are subject to \emph{parser laws}, which often form a natural simplification in one direction.
 Both \texttt{parsley} Scala~\cite{willis_garnishing_2018} and \texttt{parsley} Haskell~\cite{willis_parsley_2023} use these laws as the basis for high-level optimisations to simplify the structure of deeply-embedded parsers.
-These same principles can be used by \texttt{parsley-garnish} to simplify parser terms to be more human-readable.
+These same principles are used by \texttt{parsley-garnish} to simplify parser terms to resemble the natural style that a human would write by hand.
 
 \Cref{fig:parser-laws} shows the subset of parser laws utilised by \texttt{parsley-garnish} for parser simplification.
 Most of these laws have already been shown to hold for Parsley by \textcite{willis_garnishing_2018}; an additional proof for \cref{eqn:alt-fmap-absorb} can be found in \cref{appendix:parser-law-proofs}.
@@ -62,9 +59,9 @@ Most of these laws have already been shown to hold for Parsley by \textcite{will
 \end{figure}
 
 \subsubsection{Simplifying the Example Parser}\label{sec:simplify-example}
-It is useful to illustrate how these laws can be used to simplify a parser term by starting with the parser in \cref{fig:leftrec-example-bad} --
-most of the noise in \scala{example} comes from the large number of \scala{empty} combinators.
-These can first be eliminated using \cref{eqn:alt-left-neutral,eqn:alt-right-neutral,eqn:alt-empty-absorb,eqn:alt-fmap-absorb}:
+It is useful to illustrate how these laws are used to simplify a parser term, by starting with the parser in \cref{fig:leftrec-example-bad}.
+First of all, most of the noise in \scala{example} comes from the large number of \scala{empty} combinators.
+These can be eliminated using \cref{eqn:alt-left-neutral,eqn:alt-right-neutral,eqn:alt-empty-absorb,eqn:alt-fmap-absorb}:
 % lazy val example: Parsley[String] = chain.postfix(string("b"))(
 %   (pure(identity).map(compose((_ + _).curried))).map(flip) <*> string("a")
 % )
@@ -89,13 +86,13 @@ This already looks a lot better, but the second parameter to \scala{postfix} can
     string("a").map(%\textcolor{gray}{flip(compose((\_ + \_).curried)(identity))}%)
 \end{minted}
 %
-The most simplified form of the parser is then:
+The final simplified form of the parser is then:
 \begin{minted}[escapeinside=\%\%]{scala}
 val f = %\textcolor{gray}{flip(compose((\_ + \_).curried)(identity))}%
 lazy val expr: Parsley[String] = chain.postfix(string("b"))(string("a").map(%\textcolor{gray}{f}%))
 \end{minted}
 %
-The parser has now been expressed in a much simplified form, in a similar style to how it would be written by hand.
+The parser is now expressed in a much simplified form, in a similar style to how it would be written by hand.
 The remaining challenge is to simplify the contents of the expression \scala{f}, which is tackled in \cref{sec:function-representation}.
 
 \subsection{Implementing Rewrites on the Parser \textsc{ast}}
@@ -149,5 +146,13 @@ Although this formulation of the traversal is inspired by generic traversals, it
 % parsley Haskell achieves this with cata
 In Scala, this would require the use of an external dependency such as \texttt{shapeless}\footnote{\url{https://github.com/milessabin/shapeless}},
 which is frankly overkill given the relative simplicity of the \scala{Parser} \textsc{adt}.
+
+\subsection{Discussion}
+The design of the parser simplification process for \texttt{parsley-garnish} was not intended to closely follow the methods used in \texttt{parsley}, so it is remarkable that the two approaches have ended up being so similar.
+However, in retrospect, this resemblance is not surprising given that the act of parser simplification and optimisation are fundamentally the same transformation.
+Since both \texttt{parsley} and \texttt{parsley-garnish} represent the parser \textsc{ast} as a deep-embedded structure, it is natural that this transformation is implemented similarly in both cases as a bottom-up traversal over the abstract syntax.
+
+This insight can be extended to any deep embedded \textsc{dsl} based on an algebra, where constructs within the \textsc{dsl} are subject to algebraic laws and operations.
+It would be interesting to see an e\textsc{dsl} and linter pair that shares a unified data structure for its abstract syntax, in order to take full advantage of this duality.
 
 \end{document}

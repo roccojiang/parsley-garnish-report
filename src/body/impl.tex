@@ -2,11 +2,13 @@
 
 \begin{document}
 
-\ourchapter{Simplifying Parsers and Expressions}
-Shit output from previous section. This motivates:
+\ourchapter{Simplifying Parsers and Expressions}\label{sec:impl}
+At this stage, the left-recursion factoring transformation leaves a lot to be desired in terms of output quality.
+This \namecref{sec:impl} takes a step back from linting rules and focuses on ensuring how transformed terms can get pretty-printed in a human-readable form.
+The following ideas are explored:
 \begin{itemize}
-  \item \cref{sec:simplify-parsers} discusses how parser terms can be simplified via domain-specific optimisations based on parser laws.
-  \item \cref{sec:function-representation} discusses how expressions can be partially evaluated. This is achieved using another intermediate \textsc{ast}, this time based on the $\lambda$-calculus.
+  \item First, \cref{sec:simplify-parsers} discusses how parser terms can be simplified via domain-specific optimisations based on parser laws.
+  \item Afterwards, \cref{sec:function-representation} discusses how expressions can be partially evaluated, to some extent. This is achieved using another intermediate \textsc{ast}, this time based on the $\lambda$-calculus, which unlocks the idea of $\beta$-reduction and normalisation as tools to reduce the complexity of these terms.
 \end{itemize}
 
 % TODO
