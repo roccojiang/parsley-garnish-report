@@ -226,8 +226,46 @@ val nonTerminals: Map[Symbol, ParserDefn] = doc.tree.collect {
 }.toMap
 \end{minted}
 
+\subsection{Lowering back to the Scalameta \textsc{ast}}
+After all necessary transformations have been applied to parser terms, the final step is to convert them back to a textual representation to be applied as a Scalafix patch.
+Parsers can be lowered back to \scala{scala.meta.Term} nodes by the inverse of the original \scala{fromTerm} transformation.
+The \scala{Parser} trait defines this transformation as the method \scala{term}, using quasiquotes to simplify the construction of the \scala{scala.meta.Term} nodes.
+\begin{minted}{scala}
+case class Zipped(func: Function, parsers: List[Parser]) extends Parser {
+  val term: Term = q"(..${parsers.map(_.term)}).zipped(${func.term})"
+}
+\end{minted}
+%
+This term can then be pretty-printed into a string, and applied as a Scalafix patch.
+
 \subsection{Implementing the Left-Recursion Transformation}
 \TODO{TODO}
 
+Running the transformation on the \scala{example} parser thus yields:
+\begin{figure}
+\begin{minted}{scala}
+def flip[A, B, C](f: A => B => C)(x: B)(y: A): C = f(y)(x)
+def compose[A, B, C](f: B => C)(g: A => B)(x: A): C = f(g(x))
+
+lazy val example: Parsley[String] = chain.postfix(
+  empty | (empty.map((_ + _).curried) | empty <*> example) <*> string("a")
+    | string("b") | empty
+)(
+  (empty.map(flip) <*> example | pure(identity).map(compose((_ + _).curried)))
+    .map(flip) <*> string("a")
+    | empty | empty
+)
+\end{minted}
+\caption{The initial attempt at factoring out left-recursion from the \scala{example} parser.}
+\label{fig:leftrec-example-bad}
+\end{figure}
+%
+Oh, dear.
+There are \emph{many} things wrong with the transformed output:
+\begin{itemize}
+  \item This output is horrendously complex and unreadable. The intent of the parser is entirely obfuscated in a sea of combinators.
+  \item Having to define the \scala{flip} and \scala{compose} functions is not ideal, but inlining them as lambdas would make the code even worse.
+  \item The parser does not even typecheck -- unlike classical Hindley-Milner-based type systems, Scala only supports local type inference~\cite{cremet_core_2006}. As a result, the compiler is unable to correctly infer correct types for \scala{flip} and also asks for explicit type annotations in the lambda \scala{(_ + _).curried}.
+\end{itemize}
 
 \end{document}

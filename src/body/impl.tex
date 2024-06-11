@@ -3,12 +3,22 @@
 \begin{document}
 
 \ourchapter{Simplifying Parsers and Expressions}
-Writing domain-specific lint rules unlocks the potential for more powerful and interesting transformations utilising specialised domain knowledge.
-Desirable:
-* inspectability for analysis (that's what we're here for!) and optimisation
-The purpose of this chapter is to describe the intermediate representations of parsers (\cref{sec:parser-representation}) and functions (\cref{sec:function-representation}).
-Show that terms must be simplified to a normal form
-Demonstrate equivalence to dsl optimisations in staged metaprogramming
+Shit output from previous section. This motivates:
+\begin{itemize}
+  \item \cref{sec:simplify-parsers} discusses how parser terms can be simplified via domain-specific optimisations based on parser laws.
+  \item \cref{sec:function-representation} discusses how expressions can be partially evaluated. This is achieved using another intermediate \textsc{ast}, this time based on the $\lambda$-calculus.
+\end{itemize}
+
+% TODO
+% Writing domain-specific lint rules unlocks the potential for more powerful and interesting transformations utilising specialised domain knowledge.
+% Desirable:
+% * inspectability for analysis (that's what we're here for!) and optimisation
+% The purpose of this chapter is to describe the intermediate representations of parsers (\cref{sec:parser-representation}) and functions (\cref{sec:function-representation}).
+% Show that terms must be simplified to a normal form
+% Demonstrate equivalence to dsl optimisations in staged metaprogramming
+
+% Scalafix runs at the meta-level, outside of the phase distinction of compile- and run-time.
+% Staged metaprogramming applies optimisations at compile-time, whereas these ``optimisations'' at applied post-compilation
 
 \subfile{impl/parser}
 \subfile{impl/expr}
