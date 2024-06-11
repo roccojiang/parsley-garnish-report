@@ -9,9 +9,9 @@
 % Crucially, this allowed us to simplify parsers via term-rewriting rules based on parser laws.
 % \Cref{sec:simplify-parsers} demonstrated why this is necessary for \texttt{parsley-garnish}: transformations such as left-recursion factoring~\cref{sec:factor-leftrec} result in complex parser terms that must be simplified to be readable.
 
-Currently, parsers such as \scala{pure} and \scala{map} take expressions as \scala{scala.meta.Term} values, which have been treated as black boxes.
+At this point, parsers such as \scala{pure} and \scala{map} still treat expressions as black boxes in the form of raw \scala{scala.meta.Term} \textsc{ast} nodes.
 No steps have been taken to improve the static inspectability of these values.
-This is evident from where we left off in the example from the previous \namecref{sec:parser-representation}:
+This is evident from where we left off in the example from \cref{sec:simplify-example}:
 \begin{minted}{scala}
 val f = flip(compose(a => b => a + b)(identity))
 // f is equivalent to (a => b => b + a)
@@ -118,12 +118,11 @@ Nameless representations like \emph{De Bruijn indices}~\cite{debruijn_lambda_197
 This makes $\alpha$-equivalence trivial to check, as it is just a matter of comparing the indices.
 Although an elegant representation, De Bruijn terms are notoriously difficult to work with, as they are not easily human-readable.
 % https://proofassistants.stackexchange.com/questions/900/when-should-i-use-de-bruijn-levels-instead-of-indices
-Furthermore, performing substitutions with De Bruijn terms has an overhead as variable positions have to be shifted -- this is undesirable given that the purpose of our \textsc{adt} is to normalise $\lambda$-terms.
+Furthermore, performing substitutions with De Bruijn terms has an overhead as variable positions have to be shifted -- this is undesirable given that the purpose of the \textsc{ast} is to normalise $\lambda$-terms.
 To avoid this, hybrid representations combining named and nameless representations exist~\cite{mcbride_imnotanumber_2004,chargueraud_locally_2012}, but they become rather complex solutions for what should be a relatively simple $\lambda$-calculus implementation for \texttt{parsley-garnish}'s needs.
 
 \paragraph{Higher-order abstract syntax}
-Using \emph{higher-order abstract syntax} (\textsc{hoas})~\cite{pfenning_hoas_1988} sidesteps variable binders entirely by borrowing substitution from the meta-language.
-This makes it the meta-language's responsibility to handle variable capture instead.
+Using \emph{higher-order abstract syntax} (\textsc{hoas})~\cite{pfenning_hoas_1988} sidesteps variable binders entirely by borrowing substitution from the meta-language, making it the meta-language's responsibility to handle variable capture instead.
 In contrast, the previous techniques were examples of first-order abstract syntax, which represents variables and unknowns with identifiers (whether with names or indices).
 A \textsc{hoas} approach does not name bound variables, instead representing them as bindings in the meta-language:
 
@@ -137,14 +136,14 @@ val expr = Abs(f => Abs(x => App(f, x)))
 \end{minted}
 %
 Therefore, this representation performs substitution through Scala's function application, which makes it extremely fast compared to the other approaches.
-However, since lambda abstractions are represented as lambda expressions within Scala itself, the function body becomes wrapped under Scala's variable binding, making them difficult to work with.
+However, since lambda abstractions are represented as lambda expressions within Scala itself, the function body becomes wrapped under Scala's variable bindings, making them difficult to inspect and work with.
 
 % TODO we use this but with nbe, syntax - named, semantics - hoas, normalising by evaluation = automatically alpha converts terms by renaming
 % \scala{Expr} has one binding construct -- the n-ary abstraction. This introduces variables and the need for capture-avoiding substitution.
 
 \subsection{Normalisation Strategies}\label{sec:normalisation-approach}
 One remaining hurdle stands before deciding on an \textsc{adt} representation: how normalisation will be implemented.
-Partial evaluation and normalisation are related concepts -- it is useful to view normalisation as statically evaluating as many terms as possible, but since not all terms have known values, the expression cannot be fully evaluated to a result value.
+The ideas of partial evaluation and normalisation are related concepts -- it is useful to view normalisation as statically evaluating as many terms as possible, but since not all terms have known values, the expression cannot be fully evaluated to a result value.
 Normalisation can thus be viewed simply as a process of evaluation, but in the presence of unknown terms.
 This \namecref{sec:normalisation-approach} briefly explains the traditional notion of reduction-based normalisation, before introducing normalisation by evaluation as a more elegant and efficient strategy.
 
@@ -161,7 +160,7 @@ The goal is to achieve beta normal form ($\beta$-\textsc{nf}) by allowing $\beta
 \subsubsection{Normalisation by Evaluation}
 An interesting alternative strategy stems from a notion of \emph{reduction-free} normalisation, based on an undirected notion of term equivalence, rather than directed reduction.
 \emph{Normalisation by Evaluation} (\textsc{nbe})~\cite{filinski_nbe_2004} achieves this by \emph{evaluating} syntactical terms into a semantic model, then \emph{reifying} them back into the syntactic domain.
-The denotational model (denoted by $\text{\textlbrackdbl} - \text{\textrbrackdbl}$) generally requires implementing a separate datatype from the syntactic \textsc{ast} representation of functions.
+The denotational model (denoted by $\text{\textlbrackdbl} - \text{\textrbrackdbl}$) generally involves implementing a separate datatype from the syntactic \textsc{ast} representation of functions.
 The semantics is specifically constructed to be \emph{residualising}, meaning that terms can be extracted out into the original syntactic representation.
 Normalisation is then just defined as the composition of these two operations, as illustrated in \cref{fig:nbe}.
 
@@ -187,7 +186,7 @@ The final implementation of the \scala{Expr} \textsc{ast} normalises terms with 
   \item \scala{Sem} uses \textsc{hoas} to leverage Scala semantics as the denotational model for lambda expressions. During normalisation, \scala{Expr} terms are evaluated into \scala{Sem}, then reified back into \scala{Expr}.
 \end{enumerate}
 %
-This helps achieve the following desired properties:
+This achieves the following desired properties for \texttt{parsley-garnish}'s use cases:
 \begin{itemize}
   \item The syntactic \scala{Expr} \textsc{adt} is represented in a simple manner, which is easy to construct and manipulate as opposed to a \textsc{hoas} representation. This allows function terms to be pattern matched on, as part of parser simplifications.
   \item Lifting the syntactic constructs to Scala semantics with \textsc{hoas} unlocks extremely efficient normalisation, and easier guarantees of correctness with respect to variable capture.
@@ -211,7 +210,7 @@ This helps achieve the following desired properties:
   \item Optional explicit type annotations for variables -- these are not used for type-checking, but are there to preserve Scala type annotations originally written by the user.
   \item \scala{Translucent} terms to encapsulate open terms holding a \scala{scala.meta.Term} which cannot be normalised further. These carry an environment of variable bindings to substitute back in during pretty-printing -- in a metaprogramming context, this is analogous to splicing into a quoted expression.
 \end{itemize}
-This structure is largely mirrored in the \textsc{hoas}-based \scala{Sem} \textsc{adt} shown in \cref{fig:sem-adt}, which allows it to be reified back into \scala{Expr} terms.
+This structure is largely mirrored by the \textsc{hoas}-based \scala{Sem} \textsc{adt} shown in \cref{fig:sem-adt}, which allows it to be reified back into \scala{Expr} terms.
 
 \begin{figure}
 \begin{subfigure}{\textwidth}
@@ -241,6 +240,7 @@ case class Translucent(t: Term, env: Map[VarName, Sem]) extends Sem
 \caption{The intermediate \textsc{ast} for expressions.}
 \end{figure}
 
+\paragraph{Constructing higher-order functions}
 \scala{Expr} also implements some helper objects to make it easier to construct and deconstruct single-parameter abstractions and applications:
 \begin{minted}{scala}
 object Abs {
@@ -301,10 +301,10 @@ However, attempting to implement this ran into two main hurdles:
 However, this required an extra $\alpha$-conversion pass to clean up variable names before pretty-printing the term, since the fresh variable names were very ugly.
 \TODO{TODO: graphs of benchmarks and comparison (nbe is orders of magnitude faster lol)}
 
-\subsection{Lifting to the Intermediate Expression \textsc{ast}}
+\subsection{Lifting to the Intermediate Expression \textsc{ast}}\label{sec:lifting-expr}
 The \scala{Parser} \textsc{ast} is amended to take \scala{Expr} arguments where they used to take \scala{scala.meta.Term} values.
 Take the \scala{Pure} parser as an example:
-\TODO{TODO: highlight changes like Jamie's PhD thesis? Can I get the latex source for the nicely configured tcolorboxes lol}
+\rj{TODO: highlight changes with tcolorbox?}
 \begin{minted}{scala}
 case class Pure(x: Expr) extends Parser
 object Pure {
@@ -315,7 +315,9 @@ object Pure {
 \end{minted}
 %
 The \scala{toExpr} extension method on \scala{scala.meta.Term} is used to lift \scala{Term} \textsc{ast} nodes to \scala{Expr} terms.
-As a high-level overview, there are three cases to consider during this conversion:
+Expression lifting is invoked whenever a parser expects an expression (whether a function or simple value) as an argument.
+
+This \namecref{sec:lifting-expr} gives a high-level overview of the three cases that \scala{toExpr} handles.
 
 \subsubsection{Lambda Expressions}
 Writing parsers often involves defining simple lambda expressions used to glue together parsers, or to transform the result of a parser, as so:
@@ -327,20 +329,22 @@ These lambda expressions are represented in the Scalameta \textsc{ast} as \scala
 This is folded into a chain of $n$-ary abstractions, with the final term being the body of the lambda, which is wrapped into a \scala{Translucent} term.
 
 To ensure that the parameter names in the \scala{Translucent} body term are unique, the parameters are $\alpha$-converted to fresh names.
-The body is also transformed to make sure references to these bound variables use their new names: this conversion is hygienic as it compares terms using their symbols, which Scalameta guarantees to be unique per source file.
-
+The body is also transformed to make sure references to these bound variables use their new names: this conversion is well-scoped as it compares terms using their unique Scalameta symbols.
 The following example illustrates when this is necessary:
 % this is the "gensym" approach
 \begin{minted}{scala}
-  a => (a, b) => a + b
+a => (a, b) => a + b
 \end{minted}
 Although no sane Scala programmer would write this, this lambda demonstrates how it is possible to shadow variables -- the \scala{a} in the function body refers only to the \scala{a} in the second parameter list, as it shadows the \scala{a} in the first parameter list.
-The resulting \scala{Expr} term would then resemble the following $\lambda$-calculus expression:
+The lifted \scala{Expr} term would then resemble the following $\lambda$-calculus expression, where \textbf{bold} values correspond to \scala{scala.meta.Term} nodes as opposed to \scala{Expr} values:
 \begin{lstlisting}
 \(x1). \(x2, x3). Translucent(%\textbf{x2 + x3}%, env = {%\textbf{x1}% -> x1, %\textbf{x2}% -> x2, %\textbf{x3}% -> x3})
 \end{lstlisting}
-\textbf{Bold} values correspond to \scala{scala.meta.Term} nodes as opposed to \scala{Expr} values: therefore, the lambda body's environment maps \scala{Term.Name} nodes to their corresponding variable terms.
-When this term is pretty-printed, the \scala{Term.Name} nodes are replaced with the corresponding \scala{Expr} terms -- this is analogous to the splicing operation on quasiquotes.
+This shows how the lambda body's environment maps \scala{Term.Name} nodes to their corresponding variable terms.
+When the term is pretty-printed, each \scala{Term.Name} node is replaced with their corresponding \scala{Expr} term -- this is analogous to the splicing operation on quasiquotes:
+\begin{minted}{scala}
+q"x1 => (x2, x3) => $x2 + $x3"
+\end{minted}
 % TODO: discussions on hygiene
 
 \subsubsection{Placeholder Syntax}
@@ -386,8 +390,8 @@ trait Expr {
 \paragraph{Evaluation}
 Evaluation proceeds by carrying an environment mapping bound variables to their semantic representations.
 Evaluating a variable looks up its name in the environment, while evaluating a lambda abstraction produces a closure using the current environment -- using \textsc{hoas} allows these closures to be represented as native Scala closures.
-The interesting case is evaluating function application: the function and its arguments are evaluated separately at first.
-The magic of \textsc{nbe} takes place here -- if the function evaluates to an abstraction, the arguments are passed to the Scala function \scala{g: List[Sem] => Sem}, collapsing the structure by one step.
+The interesting case is evaluating function application: this allows $\beta$-reduction within the \emph{semantic domain} at any point within the term, not just on the head term.
+The function and its arguments are first evaluated separately -- then, if the function evaluates to an abstraction, the arguments are passed to the Scala closure \scala{g: List[Sem] => Sem}, collapsing the term structure by one step.
 %
 \begin{minted}{scala}
 trait Expr {
@@ -411,10 +415,10 @@ trait Expr {
 \end{minted}
 %
 \paragraph{Reification}
-Once the syntactic terms are fully evaluated into their semantics, the expression has been normalised to $\beta$-\textsc{nf}.
-Reification is then rather simple, just converting each level of the term back into its syntactic counterpart.
+Once the syntactic terms are fully evaluated into their semantics, the expression is normalised to $\beta$-\textsc{nf}.
+Reification is then a simple process of converting each level of the term back into its syntactic counterpart.
 When a lambda abstraction is reified, bound variables are assigned names from a fresh name supply.
-This step is what grants $\alpha$-equivalence for free, as the fresh name generator can be made deterministic: given two terms of the same semantic structure, reifying both will yield syntactic representations with the same names.
+This step is what grants $\alpha$-equivalence for free, as the fresh name generator can be made deterministic: given two terms that evaluate to the same semantic structure, reifying both will yield syntactic representations with the same names.
 %
 \begin{minted}{scala}
 trait Sem {
@@ -436,10 +440,40 @@ trait Sem {
 \end{minted}
 
 \subsection{Lowering Back to the Scalameta \textsc{ast}}
-Surprise bitches same shit again, quasiquotes ftw
+Lowering expressions back to their \scala{scala.meta.Term} representations is achieved with quasiquotes in the same way as parsers in \cref{sec:lowering-parsers}.
+\begin{itemize}
+  \item Lambda abstractions are transformed into a lambda expression of form \scala{q"(...params) => body"}
+  \item Function application is transformed into method calls.
+  \item Variables are simply \scala{Term.Name} nodes with their syntactic names.
+  \item Translucent terms splice their environment bindings back into their term body.
+\end{itemize}
 
 \subsection{Discussion}
-\TODO{TODO: comparison with parsley haskell}
+\texttt{parsley} Haskell, as a staged parser combinator library, also has the ability to inspect and optimise the code of user-defined functions.
+The approach taken by \texttt{parsley-garnish} and \text{parsley} share many similarities, both using the $\lambda$-calculus as a core language for expressions.
+In both cases, the need to reduce expression terms is motivated by how parser simplifications involve fusion, resulting in a function application.
+
+However, the two have different motivations and requirements for normalising expressions, so their approaches differ in some ways.
+\Cref{fig:nbe-vs-parsley} illustrates these differences.
+
+\paragraph{Syntactic representation}
+Unlike \texttt{parsley-garnish}, \texttt{parsley} has a two-level syntactic representation for expressions.
+\haskell{Defunc} is akin to a deep embedding of higher-order functions, representing them as a \textsc{gadt}: this process is known as \emph{defunctionalisation}~\cite{reynolds_defunc_1972,danvy_defunctionalization_2001}.
+This helps facilitate certain parser law optimisations which require pattern matching on the \scala{identity} function, for example.
+After this step, \haskell{Defunc} values are then brought into the lower-level $\lambda$-calculus representation, to be normalised by $\beta$-reduction.
+
+\paragraph{Normalisation strategy}
+\texttt{parsley} normalises terms to full $\eta\beta$-\textsc{nf}, whereas \texttt{parsley-garnish} only normalises to $\beta$-\textsc{nf}.
+This is because $\eta$-reduction in Scala 2 is not as straightforward as in Haskell, and is not always possible -- in most cases the appropriate reduction is instead to convert lambdas to placeholder syntax.
+This is left as future work.
+
+\texttt{parsley} performs reduction-based normalisation on a \textsc{hoas} representation of lambda expressions.
+Normalisation by $\beta$-reduction with Haskell function application brings this to $\beta$-\textsc{whnf}.
+Generating this into code is where this is brought to $\beta$-\textsc{nf} as desired, as well as an extra step for $\eta$-reduction to put the term into full $\eta\beta$-\textsc{nf}.
+
+The main reason why \texttt{parsley-garnish} takes a different normalisation approach is because unlike \texttt{parsley}, there is still a need for $\alpha$-equivalence checking after normalisation.
+Whereas in \texttt{parsley} the normalised forms are directly used for code generation, in \texttt{parsley-garnish} these terms continue to be analysed before being pretty-printed as code patches.
+
 % Representation as a lambda calc has allocation overhead, but greatly simplifies function evaluation via beta reduction, instead of having to deal with high-level representations of compose/id (not too bad tbh) and flip (annoying).
 
 \begin{figure}[htbp]
@@ -451,15 +485,16 @@ Surprise bitches same shit again, quasiquotes ftw
   %   \text{Syntax}    & \text{Expr} \arrow[uu, "\texttt{reflect}"] \arrow[rr, "\substack{\texttt{normalise} \\ =\ \texttt{reify}\ \circ\ \texttt{eval}\ \circ\ \texttt{reflect}}"'] \arrow[rruu, "{\text{\textlbrackdbl} - \text{\textrbrackdbl}}", dashed] &  & \text{Lambda}                                     
   % \end{tikzcd}
   % https://tikzcd.yichuanshen.de/#N4Igdg9gJgpgziAXAbVABwnAlgFyxMJZARgBoAWAXVJADcBDAGwFcYkQAdDnGADxwHA4AYyb0AdAFsYOCQBUYAJ0kBfECtLpMufIRRkATNTpNW7Lj37AAorzSK1GrdjwEiAZlIAGYwxZtETm4+HGAAZRhVdU0QDBddD1IjGj8zQIsQmztFAAIACgASLgAjGXoCgFoM-hFgMAAzFQBKRxi4nTcUTyoU0wCgywFQkTEpMvEFZRVq0PyijlLZSpnahubW5w69ZABWJN8+82CrABl6SWKoeg3Y7VdtvfcD-yPB4AARGHrmMGEb9vuRD2PRML3SxyGwAAwtAYP87gkUAB2fa9MEDTJnC5XFQ5LhcPEQ4CFEplZYQ2oAdwAFmsWtFNoDkRRnmkMfxBDDYNMiXNSbIuGSqhThHVGvSnLd4p1kF5vKz+sAuHBJExGITBrhwpF6GA8MI4Cp4dLtnLkqC2UqOCq1RqQlqThBKRUTjBaDB1WEAJ56+i8I0MqVbIhyp5oy3K1WMdUzLUACSwAHNqS63R6ct7ff7HMYYFBE-AiKB6ooIJIkGQQDgIEgDDRSmAoEh3HKLf0ZoI3aZ6DwbiWy7WaNXm+H2xDBIoYFh6l6+6Xy4hK8PEJ4QIwsGB+lc4NS8yBR0c4MxinBZMIANZWwaCSDKJhYOBwnIAXkJBI7oS7LB7T64wiwijCHaHKhJO06zmoNCMPQpSMAACginQgIoSbUjggb9gurbLsQkqYSOVY1og5B4fOSAooRSAAGykQOiBUUORE7LRC57JRiAABwsUgHGMUgACcKiUCoQA
-  \begin{tikzcd}[row sep=3.75em,column sep=0.9em]
+  \begin{tikzcd}[row sep=3.5em,column sep=2em]
     {\small \textit{Semantics}}         &                                                                                                                                                           &  & \text{Sem} \arrow[dd, "\texttt{reify}"]               &  &                          &  &                                                            \\
                                         &                                                                                                                                                           &  &                                                       &  &                          &  &                                                            \\
-    {\small \textit{Low-Level Syntax}}  & \text{Expr} \arrow[rruu, "\texttt{evaluate}", bend left] \arrow[rr, "\substack{\texttt{normalise}\ = \\ \texttt{evaluate}\ \circ\ \texttt{reify}}"', dashed] &  & \text{Expr ($\beta$-\textsc{nf})} \arrow[dd]          &  & \text{Lambda} \arrow[rr] &  & \text{Lambda ($\beta$-\textsc{whnf})} \arrow[dd] \\
+    {\small \textit{Low-Level Syntax}}  & \text{Expr} \arrow[rruu, "\texttt{evaluate}", bend left] \arrow[rr, "\substack{\texttt{normalise}\ = \\ \texttt{evaluate}\ \circ\ \texttt{reify}}"' {yshift=-1ex}, dashed] &  & \substack{\text{Expr} \\ \text{($\beta$-\textsc{nf})}} \arrow[dd]          &  & \text{Lambda} \arrow[rr, "\texttt{normalise}"' {yshift=-1ex}] &  & \substack{\text{Lambda} \\ \text{($\beta$-\textsc{whnf})}} \arrow[dd] \\
     {\small \textit{High-Level Syntax}} &                                                                                                                                                           &  &                                                       &  & \text{Defunc} \arrow[u]  &  &                                                            \\
-                                        & \texttt{scala.meta.Term} \arrow[uu]                                                                                                                       &  & \texttt{scala.meta.Term}\text{ ($\beta$-\textsc{nf})} &  & \texttt{Code} \arrow[u]  &  & \texttt{Code}\text{ ($\beta\eta$-\textsc{nf})}            
+                                        & \texttt{scala.meta.Term} \arrow[uu]                                                                                                                       &  & \substack{\texttt{scala.meta.Term} \\ \text{ ($\beta$-\textsc{nf})}} &  & \texttt{Code} \arrow[u]  &  & \substack{\texttt{Code} \\ \text{ ($\eta\beta$-\textsc{nf})}}            
     \end{tikzcd}
   \end{equation*}
   \caption{Comparison of expression normalisation in \texttt{parsley-garnish} (left) and \texttt{parsley} Haskell (right).}
+  \label{fig:nbe-vs-parsley}
 \end{figure}
 
 \end{document}

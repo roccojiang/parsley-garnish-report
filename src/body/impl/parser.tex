@@ -13,6 +13,23 @@
   \item \texttt{parsley-garnish} performs rewrites on the parser \textsc{ast} to produce a more readable \emph{textual representation of code}.
 \end{itemize}
 
+\TODO{Place this in the right bit (I think intro is good)}
+As noted by \textcite{gibbons_dsls_2014}, a deep-embedded \textsc{dsl} consists of two components:
+\begin{itemize}
+  \item A representation of the language's abstract syntax, in the form of the aforementioned datatype.
+  \item Some traversals over the datatype, which gives \emph{semantics} to that syntax.
+\end{itemize}
+A deep-embedded \textsc{dsl} and a linter for that \textsc{dsl} can share the same abstract syntax, but differ in the semantic interpretation of that syntax:
+% TODO: I'm not really getting my point across...
+\begin{itemize}
+  \item The \textsc{dsl} semantics are evaluation. In this case, \texttt{parsley} interprets its syntax to output a parser.
+  \item The linter's semantics are pretty-printing. In this case, \texttt{parsley-garnish} interprets the syntax to output a human-readable representation of the parser.
+\end{itemize}
+% semantics for parsley: evaluate parser
+% semantics for parsley-garnish: pretty-print the parser
+
+Quote parsley Haskell: "parsers of hand-written quality"
+
 % TODO: fix the above "intro" ------------------------------------------------------------------------------
 
 \subsection{Parser Laws}
@@ -21,7 +38,7 @@ Both \texttt{parsley} Scala~\cite{willis_garnishing_2018} and \texttt{parsley} H
 These same principles can be used by \texttt{parsley-garnish} to simplify parser terms to be more human-readable.
 
 \Cref{fig:parser-laws} shows the subset of parser laws utilised by \texttt{parsley-garnish} for parser simplification.
-Most of the laws in \cref{fig:parser-laws} have already been shown to hold for Parsley by \textcite{willis_garnishing_2018}; an additional proof for \cref{eqn:alt-fmap-absorb} can be found in \cref{appendix:parser-law-proofs}.
+Most of these laws have already been shown to hold for Parsley by \textcite{willis_garnishing_2018}; an additional proof for \cref{eqn:alt-fmap-absorb} can be found in \cref{appendix:parser-law-proofs}.
 
 \begin{figure}[htbp]
 \centering
@@ -44,15 +61,15 @@ Most of the laws in \cref{fig:parser-laws} have already been shown to hold for P
 \label{fig:parser-laws}
 \end{figure}
 
-\subsubsection{Simplifying the Example Parser}
-This section provides a worked example of how the parser in \cref{fig:leftrec-example-bad} is simplified using parser laws.
-Most of the noise in \cref{fig:leftrec-example-bad} comes from the large number of \scala{empty} combinators.
-These can be eliminated using \cref{eqn:alt-left-neutral,eqn:alt-right-neutral,eqn:alt-empty-absorb,eqn:alt-fmap-absorb}:
-% lazy val expr: Parsley[String] = chain.postfix(string("b"))(
+\subsubsection{Simplifying the Example Parser}\label{sec:simplify-example}
+It is useful to illustrate how these laws can be used to simplify a parser term by starting with the parser in \cref{fig:leftrec-example-bad} --
+most of the noise in \scala{example} comes from the large number of \scala{empty} combinators.
+These can first be eliminated using \cref{eqn:alt-left-neutral,eqn:alt-right-neutral,eqn:alt-empty-absorb,eqn:alt-fmap-absorb}:
+% lazy val example: Parsley[String] = chain.postfix(string("b"))(
 %   (pure(identity).map(compose((_ + _).curried))).map(flip) <*> string("a")
 % )
 \begin{minted}[escapeinside=\%\%]{scala}
-lazy val expr: Parsley[String] = chain.postfix(string("b"))(
+lazy val example: Parsley[String] = chain.postfix(string("b"))(
   (pure(%\textcolor{gray}{identity}%).map(%\textcolor{gray}{compose((\_ + \_).curried)}%)).map(%\textcolor{gray}{flip}%) <*> string("a")
 )
 \end{minted}
@@ -112,15 +129,15 @@ def rewrite(pf: PartialFunction[Parser, Parser]): Parser = {
 %
 Therefore, any transformation on parsers can be defined without having to worry about recursion boilerplate: the act of traversal itself is fully abstracted away and encapsulated within the \scala{transform} method.
 Using \scala{rewrite}, parser simplification can then be expressed in a clean and maintainable manner:
+% // p.map(f).map(g) == p.map(g compose f)
+% // pure(f) <*> pure(x) == pure(f(x))
+% // u <|> empty == u
+% // pure(f) <|> u == pure(f)
 \begin{minted}{scala}
 def simplify: Parser = this.rewrite {
-  // p.map(f).map(g) == p.map(g compose f)
   case FMap(FMap(p, f), g) => FMap(p, compose(g, f))
-  // pure(f) <*> pure(x) == pure(f(x))
   case Pure(f) <*> Pure(x) => Pure(App(f, x))
-  // u <|> empty == u
   case u <|> Empty => u
-  // pure(f) <|> u == pure(f)
   case Pure(f) <|> _ => Pure(f)
   ...
 }
