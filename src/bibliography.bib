@@ -783,3 +783,47 @@
   location  = {Snowbird, Utah, USA},
   series    = {Haskell '04}
 }
+
+@inproceedings{moore_removing_2000,
+  author    = {Moore, Bob},
+  title     = {Removing Left Recursion from Context-Free Grammars},
+  year      = {2000},
+  month     = apr,
+  abstract  = {A long-standing issue regarding algorithms that manipulate context-free grammars (CFGs) in a "top-down" left-to-right fashion is that left recursion can lead to nontermination. An algorithm is known that transforms any CFG into an equivalent non-left-recursive CFG, but the resulting grammars are often too large for practical use. We present a new method for removing left recursion from CFGs that is both theoretically superior to the standard algorithm, and produces very compact non-left-recursive CFGs in practice.},
+  publisher = {Association for Computational Linguistics},
+  url       = {https://www.microsoft.com/en-us/research/publication/removing-left-recursion-from-context-free-grammars/}
+}
+
+@inproceedings{willis_design-haskell_2021,
+  author    = {Willis, Jamie and Wu, Nicolas},
+  title     = {Design patterns for parser combinators (functional pearl)},
+  year      = {2021},
+  isbn      = {9781450386159},
+  publisher = {Association for Computing Machinery},
+  address   = {New York, NY, USA},
+  url       = {https://doi.org/10.1145/3471874.3472984},
+  doi       = {10.1145/3471874.3472984},
+  abstract  = {Parser combinators are a popular and elegant approach for parsing in functional languages. The design and implementation of such libraries are well discussed, but having a well-designed library is only one-half of the story. In this paper we explore several reusable approaches to writing parsers in combinator style, focusing on easy to apply patterns to keep parsing code simple, separated, and maintainable.},
+  booktitle = {Proceedings of the 14th ACM SIGPLAN International Symposium on Haskell},
+  pages     = {71--84},
+  numpages  = {14},
+  keywords  = {parser combinators},
+  location  = {Virtual, Republic of Korea},
+  series    = {Haskell 2021}
+}
+
+@inproceedings{fokker_functional_1995,
+  author    = {Fokker, Jeroen},
+  editor    = {Jeuring, Johan
+               and Meijer, Erik},
+  title     = {Functional parsers},
+  booktitle = {Advanced Functional Programming},
+  year      = {1995},
+  publisher = {Springer Berlin Heidelberg},
+  address   = {Berlin, Heidelberg},
+  pages     = {1--23},
+  abstract  = {In an informal way the `list of successes' method for writing parsers using a lazy functional language (Gofer) is described. The library of higher-order functions (known as `parser combinators') that is developed is used for writing parsers for nested parentheses and operator expressions with an arbitrary number of priorities. The method is applied on itself to write a parser for grammars, that yields a parser for the language of the grammar. In the text exercises are provided, the solutions of which are given at the end of the article.},
+  isbn      = {978-3-540-49270-2},
+  url       = {https://doi.org/10.1007/3-540-59451-5_1},
+  doi       = {10.1007/3-540-59451-5_1}
+}

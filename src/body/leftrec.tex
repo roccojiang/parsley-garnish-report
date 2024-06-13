@@ -4,8 +4,42 @@
 
 \ourchapter{Removing Left-Recursion}\label{sec:factor-leftrec}
 
-\section{Theory}
-\texttt{parsley-garnish} bases its left-recursion factoring transformation on the work of \textcite{baars_leftrec_2004}, adapted to fit \textsc{peg} semantics.
+\section{Problem}
+Left-recursive grammar rules are a common pattern to represent left-associativity.
+Take for example the following definition of a left-associative addition operator:
+\begin{equation*}
+\langle \mathit{expr} \rangle ::= \langle \mathit{expr} \rangle \; \text{`+'} \; \langle \mathit{term} \rangle \enspace | \enspace \langle \mathit{term} \rangle
+\end{equation*}
+%
+Since the first production of $\langle \mathit{expr} \rangle$ is itself, this rule is said to be left-recursive.
+This poses a problem for recursive-descent parsers, such as those that \texttt{parsley} produces:
+it will try to parse $\langle \mathit{expr} \rangle$ by first trying to parse $\langle \mathit{expr} \rangle$, and so on, resulting in an unproductive infinite loop.
+
+Although it is possible to address the issue by transforming the grammar with algorithms such as Paull's algorithm~\cite{moore_removing_2000},
+in the context of parser combinators this is considered an anti-pattern by \textcite{willis_design-haskell_2021}.
+They argue that this transformation obscures the original intent of the grammar, and exposes lower-level implementation details when this can be abstracted behind a combinator.
+Instead, they propose that the idiomatic method to handle left-recursion in parser combinators is to use the \scala{chain} family of combinators~\cite{fokker_functional_1995}.
+These combinators encapsulate the behaviour of right-associating left-recursive rules and correcting the result back to a left-associative form.
+
+Left-recursion often comes as a nasty surprise for novice users naïvely translating \textsc{bnf} grammars into parser implementations -- this issue is not unique to parser combinators, but also extends to many popular parser generators that use recursive-descent.
+Thus, it would be beneficial to provide a linting rule for \texttt{parsley} that can warn users when parsers are left-recursive.
+In fact, \texttt{parsley} 5.0 is already planned to introduce a \scala{detectDivergence} combinator, which performs \emph{dynamic} analysis to detect unproductive looping at runtime.
+It would therefore be ideal if \texttt{parsley-garnish} could complement this functionality with an auto-fix rule to refactor left-recursive parsers to use \texttt{parsley}'s idiomatic \scala{chain} combinators.
+% TODO: could compare what the static vs dynamic analyses can detect?
+
+% \begin{minted}{scala}
+% def postfix[A](p: Parsley[A], op: =>Parsley[A => A]): Parsley[A] =
+%   lazy val rest: Parsley[A => A] = (op, rest).zipped(_ andThen _) <|> pure(identity[A])
+%   p <**> rest
+% \end{minted}
+% \begin{minted}{haskell}
+% postfix :: Parser a -> Parser (a -> a) -> Parser a
+% postfix p op = p <**> rest
+%   where rest = flip (.) <$> op <*> rest <|> pure id
+% \end{minted}
+
+\section{Solution}
+\texttt{parsley-garnish} bases its left-recursion factoring transformation on the work of \textcite{baars_leftrec_2004}, adapted to fit the \textsc{peg} semantics of \texttt{parsley}.
 At a high-level, the transformation involves ``unfolding'' each non-terminal production into three parts:
 \begin{itemize}
   \item \scala{empty}: The semantic actions of the parser, if it can derive the empty string. Conceptually, this has type \scala{Option[A]} where \scala{A} is the type of the semantics.
@@ -13,41 +47,38 @@ At a high-level, the transformation involves ``unfolding'' each non-terminal pro
   \item \scala{leftRec}: The left-recursive call, which in the general left-recursive case, corresponds to a repeated postfix operator of type \scala{Parsley[A => A]}. This is a function which requires the semantics of the left-recursive non-terminal argument.
 \end{itemize}
 %
-This unfolded parser can then be recombined using the \scala{postfix} combinator.
+This unfolded parser can then be recombined using the \scala{chain.postfix} combinator.
 This combinator encapsulates the general form of left-associative parsing, and most other iterative combinators can be derived from it~\cite{willis_parsley_2023}.
 \begin{minted}{scala}
 // def postfix[A](p: Parsley[A])(op: => Parsley[A => A]): Parsley[A]
-val transformed = postfix(nonLeftRec | empty)(leftRec)
+val transformed = chain.postfix(nonLeftRec | empty)(leftRec)
 \end{minted}
 %
 This transformation is applied in-order to each parser in the source file, replacing the original parser with its factored form if it was left-recursive.
 
-\TODO{below}
-Can derive empty string? (good resource from packrat parsing paper)
-pure(x) -- yes, semantic action is x
-empty -- no
-p <|> q -- if p or q can derive empty, peg is ordered so semantic action is pe if it can derive empty, else qe
-p <*> q -- if p and q can derive empty, semantic action is pe(qe) due to pure(f) <*> pure(x) == pure(f(x)) law
-string -- only if given argument "", but this also illegal in parsely -- explicitly triggers a runtime error, so basically no
-    [error] java.lang.IllegalArgumentException: requirement failed: `string` may not be passed the empty string (`string("")` is meaningless, perhaps you meant `pure("")`?)
-char -- no (not implemented as a core comb, should do that)
-item -- no (not implemented as a core comb, should do that?)
-many(p) -- yes (not implemented properly?) -- semantic action is empty list??
-some(p) -- if p can derive empty (not a primitive, defined in terms of many -- p <::> many(p))
-NT -- if referenced rule can derive empty
+\section{Necessary Infrastructure}\label{sec:leftrec-infra}
+The comparatively simple linting rules discussed in the previous \namecref{sec:simple-rules} were implemented by directly inspecting the generic Scala \textsc{ast} provided by Scalafix.
+However, even though \texttt{parsley} programs are written in Scala, it is important to remember that \texttt{parsley} is a \textsc{dsl} borrowing Scala as a host language.
+Domain-specific transformations like left-recursion factoring are therefore naturally defined as transformations on the \texttt{parsley} \textsc{ast}, at a higher level of abstraction than the generic Scala \textsc{ast}.
 
-% TODO: note parsley's dynamic analysis divergence detection (see screenshots i left on desktop), could compare with what it can detect? obv the pros of this is i can fix them if i detect them
-
-\section{Implementation}
-\TODO{section intro}
-
+Thus, this \namecref{sec:leftrec-infra} discusses the extra infrastructure used to support the left-recursion factoring transformation:
+\begin{itemize}
+  \item \cref{sec:parser-ast-motivation} motivates the idea of using an intermediate \textsc{ast} representation for parsers, distinct from the general-purpose Scala \textsc{ast}.
+  \item \cref{sec:lifting-parsers} shows how the \textsc{ast} of a Scala source file is converted into this intermediate representation, whereas \cref{sec:lowering-parsers} discusses how this is converted back into Scala code so that it can be applied as a Scalafix patch.
+\end{itemize}
+%
 \paragraph{Running example}
-The following left-recursive parser and its transformation into its \scala{postfix} form will serve as a running example:
+The following left-recursive parser and its transformation into a non-left-recursive form will be used as a representative example for the remainder of this \namecref{sec:factor-leftrec}:
 \begin{minted}{scala}
 lazy val example: Parsley[String] = (example, string("a")).zipped(_ + _) | string("b")
 \end{minted}
+%
+The \scala{example} parser intends to express the following simple grammar expressed using left-recursion. The goal is to refactor \scala{example} so that it retains the intended semantics, but uses the \scala{postfix} combinator so that \texttt{parsley} can parse it correctly.
+\begin{equation*}
+  \langle \mathit{example} \rangle ::= \langle \mathit{example} \rangle \; \text{``a''} \enspace | \enspace \text{``b''}
+\end{equation*}
 
-\subsection{The Need for an Intermediate \textsc{ast}}\label{sec:parser-ast-motivation}
+\subsection{An Intermediate \textsc{ast}}\label{sec:parser-ast-motivation}
 The transformations described by \textcite{baars_leftrec_2004} require an explicit representation of the grammar and production rules so that they can be inspected and manipulated before generating code.
 They achieve this by representing parsers as a deep-embedded datatype in the form of an intermediate \textsc{ast}, in a similar manner to \texttt{parsley}.
 
@@ -140,7 +171,7 @@ val exNT = NonTerminal(Sym(Term.Name("example").symbol))
 % And similar to Parsley, representing everything as objects makes it easy to optimise using pattern matching on constructors.
 % This representation also then gives us for free the implementation for lint rules such as \emph{Simplify Complex Parsers} rule, which applies parser laws to simplify parsers.
 
-\subsection{Lifting to the Intermediate Parser \textsc{ast}}
+\subsection{Lifting to the Intermediate Parser \textsc{ast}}\label{sec:lifting-parsers}
 Converting the raw Scala \textsc{ast} to this intermediate parser combinator \textsc{ast} requires the following basic operations:
 \begin{enumerate}
   \item Identifying all named parsers defined in the source program -- these correspond to non-terminal symbols in the grammar.
@@ -278,6 +309,21 @@ This term can then be pretty-printed into a string, and applied as a Scalafix pa
 Core combinators: \scala{NonTerminal}, \scala{Pure}, \scala{Empty}, \scala{Ap}, \scala{Choice}.
 Combinators like \scala{String} are theoretically core combinators but they represent boring cases.
 Some composite combinators are supported, and desugared into the core combinators.
+
+\TODO{
+Can derive empty string? (good resource from packrat parsing paper)
+pure(x) -- yes, semantic action is x
+empty -- no
+p <|> q -- if p or q can derive empty, peg is ordered so semantic action is pe if it can derive empty, else qe
+p <*> q -- if p and q can derive empty, semantic action is pe(qe) due to pure(f) <*> pure(x) == pure(f(x)) law
+string -- only if given argument "", but this also illegal in parsely -- explicitly triggers a runtime error, so basically no
+    [error] java.lang.IllegalArgumentException: requirement failed: `string` may not be passed the empty string (`string("")` is meaningless, perhaps you meant `pure("")`?)
+char -- no (not implemented as a core comb, should do that)
+item -- no (not implemented as a core comb, should do that?)
+many(p) -- yes (not implemented properly?) -- semantic action is empty list??
+some(p) -- if p can derive empty (not a primitive, defined in terms of many -- p <::> many(p))
+NT -- if referenced rule can derive empty
+}
 
 \subsubsection{Defining Utility Functions}
 The transformation requires the use of three higher-order functions:

@@ -10,6 +10,7 @@ What has changed?
 * Parsers should be simplified before making the patch
 * Update to use \scala{Expr} rather than quasiquotes, to allow the application of higher-order functions to be partially evaluated
 * Resugaring
+* Optimisation: normalise leftrec part to see if it comes to empty -- if so, don't inline in the NT case
 
 \begin{minted}{scala}
 trait Parser {
@@ -33,6 +34,8 @@ trait Parser {
   def normaliseExprs: Parser // applies Expr.normalise on all parsers with Expr arguments
 }
 \end{minted}
+
+% TODO: significant engineering work to make sure things compile
 
 \subsubsection{The Final Result}
 \begin{minted}{scala}
