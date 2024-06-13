@@ -148,7 +148,7 @@ val expr = Abs(f => Abs(x => App(f, x)))
 \end{minted}
 %
 Therefore, this representation performs substitution through Scala's function application, which makes it extremely fast compared to the other approaches.
-However, since lambda abstractions are represented as lambda expressions within Scala itself, the function body becomes wrapped under Scala's variable bindings, making them difficult to inspect and work with.
+However, since lambda abstractions are represented as closures within Scala itself, the function body becomes wrapped under Scala's variable bindings, making them difficult to inspect and work with.
 
 % TODO we use this but with nbe, syntax - named, semantics - hoas, normalising by evaluation = automatically alpha converts terms by renaming
 % \scala{Expr} has one binding construct -- the n-ary abstraction. This introduces variables and the need for capture-avoiding substitution.
@@ -429,6 +429,8 @@ trait Expr {
 \end{minted}
 %
 \paragraph{Reification}
+% TODO: this is intensional semantics to beta-nf (extensional would bring to beta-eta-nf)
+% https://williamjbowman.com/tmp/nbe-four-ways/#%28part._choice-11%29  + Sam Lindley's thesis and papers?
 Once the syntactic terms are fully evaluated into their semantics, the expression is normalised to $\beta$-\textsc{nf}.
 Reification is then a simple process of converting each level of the term back into its syntactic counterpart.
 When a lambda abstraction is reified, bound variables are assigned names from a fresh name supply.

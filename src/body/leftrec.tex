@@ -4,6 +4,40 @@
 
 \ourchapter{Removing Left-Recursion}\label{sec:factor-leftrec}
 
+\section{Theory}
+\texttt{parsley-garnish} bases its left-recursion factoring transformation on the work of \textcite{baars_leftrec_2004}, adapted to fit \textsc{peg} semantics.
+At a high-level, the transformation involves ``unfolding'' each non-terminal production into three parts:
+\begin{itemize}
+  \item \scala{empty}: The semantic actions of the parser, if it can derive the empty string. Conceptually, this has type \scala{Option[A]} where \scala{A} is the type of the semantics.
+  \item \scala{nonLeftRec}: The non-left-recursive part of the parser that does not derive the empty string. This will have some type \scala{Parsley[A]}.
+  \item \scala{leftRec}: The left-recursive call, which in the general left-recursive case, corresponds to a repeated postfix operator of type \scala{Parsley[A => A]}. This is a function which requires the semantics of the left-recursive non-terminal argument.
+\end{itemize}
+%
+This unfolded parser can then be recombined using the \scala{postfix} combinator.
+This combinator encapsulates the general form of left-associative parsing, and most other iterative combinators can be derived from it~\cite{willis_parsley_2023}.
+\begin{minted}{scala}
+// def postfix[A](p: Parsley[A])(op: => Parsley[A => A]): Parsley[A]
+val transformed = postfix(nonLeftRec | empty)(leftRec)
+\end{minted}
+%
+This transformation is applied in-order to each parser in the source file, replacing the original parser with its factored form if it was left-recursive.
+
+\TODO{below}
+Can derive empty string? (good resource from packrat parsing paper)
+pure(x) -- yes, semantic action is x
+empty -- no
+p <|> q -- if p or q can derive empty, peg is ordered so semantic action is pe if it can derive empty, else qe
+p <*> q -- if p and q can derive empty, semantic action is pe(qe) due to pure(f) <*> pure(x) == pure(f(x)) law
+string -- only if given argument "", but this also illegal in parsely -- explicitly triggers a runtime error, so basically no
+    [error] java.lang.IllegalArgumentException: requirement failed: `string` may not be passed the empty string (`string("")` is meaningless, perhaps you meant `pure("")`?)
+char -- no (not implemented as a core comb, should do that)
+item -- no (not implemented as a core comb, should do that?)
+many(p) -- yes (not implemented properly?) -- semantic action is empty list??
+some(p) -- if p can derive empty (not a primitive, defined in terms of many -- p <::> many(p))
+NT -- if referenced rule can derive empty
+
+% TODO: note parsley's dynamic analysis divergence detection (see screenshots i left on desktop), could compare with what it can detect? obv the pros of this is i can fix them if i detect them
+
 \section{Implementation}
 \TODO{section intro}
 
@@ -240,6 +274,56 @@ This term can then be pretty-printed into a string, and applied as a Scalafix pa
 
 \subsection{Implementing the Left-Recursion Transformation}
 \TODO{TODO \\}
+
+Core combinators: \scala{NonTerminal}, \scala{Pure}, \scala{Empty}, \scala{Ap}, \scala{Choice}.
+Combinators like \scala{String} are theoretically core combinators but they represent boring cases.
+Some composite combinators are supported, and desugared into the core combinators.
+
+\subsubsection{Defining Utility Functions}
+The transformation requires the use of three higher-order functions:
+\begin{itemize}
+  \item The identity function \scala{identity[A]: A => A} is defined in the standard library.
+  \item The flip function reverses the order of arguments applied to a function. This isn't defined in the standard library, so it must be defined manually.
+  \item Function composition is define in the standard library, but a more versatile curried version is required by the transformation, so it is also defined manually.
+\end{itemize}
+%
+Therefore, \texttt{parsley-garnish} will insert the following definitions into the source file as a patch:
+\begin{minted}{scala}
+  def flip[A, B, C](f: A => B => C)(x: B)(y: A): C = f(y)(x)
+  def compose[A, B, C](f: B => C)(g: A => B)(x: A): C = f(g(x))
+\end{minted}
+%
+This brings these higher-order functions into scope, allowing the transformed code to make use of it.
+
+The \scala{unfold} method is defined for every single combinator in the \scala{Parser} \textsc{adt}.
+Most important is the \scala{Ap} combinator, which is \texttt{parsley-garnish}'s primitive for composing parsers.
+%
+\begin{minted}{scala}
+case class Ap(p: Parser, q: Parser) extends Parser {
+  def unfold: UnfoldedParser = {
+    val UnfoldedParser(pe, pn, pl) = p.unfold
+    val UnfoldedParser(qe, qn, ql) = q.unfold
+
+    val empty =
+      if (pe.isDefined && qe.isDefined) Some(q"${pe.get}(${qe.get})")
+      else None
+
+    val lefts = {
+      val llr = pl.map(q"flip") <*> q
+      val rlr = pe.map(q"ql.map(compose)").getOrElse(Empty)
+      llr <|> rlr
+    }
+
+    val nonLefts = {
+      val lnl = pn <*> q
+      val rnl = pe.map(q"f => qn.map(f)").getOrElse(Empty)
+      lnl <|> rnl
+    }
+
+    UnfoldedParser(empty, nonLefts, lefts)
+  }
+}
+\end{minted}
 
 \subsubsection{Success...?}
 Running the transformation on the \scala{example} parser yields the output in \cref{fig:leftrec-example-bad}.
