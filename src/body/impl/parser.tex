@@ -95,7 +95,7 @@ lazy val expr: Parsley[String] = chain.postfix(string("b"))(string("a").map(%\te
 The parser is now expressed in a much simplified form, in a similar style to how it would be written by hand.
 The remaining challenge is to simplify the contents of the expression \scala{f}, which is tackled in \cref{sec:simplify-exprs}.
 
-\subsection{Implementing Rewrites on the Parser \textsc{ast}}
+\subsection{Implementing Rewrites on the Parser \textsc{ast}}\label{sec:parser-rewrites}
 Lawful simplifications are applied by a bottom-up transformation over the recursively defined \scala{Parser} \textsc{ast}.
 Since there are many parser cases, this inevitably leads to repetitive and error-prone boilerplate code which simply exists to recursively propagate the transformation through each case.
 To avoid this, the recursive traversal itself can be decoupled from the definition of the transformation function.

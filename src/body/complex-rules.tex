@@ -5,15 +5,86 @@
 \ourchapter{Lint Rules Using the New Parser \textsc{ast}}
 
 \section{Removing Left-Recursion: Revisited}
-\TODO{
-  YEET
+Armed with the new \textsc{ast} representation of parsers, the left-recursion factorisation transformation can be revisited.
+What has changed?
+* Parsers should be simplified before making the patch
+* Update to use \scala{Expr} rather than quasiquotes, to allow the application of higher-order functions to be partially evaluated
+* Resugaring
+
+\begin{minted}{scala}
+trait Parser {
+  def prettify: Parser = this.simplify.normaliseExprs.resugar
+
+  def resugar: Parser = this.rewrite {
+    // p.map(\x -> \y -> y) <*> q == p ~> q
+    case FMap(p, Abs(_, Abs(Var(y, _), Var(z, _)))) <*> q if (y == z) => p ~> q
+    // p.map(\x -> \y -> x) <*> q == p <~ q
+    case FMap(p, Abs(Var(x, _), Abs(_, Var(z, _)))) <*> q if (x == z) => p <~ q
+
+    // f.curried.map(p) <*> q == (p, q).zipped(f)
+    case FMap(p1, Abs(x1, Abs(x2, body))) <*> p2 =>
+      Zipped(AbsN(List(x1, x2), body), List(p1, p2))
+
+  }.transform {
+    // Scala 2 cannot resolve implicit stringLifts on "s".map(f)
+    case FMap(Str(s, _), f) => FMap(Str(s, implicitSyntax = false), f)
+  }
+
+  def normaliseExprs: Parser // applies Expr.normalise on all parsers with Expr arguments
 }
+\end{minted}
+
+\subsubsection{The Final Result}
+\begin{minted}{scala}
+lazy val example: Parsley[String] =
+  chain.postfix[String](string("b"))(string("a").map(x1 => x2 => x2 + x1))
+\end{minted}
 
 \section{Simplify Parser}
-\TODO{
-* Catch cases when user manually writes out a parser that is already defined in the library
+The improved \scala{Parser} \textsc{ast} also gives a new auto-fix rule for free: automatic simplification of parsers.
+
+Idea
+* For each parser, simplify it via parser laws, and compare to its original.
+* If the result is different, apply the simplified version as a patch.
+
+The implementation of the entire rule is only 20 lines long:
+\begin{minted}{scala}
+class SimplifyParser extends SemanticRule("SimplifyParser") {
+  override def fix(implicit doc: SemanticDocument): Patch = {
+    getAllParserDefns.map { case ParserDefinition(_, parser, _, originalTree) =>
+      val simplifiedParser = parser.prettify
+      if (parser.normaliseExprs != simplifiedParser) {
+        val simplifiedParserTerm = simplifiedParser.term.syntax
+        Patch.replaceTree(originalTree, simplifiedParserTerm)
+      } else {
+        Patch.empty
+      }
+    }.asPatch
+  }
+}
+\end{minted}
+%
+% Subtle detail:
+% * During expression normalisation, bound variables may be $\alpha$-renamed
+% * So a parser that hasn't actually changed may still be different when compared to the original
+% * So expressions within the original are also normalised -- $\alpha$-equivalence is preserved between normalised expressions
+% * Then this doesn't result in changing weird things like variable names
+
 * Apply parser laws, re-using Parser and Func representations to do cool things
 prettify = resugar . normaliseFunctions . simplify
+
+\section{Avoid Parser Redefinition}
+\TODO{
+Similar in spirit to the previous rule
+* Catch cases when user manually writes out a parser that is already defined in the library
+
+\Cref{sec:parser-rewrites} makes it easy to write syntax-directed rewrite rules on parsers.
+Less annoying than working with scalameta ast directly
+better design patterns idk, symbolmatcher etc all in one place defined as a trait for parser
+% ** although still annoying for e.g. def countMany(p: Parsley[_]): Parsley[Int] = p.foldLeft(0)((n, _) => n + 1)    <---- still no good way to pattern match expr given that "n + 1" is translucent, easier to just reify this back to scala.meta.term and then low-level pattern match
+
+so:
+Looking for dumb definitions of things e.g. endBy(p, sep) implemented as many(p <* sep); or count implemented as a foldLeft, fold fusion
 }
 
 \section{Convert to Parser Bridge}
