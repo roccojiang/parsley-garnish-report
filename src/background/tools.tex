@@ -300,10 +300,9 @@ class MakeValsLazy extends SyntacticRule("MakeValsLazy") {
 
 \subsubsection{Safer Patches Using Quasiquotes}
 A careful reader may notice from \cref{fig:syntactic-rule-ex} that the \scala{Patch} rewrite method receives a raw string value, which seems unsafe and could potentially lead to malformed code.
-That careful reader would indeed be correct:
-Scalafix provides no guarantees that the output of a patch is a well-formed program, and it is the rule author's responsibility to ensure so.
+Indeed, Scalafix provides no guarantees that the output of a patch is a well-formed program, and it is the rule author's responsibility to ensure so.
 
-The approach taken by \texttt{parsley-garnish} is to represent intended rewrites as Scalameta \scala{Tree} objects, and only convert them to strings immediately before applying the patch.
+In the majority of cases, \texttt{parsley-garnish} represents intended rewrites as Scalameta \scala{Tree} objects, and only converts them to strings immediately before applying the patch.
 \Cref{fig:quasiquote-ex} shows how \emph{quasiquotes}~\cite{shabalin_quasiquotes_2013} can be used as syntactic sugar to construct trees in a convenient manner:
 \begin{itemize}
   \item \scala{q"..."} is the quasiquote's string interpolation syntax to build a \scala{Term} node, which is a subclass of \scala{Tree}.

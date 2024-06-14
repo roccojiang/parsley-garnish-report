@@ -12,24 +12,41 @@
 
 \ourchapter{Idiomatic Implicits Usage}\label{sec:simple-rules}
 Implicit conversions are a powerful feature in Scala, allowing users to supply an argument of one type when another is expected, to reduce boilerplate.
+When the Scala compiler encounters a type mismatch, it will search for any implicit methods that are in scope to convert the argument to the expected type.
+For example, the Scala standard library defines an implicit method to convert integers to wider \scala{Long} values\footnote{\url{https://github.com/scala/scala/blob/v2.13.14/src/library/scala/Int.scala}}.
+This allows any function expecting a \scala{Long} to be passed an \scala{Int} instead, without needing to explicitly call \scala{toLong}.
+\begin{minted}{scala}
+implicit def int2long(x: Int): Long = x.toLong
+\end{minted}
+%
 As noted by \textcite{willis_design_2022}, implicit conversions are particularly useful for designing \textsc{dsl}s.
 In the context of parser combinators, they introduce the usage of implicit conversions to automatically lift string and character literals into parsers in the \emph{Implicit Conversions} design pattern.
-This eliminates the need to explicitly wrap these elements in combinators:
-\scala{string("parsley") | string("garnish")} can now be expressed as just \scala{"parsley" | "garnish"}, more closely resembling the style of a \textsc{bnf} grammar.
-
+This eliminates the need to explicitly wrap these elements in combinators, allowing parsers to resemble the structure of a \textsc{bnf} grammar more closely:
+\begin{minted}{scala}
+// Without implicit conversions
+string("parsley") | string("garnish")
+// With implicit conversions
+"parsley" | "garnish"
+\end{minted}
+%
 The \emph{Implicit Lexer} pattern is a further specialisation of this approach, hiding the boilerplate of whitespace handling entirely within a \scala{lexer} object.
 This design pattern allows whitespace handling to be encapsulated as private combinators within the \scala{lexer} object, which are then made available only through implicit conversions automatically applied by the Scala compiler.
 
-\section{Ambiguous Implicit Conversions}
+\section{Ambiguous Implicit Conversions}\label{sec:ambiguous-implicits}
 Unfortunately, implicit conversions are a double-edged sword.
 By their very nature, they can obscure the flow of the program, making it difficult to understand what code is doing and potentially hiding side effects or costly operations.
-A downside particularly relevant to Parsley is that implicit conversions often lead to confusing error diagnostics when the compiler is unable to resolve them.
+A downside particularly relevant to \texttt{parsley} is that implicit conversions often lead to confusing error diagnostics when the compiler is unable to resolve them.
 
 One common issue arises from ambiguous implicits when there are multiple implicit conversions in scope.
-Parsley provides \scala{stringLift} and \scala{charLift} combinators in the \texttt{parsley.syntax.character} package for the \emph{Implicit Conversions} pattern,
-and exposes an \scala{implicitSymbol} combinator for lexers to use in the \emph{Implicit Lexer} pattern.
-The two implicit conversions cannot be used in conjunction: the \emph{Implicit Lexer} pattern is a specialisation of the former, so \scala{implicitSymbol} is meant to be a \emph{replacement} for \scala{stringLift}
-For novice users, this may not be immediately apparent and it is easy to accidentally bring both sets of these implicits into scope; anecdotally, this issue has been encountered by a number of \textsc{Wacc} students at Imperial.
+\texttt{parsley} has first-class support for both design patterns, defining separate implicit methods for each:
+\begin{itemize}
+  \item \emph{Implicit Conversions}: the \scala{parsley.syntax.character} package includes implicit methods \scala{stringLift} and \scala{charLift} to lift string and character literals into parsers, respectively.
+  \item \emph{Implicit Lexer}: the \scala{Lexer} class exposes \scala{implicitSymbol} to allow string and character literals to parse as proper tokens.
+\end{itemize}
+%
+The two implicit conversions cannot be used in conjunction: the \emph{Implicit Lexer} pattern is a specialisation of the former, so \scala{implicitSymbol} is meant to be a \emph{replacement} for \scala{stringLift}.
+For novice users, this may not be immediately apparent and it is easy to accidentally bring both sets of these implicits into scope.
+Anecdotally, this issue has been encountered by a number of \textsc{Wacc} students at Imperial.
 For example, consider the following code snippet:
 \begin{minted}{scala}
 val p = 'g' ~> "arnish"
@@ -55,7 +72,7 @@ p.parse("garnish")
 //            ^^^^^^^^^^^
 \end{minted}
 
-\subsection{Solution}
+\paragraph{Syntactic or semantic rule?}
 Ideally, this issue would be addressed by implementing a lint-on-compile rule, which could annotate the compiler error message at the exact location of the issue.
 If this were implemented as a compiler plugin, partial information available from the compiler stages before the error could potentially provide enough detail to identify the exact clashing implicits.
 This approach would allow leveraging domain knowledge to update the error message with more useful Parsley-specific diagnostics.
@@ -68,7 +85,7 @@ Unfortunately, Scalafix restricts usage to only syntactic rules on the bare \tex
 Since the ambiguous implicit conversions will cause compilation failures, this lint must be implemented as a syntactic rule.
 Consequently, the solution takes a different approach: examining a file's import clauses to deduce the presence of clashing implicits.
 
-\subsection{Example}
+\paragraph{Example}
 \Cref{fig:ambiguous-implicits-example} extends the previous example to a full Scala source file following the \emph{Implicit Lexer} pattern,
 but where the user has erroneously additionally imported the \scala{stringLift} implicit from the \emph{Implicit Conversions} pattern.
 This results in the Scala compiler throwing an error on line 6 due to ambiguous implicits.
@@ -95,7 +112,7 @@ object lexer {
 \end{subfigure}
 %
 \begin{subfigure}{\textwidth}
-\vspace{3ex} % TODO: ew
+\vspace{3ex}
 \begin{minted}[frame=single,fontsize=\small]{text}
 warning: [AmbiguousImplicitConversions] This import may cause clashing implicit conversions:
 * import parsley.syntax.character.stringLift at line 2
@@ -112,7 +129,7 @@ To fix this, ensure that you only import a single implicit conversion.
 \caption{Example of the \emph{Ambiguous Implicit Conversions} lint rule in action.}
 \end{figure}
 
-\subsection{Implementation}
+\subsection{Implementation as a Syntactic Lint Rule}
 The rule uses the following heuristics to determine if an import clause brings an implicit into scope:
 \begin{itemize}
   \item An import clause of the form \scala{import parsley.syntax.character.xxx}, where \scala{xxx} is either a wildcard import or specifically contains the importee \scala{stringLift}, indicates the \emph{Implicit Conversions} pattern on strings.
@@ -182,6 +199,91 @@ def visit(unvisited: List[Import], visited: List[Import], patches: Patch): Patch
 \label{fig:ambiguous-implicits-impl}
 \end{figure}
 
-\section{Remove Explicit Usage of Implicit Conversions}
+\section{Remove Explicit Usage of Implicit Conversions}\label{sec:no-explicit-implicits}
+% https://edstem.org/us/courses/46813/discussion/4185813
+\texttt{parsley} users who are new to Scala may not be aware that implicit conversions are automatically applied by the Scala compiler.
+This misconception has been observed in the wild (i.e. \textsc{Wacc} students in the depths of the Imperial computer labs), where users have treated \texttt{parsley}'s implicit methods as regular combinators that are explicitly applied to values.
+
+\paragraph{Example}
+This mistake can be classified as a code smell -- although it does not cause compilation errors, it results in unnecessarily verbose parsers as seen in \cref{fig:explicit-implicits-example}.
+Writing parsers like this is counterproductive, as it negates the purpose of the \emph{Implicit Conversions} patterns.
+\Cref{fig:explicit-implicits-rewrite} shows how the same parsers should be idiomatically written, removing the explicit application of implicit conversion functions: as long as the implicits are in scope, the Scala compiler will automatically apply them.
+
+\begin{figure}[htbp]
+\begin{subfigure}{\textwidth}
+\begin{minted}[frame=single,linenos]{scala}
+import parsley.syntax.character._
+val p: Parsley[String] = stringLift("parsley")
+// Using the implicit method's fully qualified name instead of the import
+val q: Parsley[Char] = parsley.syntax.character.charLift('p')
+\end{minted}
+\caption{Example parsers which are unnecessarily verbose by explicitly applying implicit conversions.}
+\label{fig:explicit-implicits-example}
+\end{subfigure}
+%
+\begin{subfigure}{\textwidth}
+\vspace{3ex}
+\begin{minted}[frame=single,linenos]{scala}
+import parsley.syntax.character._
+val p: Parsley[String] = "parsley"
+// Using the implicit method's fully qualified name instead of the import
+import parsley.syntax.character.charLift
+val q: Parsley[Char] = 'p'
+\end{minted}
+\caption{The same parsers, but with the explicit implicit conversions removed.}
+\label{fig:explicit-implicits-rewrite}
+\end{subfigure}
+\caption{Example of the \emph{No Explicit Implicit Conversions} rewrite rule in action.}
+\end{figure}
+
+\subsection{Implementation as a Semantic Rewrite Rule}
+Unlike the previous rule, this is a situation where a rewrite rule can be applied to automatically fix the issue.
+Furthermore, since this issue arises on successfully compiled code, it can be implemented as a Scalafix semantic rule.
+With access to the semantic \textsc{api}, the rule can resolve the origin symbol of a function name and determine if it belongs to \texttt{parsley}'s set of implicit methods, even if the method is imported under a different name:
+\begin{minted}{scala}
+val implicitConv = SymbolMatcher.normalized(
+  "parsley.syntax.character.charLift",
+  "parsley.syntax.character.stringLift",
+  "parsley.token.symbol.ImplicitSymbol.implicitSymbol"
+)
+
+override def fix(implicit doc: SemanticDocument) = doc.tree.collect {
+  // Match a function call with a single argument, using the symbol matcher 'implicitConv'
+  // The syntactic naming of the function is ignored,
+  // as the symbol matcher will pattern match based on its original symbolic name
+  case app @ Term.Apply(implicitConv(_), Term.ArgClause(List(liftedArg), _)) =>
+    // Replace the function call with just its argument
+    Patch.replaceTree(app, liftedArg.syntax)
+}.asPatch
+\end{minted}
+%
+There is an uncommon edge case, though, where the implicit conversion is not fully brought into scope by an import, but is instead accessed via a qualified name.
+The \scala{q} parser in \cref{fig:explicit-implicits-example} demonstrates this, where the \scala{charLift} implicit method is referenced directly by its fully qualified name.
+In this case, the implicit method has to be imported to bring it into scope.
+This case can be detected by checking if the function call is on a \scala{Term.Select} node, representing a method call on a qualified name:
+\begin{minted}{scala}
+case qualifiedApp @ Term.Apply(
+  // Specific case where the 'implicitConv' matches on a qualified Term.Select node
+  qual @ implicitConv(_: Term.Select), Term.ArgClause(List(liftedArg), _)
+) =>
+  // Original patch to remove the explicit function call
+  val removeExplicitCall = Patch.replaceTree(qualifiedApp, liftedArg.syntax)
+  // Extra patch to add the import clause for the implicit method
+  val importQualifiedName = addPatchAbove(qualifiedApp, s"import $qual")
+  // Combine the patches to apply both rewrites
+  removeExplicitCall + importQualifiedName
+\end{minted}
+%
+This places an import clause for the implicit method directly above the qualified method call, as shown in \cref{fig:explicit-implicits-rewrite}.
+Placing the import next to the implicit conversion is a deliberate design choice: it localises the scope of the implicit conversion to a smaller region, reducing the risk of causing clashing implicits in the global scope.
+An even more foolproof method would be to wrap the entire section into its own scope, but this would introduce a lot of syntactic noise, when the chances that such a scoping issue would arise is low.
+
+\section*{Summary}
+This \namecref{sec:simple-rules} introduced two rules to aid users with idiomatic usage of the \emph{Implicit Conversions} family of design patterns.
+It also serves as a lightweight demonstration of how to implement both syntactic and semantic rules in Scalafix, and why each type of rule is appropriate for the respective issue at hand:
+\begin{itemize}
+  \item \emph{Ambiguous Implicit Conversions} (\cref{sec:ambiguous-implicits}) is restricted to being a \emph{syntactic} rule, since the nature of the issue means that it must be caught before compilation. The rule issues \emph{lint diagnostics} to warn users of the issue, but cannot automatically fix it as it does not have enough information to resolve the ambiguity.
+  \item \emph{No Explicit Implicit Conversions} (\cref{sec:no-explicit-implicits}) is a \emph{semantic} rule as it can be run in a post-compiled state. By having access to semantic information, the linter can be more confident in resolving symbols, rather than relying on syntactic heuristics. The issue is also simpler in nature and is automatically solvable in the general case, so the rule provides \emph{code rewrite} capabilities.
+\end{itemize}
 
 \end{document}
