@@ -84,14 +84,16 @@ The example from the beginning of the \namecref{sec:simplify-exprs} can thus be 
 &\rightarrow_{\beta*} \mathrm{flip}\ (\lambda g. \lambda x.\ (\lambda b.\ g\ x + b) (\lambda x. x)) \\
 &\rightarrow_{\beta*} \mathrm{flip}\ (\lambda x. \lambda b.\ x + b) \\
 &\mathrel{=\quad\,} (\lambda f. \lambda x. \lambda y.\ f\ y\ x) (\lambda x. \lambda b.\ x + b) \\
-&\rightarrow_{\beta*} \lambda x. \lambda y.\ y + x
+&\rightarrow_{\beta*} \lambda x. \lambda y.\ y + x \\
+&\mathrel{=\quad\,} \mathtt{(x, y) => y + x}
 \end{align*}
 %
-This normalised expression has the same meaning as the original, but is now suitable to be placed in the code rewrite!
+This normalised expression has the same meaning as the original, but is now expressed in a clearer form!
+This is much more suitable to be placed back into the code rewrite, as it is easier to understand by the user.
 The rest of the \namecref{sec:simplify-exprs} now explores how this process can be implemented in \texttt{parsley-garnish}.
 
 \subsection{Representing Names}
-There exists a plethora of approaches to implementing the $\lambda$-calculus, mostly differing in how they represent variable names.
+There are a plethora of approaches to implementing the $\lambda$-calculus, mostly differing in how they represent variable names.
 This affects how variable capture is handled, and also how $\alpha$-equivalence of two terms can be determined.
 For \texttt{parsley-garnish}, cheap $\alpha$-equivalence is desirable to help check equivalence of parser terms, which is useful for some transformations.
 
@@ -127,8 +129,11 @@ Unfortunately, maintaining the invariants to keep this transformation correct be
 
 \paragraph{Nameless and hybrid representations}
 Nameless representations like \emph{De Bruijn indices}~\cite{debruijn_lambda_1972} eschew names entirely, instead representing variables as the number of binders between the variable and its binding site.
-This makes $\alpha$-equivalence trivial to check, as it is just a matter of comparing the indices.
-Although an elegant representation, De Bruijn terms are notoriously difficult to work with, as they are not easily human-readable.
+For example, $\lambda x. x(\lambda y. x y)$ would be represented as $\lambda. 0(\lambda. 1\ 0)$: the variable $y$ is replaced with $0$ to signify that $y$ is bound by the closest $\lambda$ binder.
+The first occurrence of $x$ is replaced with $0$ in the same way, but its second occurrence is replaced with $1$ since it is bound by the $\lambda$ two levels up.
+
+An advantage of De Bruijn indexing is that it makes $\alpha$-equivalence trivial to check, as it is just a matter of comparing the indices.
+However, although an elegant representation, De Bruijn terms are notoriously difficult to work with as they are not easily human-readable.
 % https://proofassistants.stackexchange.com/questions/900/when-should-i-use-de-bruijn-levels-instead-of-indices
 Furthermore, performing substitutions with De Bruijn terms has an overhead as variable positions have to be shifted -- this is undesirable given that the purpose of the \textsc{ast} is to normalise $\lambda$-terms.
 To avoid this, hybrid representations combining named and nameless representations exist~\cite{mcbride_imnotanumber_2004,chargueraud_locally_2012}, but they become rather complex solutions for what should be a relatively simple $\lambda$-calculus implementation for \texttt{parsley-garnish}'s needs.
@@ -253,10 +258,13 @@ case class Translucent(t: Term, env: Map[VarName, Sem]) extends Sem
 \end{figure}
 
 \paragraph{Constructing higher-order functions}
-\scala{Expr} also implements some helper objects to make it easier to construct and deconstruct single-parameter abstractions and applications:
+\scala{Expr} also implements some helper objects to make it more convenient to construct and deconstruct single-parameter abstractions and applications:
 \begin{minted}{scala}
 object Abs {
+  // Convenience factory method to create a single-parameter abstraction
   def apply(x: Var, f: Expr) = AbsN(List(x), f)
+  // Extractor allows user to pattern match on Abs(x, f)
+  // instead of the more tedious AbsN(List(x), f)
   def unapply(func: AbsN): Option[(Var, Expr)] = func match {
     case AbsN(List(x), f) => Some((x, f))
     case _ => None
@@ -264,7 +272,9 @@ object Abs {
 }
 
 object App {
+  // Convenience factory method to apply a single argument to a function
   def apply(f: Expr, x: Expr) = AppN(f, List(x))
+  // Apply multiple arguments in sequence, as f(x)(y)(z) instead of f(x, y, z)
   def apply(f: Expr, xs: Expr*) = xs.foldLeft(f)(App(_, _))
 }
 \end{minted}
@@ -301,7 +311,7 @@ def compose(f: Expr, g: Expr) = App(compose, f, g)
 
 \paragraph{Improved type safety}
 The originally intended design was to represent \scala{Expr} as a type-parameterised \textsc{gadt} for improved type safety, where it would be based on a \emph{typed} variant of the $\lambda$-calculus.
-This would've also allowed \scala{Parser} to be represented as a \textsc{gadt} parameterised by the result type of the parser.
+This would have also allowed \scala{Parser} to be represented as a \textsc{gadt} parameterised by the result type of the parser.
 However, attempting to implement this ran into two main hurdles:
 \begin{itemize}
   \item \scala{Var} and \scala{Translucent} terms would need to be created with concrete type parameters of their inferred types. Scalafix's semantic \textsc{api} is not powerful enough to guarantee that all terms can be queried for their inferred types -- in fact, the built-in Scalafix rule \emph{Explicit Result Types} calls the Scala 2 presentation compiler to extract information like this\footnote{\url{https://github.com/scalacenter/scalafix/issues/1583}}. This solution is complex and brittle due to its reliance on unstable compiler internals, which undermines Scalafix's goal of being a cross-compatible, higher-level abstraction over compiler details.
@@ -318,7 +328,7 @@ However, this required an extra $\alpha$-conversion pass to clean up variable na
 \subsection{Lifting to the Intermediate Expression \textsc{ast}}\label{sec:lifting-expr}
 The \scala{Parser} \textsc{ast} is amended to take \scala{Expr} arguments where they used to take \scala{scala.meta.Term} values.
 Take the \scala{Pure} parser as an example:
-\rj{TODO: highlight changes with tcolorbox?}
+% TODO: if time, highlight changes with tcolorbox?
 \begin{minted}{scala}
 case class Pure(x: Expr) extends Parser
 object Pure {
@@ -400,7 +410,7 @@ trait Expr {
 }
 \end{minted}
 %
-\rj{Much code in this following section -- is it necessary or should it go in an appendix}
+% TODO: explain code
 \paragraph{Evaluation}
 Evaluation proceeds by carrying an environment mapping bound variables to their semantic representations.
 Evaluating a variable looks up its name in the environment, while evaluating a lambda abstraction produces a closure using the current environment -- using \textsc{hoas} allows these closures to be represented as native Scala closures.
@@ -456,23 +466,25 @@ trait Sem {
 \end{minted}
 
 \subsection{Lowering Back to the Scalameta \textsc{ast}}
-Lowering expressions back to their \scala{scala.meta.Term} representations is achieved with quasiquotes in the same way as parsers in \cref{sec:lowering-parsers}.
+Once any transformations on the \scala{Expr} terms are complete, they need to be converted back to strings to be placed in a Scalafix patch.
+This is achieved in the same way as parsers in \cref{sec:lowering-parsers}, by lowering them back as \scala{scala.meta.Term} \text{ast} nodes and re-using Scalameta's pretty-printer to generate a syntactically well-formed string representation.
+These can also be achieved using quasiquotes:
 \begin{itemize}
-  \item Lambda abstractions are transformed into a lambda expression of form \scala{q"(...params) => body"}
+  \item Lambda abstractions are transformed into a lambda expression of form \scala{q"(...params) => body"}.
   \item Function application is transformed into method calls.
   \item Variables are simply \scala{Term.Name} nodes with their syntactic names.
   \item Translucent terms splice their environment bindings back into their term body.
 \end{itemize}
 
-\subsection{Discussion}
-\texttt{parsley} Haskell, as a staged parser combinator library, also has the ability to inspect and optimise the code of user-defined functions.
+\subsection*{Discussion}
+\texttt{parsley} Haskell, as a \emph{staged} parser combinator library, also has the ability to inspect and optimise the code of user-defined functions.
 The approach taken by \texttt{parsley-garnish} and \text{parsley} share many similarities, both using the $\lambda$-calculus as a core language to normalise expressions.
 In both cases, the need to reduce expression terms is motivated by how parser simplifications involve fusion, which results in function applications that can be partially evaluated.
 
 However, the two have different motivations and requirements for normalising expressions, so their approaches differ in some ways --
 \cref{fig:nbe-vs-parsley} illustrates these differences.
 
-\subsubsection{Syntactic representation}
+\paragraph{Syntactic representation}
 Unlike \texttt{parsley-garnish}, \texttt{parsley} has a two-level syntactic representation for expressions.
 \haskell{Defunc} is akin to a deep embedding of higher-order functions, representing them as a \textsc{gadt}: this process is known as \emph{defunctionalisation}~\cite{reynolds_defunc_1972,danvy_defunctionalization_2001}.
 This helps facilitate certain parser law optimisations which require pattern matching on functions as well as parsers, for example:
@@ -484,7 +496,7 @@ After this step, \haskell{Defunc} values are then brought into the lower-level $
 At the moment, \texttt{parsley-garnish} does not have a need to implement any parser simplifications based on these laws, although this may change in the future.
 Adding an extra defunctionalised layer to the expression \textsc{ast} would be fairly straightforward.
 
-\subsubsection{Normalisation strategy}
+\paragraph{Normalisation strategy}
 \texttt{parsley} normalises terms to full $\eta\beta$-\textsc{nf}, whereas \texttt{parsley-garnish} only normalises to $\beta$-\textsc{nf}.
 This is because $\eta$-reduction in Scala 2 is not as straightforward as in Haskell, and is not always possible -- in most cases the appropriate reduction is instead to convert lambdas to placeholder syntax.
 This is left as future work.

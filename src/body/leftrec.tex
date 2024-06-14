@@ -396,7 +396,7 @@ lazy val example: Parsley[String] = chain.postfix(
 \caption{The initial attempt at factoring out left-recursion from the \scala{example} parser.}
 \label{fig:leftrec-example-bad}
 \end{figure}
-%
+
 This is... disappointing, to say the least.
 There are \emph{many} things wrong with the transformed output:
 \begin{itemize}
@@ -404,13 +404,17 @@ There are \emph{many} things wrong with the transformed output:
   \item Having to define the \scala{flip} and \scala{compose} functions is not ideal, but inlining them as lambdas would make the code even worse.
   \item Even worse, the parser does not even typecheck -- unlike classical Hindley-Milner-based type systems, Scala only has \emph{local} type inference~\cite{cremet_core_2006}. As a result, the compiler is unable to correctly infer correct types for \scala{flip} and also asks for explicit type annotations in the lambda \scala{(_ + _).curried}.
 \end{itemize}
-%
-This result is discouraging because it is not impossible to factor out the left-recursion in a nice manner.
-A hand-written equivalent using \scala{postfix} would resemble the following parser:
+% foreshadowing lol
+This result is discouraging especially because it is not impossible to factor out the left-recursion in a nice manner.
+A hand-written equivalent using \scala{postfix} would resemble the concisely defined parser in \cref{fig:leftrec-example-hand}.
+There is still hope, though -- if the \scala{empty} combinators can be removed and something is done about the higher-order functions, perhaps \cref{fig:leftrec-example-bad} could be salvaged into something that looks more like the human-written version.
+
+\begin{figure}[htbp]
 \begin{minted}{scala}
 lazy val example: Parsley[String] = chain.postfix(string("b"))(string("a").as(_ + "a"))
 \end{minted}
-%
-There is still hope, though -- if the \scala{empty} combinators can be removed and something is done about the higher-order functions, perhaps \cref{fig:leftrec-example-bad} could be salvaged into something that looks more like the human-written version.
+\caption{An idiomatic way to express the \scala{example} parser using \scala{chain.postfix}.}
+\label{fig:leftrec-example-hand}
+\end{figure}
 
 \end{document}

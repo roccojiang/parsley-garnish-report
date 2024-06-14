@@ -25,13 +25,13 @@ This \namecref{sec:simplify-parsers} shows that this is indeed the case for \tex
 the same optimisation transformations apply for both \texttt{parsley} (the \textsc{dsl}) and \texttt{parsley-garnish} (the linter).
 The only difference lies in the purpose of performing these transformations:
 \begin{itemize}
-  \item \texttt{parsley-garnish} needs to perform simplifications on the \scala{Parser} \textsc{ast} to produce output of hand-written quality, or else the resulting parser would be unreadable.
+  \item \texttt{parsley-garnish} needs to perform simplifications on the \scala{Parser} \textsc{ast} to produce output of hand-written quality, or else the resulting parser would be unreadable, as was the case in \cref{fig:leftrec-example-bad}.
   \item \texttt{parsley} performs simplifications on its combinator tree to produce output of hand-written quality, in order to deliver excellent parser performance.
 \end{itemize}
 
 \subsection{Parser Laws}
-\textcite{willis_staged_2023} note that parser combinators are subject to \emph{parser laws}, which often form a natural simplification in one direction.
-Both \texttt{parsley} Scala~\cite{willis_garnishing_2018} and \texttt{parsley} Haskell~\cite{willis_parsley_2024} use these laws as the basis for high-level optimisations to simplify the structure of deeply-embedded parsers.
+\textcite{willis_parsley_2024} notes that parser combinators are subject to \emph{parser laws}, which often form a natural simplification in one direction.
+Both \texttt{parsley} Scala~\cite{willis_garnishing_2018} and \texttt{parsley} Haskell~\cite{willis_staged_2023,willis_parsley_2024} use these laws as the basis for high-level optimisations to simplify the structure of deeply-embedded parsers.
 These same principles are used by \texttt{parsley-garnish} to simplify parser terms to resemble the natural style that a human would write by hand.
 
 \Cref{fig:parser-laws} shows the subset of parser laws utilised by \texttt{parsley-garnish} for parser simplification.
@@ -60,6 +60,8 @@ Most of these laws have already been shown to hold for Parsley by \textcite{will
 
 \subsubsection{Simplifying the Example Parser}\label{sec:simplify-example}
 It is useful to illustrate how these laws are used to simplify a parser term, by starting with the parser in \cref{fig:leftrec-example-bad}.
+In the following example, function terms will be greyed out as they are still currently uninspectable -- this is work that is addressed in the next \namecref{sec:simplify-exprs}.
+
 First of all, most of the noise in \scala{example} comes from the large number of \scala{empty} combinators.
 These can be eliminated using \cref{eqn:alt-left-neutral,eqn:alt-right-neutral,eqn:alt-empty-absorb,eqn:alt-fmap-absorb}:
 % lazy val example: Parsley[String] = chain.postfix(string("b"))(
@@ -92,7 +94,7 @@ val f = %\textcolor{gray}{flip(compose((\_ + \_).curried)(identity))}%
 lazy val expr: Parsley[String] = chain.postfix(string("b"))(string("a").map(%\textcolor{gray}{f}%))
 \end{minted}
 %
-The parser is now expressed in a much simplified form, in a similar style to how it would be written by hand.
+The parser is now expressed in a much simplified form, in a similar style to the hand-written example in \cref{fig:leftrec-example-hand}!
 The remaining challenge is to simplify the contents of the expression \scala{f}, which is tackled in \cref{sec:simplify-exprs}.
 
 \subsection{Implementing Rewrites on the Parser \textsc{ast}}\label{sec:parser-rewrites}
@@ -101,17 +103,31 @@ Since there are many parser cases, this inevitably leads to repetitive and error
 To avoid this, the recursive traversal itself can be decoupled from the definition of the transformation function.
 Although the traversal is still hand-written, this implementation is inspired by the generic traversal patterns offered by Haskell's \texttt{uniplate} library~\cite{mitchell_uniform_2007}.
 
-The traversal is realised as a \scala{transform} method on the \scala{Parser} trait, which takes a partial function and applies it to nodes where it is defined.
+\paragraph{Partial functions}
+Scala supports \emph{partial functions}, which are functions only defined for a subset of its possible input values.
+If invoked on an undefined input, this results in a runtime error.
+A useful idiom utilising partial functions is the \scala{collect} method on collections, which combines functionality of \scala{filter} and \scala{map} in a clean manner.
+This method will attempt to apply a partial function to each element in the collection, and only include the result if the function is defined.
+In fact, \scala{collect} has already been used in earlier sections to inspect and gather \textsc{ast} nodes of interest in the Scalameta \textsc{ast}:
+\begin{minted}{scala}
+doc.tree.collect { case Term.Name(name) => name }
+//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+// A partial function only defined for Term.Name nodes, not on any other type of AST node
+\end{minted}
+%
+Rewrite rules on parsers are most naturally expressed as a partial function, since they are only defined for certain parser cases.
+Therefore, the traversal method \scala{transform} takes a partial function, applying it to nodes where it is defined.
 The transformation is applied via a bottom-up traversal:
 \begin{minted}{scala}
 def transform(pf: PartialFunction[Parser, Parser]): Parser = {
   val p = this match {
-    case Ap(p, q)      => Ap(p.transform(pf), q.transform(pf))
-    case Zipped(f, ps) => Zipped(f, ps.map(_.transform(pf)))
+    case p <*> q       => p.transform(pf) <*> q.transform(pf)
+    case Zipped(f, ps) => ps.map(_.transform(pf)).zipped(f)
     case Pure(f)       => Pure(f)
     ...
   }
-  if (pf.isDefinedAt(p)) pf(p) else p
+  // Apply the partial function if defined, otherwise return the original parser
+  pf.applyOrElse(parser, identity[Parser])
 }
 \end{minted}
 %
@@ -124,18 +140,14 @@ def rewrite(pf: PartialFunction[Parser, Parser]): Parser = {
 }
 \end{minted}
 %
-Therefore, any transformation on parsers can be defined without having to worry about recursion boilerplate: the act of traversal itself is fully abstracted away and encapsulated within the \scala{transform} method.
+With this, any transformation on parsers can be defined without having to worry about recursion boilerplate: the act of traversal itself is fully abstracted away and encapsulated within the \scala{transform} method.
 Using \scala{rewrite}, parser simplification can then be expressed in a clean and maintainable manner:
-% // p.map(f).map(g) == p.map(g compose f)
-% // pure(f) <*> pure(x) == pure(f(x))
-% // u <|> empty == u
-% // pure(f) <|> u == pure(f)
 \begin{minted}{scala}
 def simplify: Parser = this.rewrite {
   case FMap(FMap(p, f), g) => FMap(p, compose(g, f))
   case Pure(f) <*> Pure(x) => Pure(App(f, x))
-  case u <|> Empty => u
-  case Pure(f) <|> _ => Pure(f)
+  case u <|> Empty         => u
+  case Pure(f) <|> _       => Pure(f)
   ...
 }
 \end{minted}
@@ -145,7 +157,7 @@ Further design considerations are made to ensure the extensibility of this appro
 Although this formulation of the traversal is inspired by generic traversals, it still manually defines the traversal for each case: a safer approach would be to generically derive this.
 % parsley Haskell achieves this with cata
 In Scala, this would require the use of an external dependency such as \texttt{shapeless}\footnote{\url{https://github.com/milessabin/shapeless}},
-which is frankly overkill given the relative simplicity of the \scala{Parser} \textsc{adt}.
+which is overkill given the relative simplicity of the \scala{Parser} \textsc{adt}.
 
 \subsection{Discussion}
 The design of the parser simplification process for \texttt{parsley-garnish} was not intended to closely follow the methods used in \texttt{parsley}, so it is remarkable that the two approaches have ended up being so similar.

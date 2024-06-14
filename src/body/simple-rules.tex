@@ -121,27 +121,21 @@ Since this rule is restricted to only syntactic analysis, the method of detectin
 The general idea will be to deduce the existence of implicits by examining the import expressions in the source file.
 \begin{itemize}
   \item An import expression of the form \scala{import parsley.syntax.character.xxx}, where \scala{xxx} is either a wildcard import or specifically contains the importee \scala{stringLift}, indicates the \emph{Implicit Conversions} pattern on strings.
-  \item The import path for the \emph{Implicit Lexer} pattern is subject to how the user names their lexer object, so determining this is much more heuristic-based.
+  \item The import path for the \emph{Implicit Lexer} pattern is subject to how the user names their lexer object, so determining this is much more heuristic-based. The following cases are considered indicative of this pattern:
   \begin{itemize}
-    \item An import containing the keyword \scala{lexer} as well as the keyword \scala{implicit(s)}.
-    \item 
-    The presence of an import containing the keyword \scala{lexer} as well as the keyword \scala{implicit(s)}, or an importee called \scala{implicitSymbol}
+    \item An import containing the keyword \scala{lexer}, as well as the keyword \scala{implicit(s)}.
+    \item An import expression that brings in an importee called \scala{implicitSymbol}.
   \end{itemize}
-
-  if present, indicates the \emph{Implicit Conversions} pattern.
 \end{itemize}
-
-Unlike Java, Scala offers more flexibility with import statements, allowing them to appear anywhere in source files rather than just at the top.
-Scala's import statements are lexically scoped, allowing their visibility to be limited to a single class, object, or function.
-Additionally, Scala processes import statements in a top-down order within the file, further restricting their visibility, as scopes above an import cannot see the imports defined below them.
+%
+Unlike Java, Scala allows import statements to appear anywhere in source files, not just at the top of the file.
+This allows imports to be lexically scoped, limiting their visibility to a single class, object, or function.
+Additionally, Scala scopes imports in a top-down order within the source file, so imports cannot be referenced at any point above their definition.
 
 * Scalafix (via scalameta) provides a generic traversal of the AST: filter to find all import statements in top-down order
 * This allows the scope to be lexically managed -- traversal in the same order that the compiler reads imports
 * The ancestor AST node of an import statement is its enclosing scope
 * Use ancestor information to determine which of the visited imports are in scope at that point
-
-* to find stringLift: Pattern match to find if import is of form `import parsley.syntax.character.\_`
-* to find implicit lexer: pattern match to find if there is an importee called `implicitSymbol` or if an import contains keywords `lexer` and `implicit(s)`
 
 * if at any point in the traversal, both types of imports are in scope, report a warning
 
