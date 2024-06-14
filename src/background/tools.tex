@@ -211,7 +211,7 @@ For these reasons, it would be preferable to explore other tools that may use co
 
 \paragraph{Scalameta}
 \textit{Scalameta}\footnote{\url{https://scalameta.org/}} is a metaprogramming framework for Scala that provides a unified interface for performing common metaprogramming tasks.
-Many Scala tools are built with Scalameta, most notably the \emph{Metals}\footnote{\url{https://scalameta.org/metals/}} \textsc{lsp} server for Scala.
+Many Scala tools are built with Scalameta, most notably the \emph{Metals}\footnote{\url{https://scalameta.org/metals/}} (Scala\underline{meta} \underline{L}anguage \underline{S}erver) \textsc{lsp} server for Scala. % TODO: does the writing of scalaMETA LS look good like this? Should I just write MetaLS?
 It provides a high-level syntactic \textsc{api} for transforming and pretty-printing Scala source code, as well as a semantic \textsc{api} providing access to semantic information such as type inference and name resolution.
 Scalameta builds upon the earlier \texttt{scala.reflect} metaprogramming framework, unifying runtime and compile-time metaprogramming under a single \textsc{api}.
 Previously under \texttt{scala.reflect}, source code was parsed into lossy trees that discarded syntactic \emph{trivia} such as comments and whitespace~\cite{burmako_scalameta_2017}.
@@ -343,7 +343,7 @@ The lack of hygiene can cause issues with variable capture, allowing a variable 
 Again, it is the rule author's responsibility to ensure that variable capture does not occur: \cref{sec:simplify-exprs} in part discusses how this is handled in \texttt{parsley-garnish}.
 
 \subsubsection{Semantic Information}
-Semantic rules are implemented in the same manner as \cref{fig:syntactic-rule-ex}, but instead take the more powerful \scala{SemanticDocument} as an implicit parameter.
+Semantic rules are implemented in the same manner as \cref{fig:syntactic-rule-ex}, but with the more powerful \scala{SemanticDocument} as an implicit parameter.
 This allows rule authors to query \textsc{ast} nodes for their associated symbols: textual identifiers that represent definitions in the Scala program.
 Although symbols are not guaranteed to be unique outside the document they are defined in~\cite{scalameta_semanticdb_spec_2023}, within the context of Scalafix rule authoring, they can be treated as unique since rules are applied per-file.
 

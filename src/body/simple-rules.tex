@@ -10,7 +10,7 @@
 % * Proof (if applicable)
 % * Limitations
 
-\ourchapter{Enforcing Idiomatic Usage of Scala Implicits}\label{sec:simple-rules}
+\ourchapter{Idiomatic Implicits Usage}\label{sec:simple-rules}
 Implicit conversions are a powerful feature in Scala, allowing users to supply an argument of one type when another is expected, to reduce boilerplate.
 As noted by \textcite{willis_design_2022}, implicit conversions are particularly useful for designing \textsc{dsl}s.
 In the context of parser combinators, they introduce the usage of implicit conversions to automatically lift string and character literals into parsers in the \emph{Implicit Conversions} design pattern.
@@ -24,15 +24,17 @@ This design pattern allows whitespace handling to be encapsulated as private com
 
 \section{Ambiguous Implicit Conversions}
 % https://alvinalexander.com/scala/how-to-use-scala-imports-statements-anywhere-methods-blocks-scope/
-\subsection*{Problem}
-However, due to their utility, implicit conversions are also an easily abused feature of Scala.
-They can obscure the flow of the program, making it difficult to understand what the code is doing and potentially hiding side effects or costly operations.
+\subsection{Problem}
+Unfortunately, implicit conversions are a double-edged sword.
+By their very nature, they can obscure the flow of the program, making it difficult to understand what code is doing and potentially hiding side effects or costly operations.
 A downside particularly relevant to Parsley is that implicit conversions often lead to confusing error diagnostics when the compiler is unable to resolve them.
 
 One common issue arises from ambiguous implicits when there are multiple implicit conversions in scope.
 Parsley provides \scala{stringLift} and \scala{charLift} combinators in the \texttt{parsley.syntax.character} package for the \emph{Implicit Conversions} pattern,
 and exposes an \scala{implicitSymbol} combinator for lexers to use in the \emph{Implicit Lexer} pattern.
-For novice users, it is easy to accidentally import both sets of these implicits, when it is likely that they only intended to use the \scala{implicitSymbol} implicit. % TODO: explain why lexer implicit supercedes character implicits?
+The two implicit conversions cannot be used in conjunction: the \emph{Implicit Lexer} pattern is a specialisation of the former, so \scala{implicitSymbol} is meant to be a \emph{replacement} for \scala{stringLift}
+For novice users, this may not be immediately apparent and it is easy to accidentally bring both sets of these implicits into scope; anecdotally, this issue has been encountered by a number of \textsc{Wacc} students at Imperial.
+
 For example, consider the following code snippet:
 \begin{minted}{scala}
 val p = 'g' ~> "arnish"
@@ -48,7 +50,7 @@ p.parse("garnish")
 //                   ^^^^^^^^
 \end{minted}
 %
-Here, the compiler provides a detailed error message indicating the ambiguity between two possible implicit conversions.
+In this instance, the compiler provides a detailed error message indicating the ambiguity between two possible implicit conversions.
 However, the compiler is not always able to report such issues clearly. For instance, switching the position of the intended implicit conversion results in a less helpful message:
 \begin{minted}{scala}
 val p = "garnis" <~ 'h'
@@ -58,7 +60,7 @@ p.parse("garnish")
 //            ^^^^^^^^^^^
 \end{minted}
 
-\subsection*{Solution}
+\subsection{Solution}
 Ideally, this issue would be addressed by implementing a lint-on-compile rule, which could annotate the compiler error message at the exact location of the issue.
 If this were implemented as a compiler plugin, partial information available from the compiler stages before the error could potentially provide enough detail to identify the exact clashing implicits.
 This approach would allow leveraging domain knowledge to update the error message with more useful Parsley-specific diagnostics.
@@ -71,7 +73,7 @@ Unfortunately, Scalafix restricts usage to only syntactic rules on the bare \tex
 Since the ambiguous implicit conversions will cause compilation failures, this lint must be implemented as a syntactic rule.
 Consequently, the solution takes a different approach: estimating the presence of clashing implicits by examining their import statements within each scope.
 
-\subsection*{Example}
+\subsection{Example}
 \Cref{fig:ambiguous-implicits-example} extends the previous example to a full Scala source file following the \emph{Implicit Lexer} pattern,
 but where the user has erroneously additionally imported the \scala{stringLift} implicit from the \emph{Implicit Conversions} pattern.
 This results in the Scala compiler throwing an error on line 6 due to ambiguous implicits.
@@ -83,13 +85,11 @@ When run on this file, \texttt{parsley-garnish} will report a warning similar to
 object parser {
   import parsley.syntax.character.stringLift
   import lexer.implicits._
-
   val p = "garnis" <~ 'h'
 }
 
 object lexer {
   import parsley.token.Lexer, parsley.token.descriptions.LexicalDesc
-
   private val lexer = new Lexer(LexicalDesc.plain)
   val implicits = lexer.lexeme.symbol.implicits
 }
@@ -116,7 +116,21 @@ To fix this, ensure that you only import a single implicit conversion.
 \caption{Example of the \emph{Ambiguous Implicit Conversions} lint rule in action.}
 \end{figure}
 
-\subsection*{Implementation}
+\subsection{Implementation}
+Since this rule is restricted to only syntactic analysis, the method of detecting clashing implicits is more heuristic than definitive.
+The general idea will be to deduce the existence of implicits by examining the import expressions in the source file.
+\begin{itemize}
+  \item An import expression of the form \scala{import parsley.syntax.character.xxx}, where \scala{xxx} is either a wildcard import or specifically contains the importee \scala{stringLift}, indicates the \emph{Implicit Conversions} pattern on strings.
+  \item The import path for the \emph{Implicit Lexer} pattern is subject to how the user names their lexer object, so determining this is much more heuristic-based.
+  \begin{itemize}
+    \item An import containing the keyword \scala{lexer} as well as the keyword \scala{implicit(s)}.
+    \item 
+    The presence of an import containing the keyword \scala{lexer} as well as the keyword \scala{implicit(s)}, or an importee called \scala{implicitSymbol}
+  \end{itemize}
+
+  if present, indicates the \emph{Implicit Conversions} pattern.
+\end{itemize}
+
 Unlike Java, Scala offers more flexibility with import statements, allowing them to appear anywhere in source files rather than just at the top.
 Scala's import statements are lexically scoped, allowing their visibility to be limited to a single class, object, or function.
 Additionally, Scala processes import statements in a top-down order within the file, further restricting their visibility, as scopes above an import cannot see the imports defined below them.

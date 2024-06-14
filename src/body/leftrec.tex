@@ -4,8 +4,7 @@
 
 \ourchapter{Removing Left-Recursion}\label{sec:factor-leftrec}
 
-\section{Problem}
-Left-recursive grammar rules are a common pattern to represent left-associativity.
+\emph{Left-recursive} grammar rules are a common pattern to represent left-associativity.
 Take for example the following definition of a left-associative addition operator:
 \begin{equation*}
 \langle \mathit{expr} \rangle ::= \langle \mathit{expr} \rangle \; \text{`+'} \; \langle \mathit{term} \rangle \enspace | \enspace \langle \mathit{term} \rangle
@@ -24,8 +23,19 @@ These combinators encapsulate the behaviour of right-associating left-recursive 
 Left-recursion often comes as a nasty surprise for novice users naïvely translating \textsc{bnf} grammars into parser implementations -- this issue is not unique to parser combinators, but also extends to many popular parser generators that use recursive-descent.
 Thus, it would be beneficial to provide a linting rule for \texttt{parsley} that can warn users when parsers are left-recursive.
 In fact, \texttt{parsley} 5.0 is already planned to introduce a \scala{detectDivergence} combinator, which performs \emph{dynamic} analysis to detect unproductive looping at runtime.
-It would therefore be ideal if \texttt{parsley-garnish} could complement this functionality with an auto-fix rule to refactor left-recursive parsers to use \texttt{parsley}'s idiomatic \scala{chain} combinators.
+Therefore, \texttt{parsley-garnish} could complement this functionality with an auto-fix rule to refactor left-recursive parsers to use \texttt{parsley}'s idiomatic \scala{chain} combinators.
 % TODO: could compare what the static vs dynamic analyses can detect?
+
+\paragraph{Running example}
+The following left-recursive parser and its transformation into a non-left-recursive form will be used as an example for this \namecref{sec:factor-leftrec}:
+\begin{minted}{scala}
+lazy val example: Parsley[String] = (example, string("a")).zipped(_ + _) | string("b")
+\end{minted}
+%
+The \scala{example} parser intends to express the following simple grammar expressed using left-recursion. The goal is to refactor \scala{example} so that it retains the intended semantics, but is transformed into a parser that \texttt{parsley} can handle correctly.
+\begin{equation*}
+  \langle \mathit{example} \rangle ::= \langle \mathit{example} \rangle \; \text{``a''} \enspace | \enspace \text{``b''}
+\end{equation*}
 
 % \begin{minted}{scala}
 % def postfix[A](p: Parsley[A], op: =>Parsley[A => A]): Parsley[A] =
@@ -38,45 +48,35 @@ It would therefore be ideal if \texttt{parsley-garnish} could complement this fu
 %   where rest = flip (.) <$> op <*> rest <|> pure id
 % \end{minted}
 
-\section{Solution}
+\section{The Left-Recursion Factoring Transformation}
 \texttt{parsley-garnish} bases its left-recursion factoring transformation on the work of \textcite{baars_leftrec_2004}, adapted to fit the \textsc{peg} semantics of \texttt{parsley}.
 At a high-level, the transformation involves ``unfolding'' each non-terminal production into three parts:
 \begin{itemize}
-  \item \scala{empty}: The semantic actions of the parser, if it can derive the empty string. Conceptually, this has type \scala{Option[A]} where \scala{A} is the type of the semantics.
+  \item \scala{results}: The semantic actions of the parser, if it can derive the empty string. Conceptually, this has type \scala{Option[A]} where \scala{A} is the type of the result.
   \item \scala{nonLeftRec}: The non-left-recursive part of the parser that does not derive the empty string. This will have some type \scala{Parsley[A]}.
   \item \scala{leftRec}: The left-recursive call, which in the general left-recursive case, corresponds to a repeated postfix operator of type \scala{Parsley[A => A]}. This is a function which requires the semantics of the left-recursive non-terminal argument.
 \end{itemize}
 %
-This unfolded parser can then be recombined using the \scala{chain.postfix} combinator.
-This combinator encapsulates the general form of left-associative parsing, and most other iterative combinators can be derived from it~\cite{willis_parsley_2023}.
-\begin{minted}{scala}
-// def postfix[A](p: Parsley[A])(op: => Parsley[A => A]): Parsley[A]
-val transformed = chain.postfix(nonLeftRec | empty)(leftRec)
-\end{minted}
-%
 This transformation is applied in-order to each parser in the source file, replacing the original parser with its factored form if it was left-recursive.
+An unfolded parser is recombined using \scala{chain.postfix}: this combinator encapsulates the general form of left-associative parsing, and most other iterative combinators can be derived from it~\cite{willis_parsley_2024}.
+% def postfix[A](p: Parsley[A])(op: => Parsley[A => A]): Parsley[A]
+\begin{minted}{scala}
+val result = results match {
+  case None    => empty
+  case Some(x) => pure(x)
+}
+val transformed = chain.postfix(nonLeftRec | results)(leftRec)
+\end{minted}
 
 \section{Necessary Infrastructure}\label{sec:leftrec-infra}
 The comparatively simple linting rules discussed in the previous \namecref{sec:simple-rules} were implemented by directly inspecting the generic Scala \textsc{ast} provided by Scalafix.
 However, even though \texttt{parsley} programs are written in Scala, it is important to remember that \texttt{parsley} is a \textsc{dsl} borrowing Scala as a host language.
 Domain-specific transformations like left-recursion factoring are therefore naturally defined as transformations on the \texttt{parsley} \textsc{ast}, at a higher level of abstraction than the generic Scala \textsc{ast}.
-
 Thus, this \namecref{sec:leftrec-infra} discusses the extra infrastructure used to support the left-recursion factoring transformation:
 \begin{itemize}
   \item \cref{sec:parser-ast-motivation} motivates the idea of using an intermediate \textsc{ast} representation for parsers, distinct from the general-purpose Scala \textsc{ast}.
   \item \cref{sec:lifting-parsers} shows how the \textsc{ast} of a Scala source file is converted into this intermediate representation, whereas \cref{sec:lowering-parsers} discusses how this is converted back into Scala code so that it can be applied as a Scalafix patch.
 \end{itemize}
-%
-\paragraph{Running example}
-The following left-recursive parser and its transformation into a non-left-recursive form will be used as a representative example for the remainder of this \namecref{sec:factor-leftrec}:
-\begin{minted}{scala}
-lazy val example: Parsley[String] = (example, string("a")).zipped(_ + _) | string("b")
-\end{minted}
-%
-The \scala{example} parser intends to express the following simple grammar expressed using left-recursion. The goal is to refactor \scala{example} so that it retains the intended semantics, but uses the \scala{postfix} combinator so that \texttt{parsley} can parse it correctly.
-\begin{equation*}
-  \langle \mathit{example} \rangle ::= \langle \mathit{example} \rangle \; \text{``a''} \enspace | \enspace \text{``b''}
-\end{equation*}
 
 \subsection{An Intermediate \textsc{ast}}\label{sec:parser-ast-motivation}
 The transformations described by \textcite{baars_leftrec_2004} require an explicit representation of the grammar and production rules so that they can be inspected and manipulated before generating code.
@@ -86,7 +86,7 @@ Since \texttt{parsley-garnish} is a linter, by nature, it has access to an expli
 However, this datatype represents general-purpose abstract Scala syntax, rather than the abstract syntax of a specialised parser combinator \textsc{dsl}.
 This makes it not well-suited for performing domain-specific operations over the \textsc{ast}.
 
-Take for example the task of combining two \textsc{ast} nodes \scala{Term.Name("p")} and \scala{Term.Name("q")}, representing named parsers \scala{p} and \scala{q}, with the \emph{ap} combinator \scala{<*>}.
+Take for example the task of combining two \textsc{ast} nodes \scala{Term.Name("p")} and \scala{Term.Name("q")}, representing named parsers \scala{p} and \scala{q}, with the combinator \scala{<*>} (pronunced ``ap'').
 This operation can be concisely expressed with Scalameta quasiquotes, rather than manually writing out the full explicit \textsc{ast}:
 \begin{minted}{scala}
 q"p <*> q" ==
@@ -122,47 +122,42 @@ trait Parser
 case class NonTerminal(ref: Symbol) extends Parser
 case class Pure(x: Term) extends Parser
 case object Empty extends Parser
-case class Ap(p: Parser, q: Parser) extends Parser
-case class Choice(p: Parser, q: Parser) extends Parser
+case class <*>(p: Parser, q: Parser) extends Parser
+case class <|>(p: Parser, q: Parser) extends Parser
 \end{minted}
 \caption{A subset of the core combinators in the \scala{Parser} \textsc{adt}.}
 \label{fig:parser-adt}
 \end{figure}
 
 \paragraph{Deconstructing parsers}
-Syntactic sugar for deconstructing parsers is provided by \scala{unapply} methods on symbolic extractor objects.
-This makes pattern matching on parsers feel more natural:
+Scala allows users to define symbolic class names (as evidenced by the definitions of \scala{<*>} and \scala{<|>} in \cref{fig:parser-adt}), and provides syntactic sugar to pattern match on these constructors using infix notation.
+This results in a very natural and readable pattern matching syntax:
 \begin{minted}{scala}
-object <*> {
-  def unapply(parser: Ap): Option[(Parser, Parser)] = Some((parser.p, parser.q))
-}
-
 def deconstructAp(parser: Parser) = parser match {
   case p <*> q => (p, q)
 }
 \end{minted}
 
 \paragraph{Constructing parsers}
-Defining infix operators as extension methods on the \scala{Parser} trait provides syntactic sugar for constructing parsers:
+Defining infix operators as extension methods on the \scala{Parser} trait provides a similar syntactic sugar for constructing parsers:
 \begin{minted}{scala}
-implicit class ParserOps(private val p: Parser) extends AnyVal {
-  def <*>(q: Parser): Parser = Ap(p, q)
-  def <|>(q: Parser): Parser = Choice(p, q)
-  def map(f: Term): Parser = FMap(p, f)
+extension (p: Parser) {
+  def <*>(q: Parser) = <*>(p, q)
+  def |(q: Parser) = <|>(p, q)
+  def map(f: Term) = FMap(p, f)
 }
-
-implicit class MultiParserOps(private val ps: List[Parser]) extends AnyVal {
-  def zipped(f: Term): Parser = Zipped(f, ps)
+extension (ps: List[Parser]) {
+  def zipped(f: Term) = Zipped(f, ps)
 }
 \end{minted}
 %
-This makes working with \scala{Parser} terms feel closer to writing \texttt{parsley} code.
+This makes the syntax for writing \scala{Parser} terms feel natural and similar to writing \texttt{parsley} code.
 For example, notice how constructing the \emph{code} representation of the \scala{example} parser resembles how the original parser itself would be written:
 \begin{minted}{scala}
-val exNT = NonTerminal(Sym(Term.Name("example").symbol))  
+val EXAMPLE = NonTerminal(Sym(Term.Name("example").symbol))  
 
-// val ex: Parsley[String] =     (ex,  string("a")).zipped(  _ + _ )  |  string("b")
-   val ex: Parser          = List(exNT,   Str("a")).zipped(q"_ + _") <|>    Str("b")
+// val example: Parsley[String] =     (example,  string("a")).zipped(  _ + _ ) | string("b")
+   val example: Parser          = List(EXAMPLE,     Str("a")).zipped(q"_ + _") |    Str("b")
 \end{minted}
 
 % Instead, represent parsers as an algebraic data type \textsc{adt} in the same way that Parsley itself uses a deep embedding to represent combinators as objects.
@@ -176,10 +171,10 @@ Converting the raw Scala \textsc{ast} to this intermediate parser combinator \te
 \begin{enumerate}
   \item Identifying all named parsers defined in the source program -- these correspond to non-terminal symbols in the grammar.
   \item Lifting the definition each parser into the intermediate \textsc{ast}, i.e. a \scala{Parser} object.
-  \item Collecting these into a map to represent the high-level grammar -- the unique symbol of each named parser is mapped to its corresponding \scala{Parser} object, along with extra meta-information required for the transformation.
+  \item Collecting these into a map to represent the high-level grammar -- the unique symbol of each named parser is mapped to its corresponding \scala{Parser} object, along with extra metadata required for the transformation.
 \end{enumerate}
 %
-Most importantly, this meta-information includes a reference to a parser's original node in the Scala \textsc{ast}, so lint diagnostics or code rewrites can be applied to the correct location in the source file:
+Most importantly, this metadata includes a reference to a parser's original node in the Scala \textsc{ast}, so lint diagnostics or code rewrites can be applied to the correct location in the source file:
 \begin{minted}{scala}
 case class ParserDefn(name: Term.Name, parser: Parser, tpe: Type.Name, originalTree: Term)
 \end{minted}
@@ -206,12 +201,14 @@ val exampleTree = Defn.Val(
 % In this case, the type of \scala{example} is explicitly annotated by the user since this is required for recursive definitions.
 % However in general, users will not explicitly annotate the types of their parsers, allowing the Scala compiler to infer the type.
 Note that the \scala{decltpe} field refers to the \emph{syntax} of the explicit type annotation, not the \emph{semantic} information the variable's inferred type.
-Therefore, this field will not always be present, so in the general case, the type must be queried via a symbol information lookup like so:
+Therefore, this field will not always be present, so in the general case, the type must be queried via a symbol information lookup:
 \begin{minted}{scala}
 exampleTree match {
   case Defn.Val(_, List(Pat.Var(varName)), _, body) =>
     println(s"qualified symbol = ${varName.symbol}")
+    // Query the symbol information of the variable name, and get its type signature
     varName.symbol.info.get.signature match {
+      // Scalameta treats this as a zero-arg method, so the relevant part is its return type
       case MethodSignature(_, _, returnType) =>
         println(s"type = $returnType")
         println(s"structure of type object = ${returnType.structure}")
@@ -247,9 +244,11 @@ The pattern matching example from \cref{sec:parser-ast-motivation} makes a reapp
 // p: Parsley[A => B], q: =>Parsley[A], p <*> q: Parsley[B]
 case class Ap(p: Parser, q: Parser) extends Parser
 object Ap {
+  // Match the specific symbol for parsley's <*> combinator
   val matcher = SymbolMatcher.normalized("parsley.Parsley.`<*>`")
 
   def fromTerm: PartialFunction[Term, Ap] = {
+    // Pattern match succeeds only if the term has the structure 'p <*> q'
     case Term.ApplyInfix(p, matcher(_), _, Term.ArgClause(List(q), _)) =>
       Ap(p.toParser, q.toParser)
   }
@@ -264,6 +263,7 @@ object Pure {
   val matcher = SymbolMatcher.normalized("parsley.ParsleyImpl.pure")
 
   def fromTerm: PartialFunction[Term, Pure] = {
+    // expr is an opaque AST node that can't be further inspected
     case Term.Apply(matcher(_), Term.ArgClause(List(expr), _)) => Pure(expr)
   }
 }
@@ -272,20 +272,25 @@ object Pure {
 \subsubsection{Building the Grammar Map}
 The overall process of converting the source file \textsc{ast} to a high-level map of the grammar can therefore be expressed as a single traversal over the \textsc{ast}:
 \begin{minted}{scala}
+// Encapsulate all valid pattern matches into a single extractor object
 object VariableDecl {
   def unapply(tree: Tree): ParserDefn = tree match {
+    // isParsleyType uses symbol info to check if variable type is Parsley[_]
     case Defn.Val(_, List(Pat.Var(varName)), _, body) if isParsleyType(varName) =>
+      // If the pattern match is successful, convert the definition body to a Parser
+      // Collect metadata and bundle into a parser definition object
       ParserDefn(
         name = varName,
         parser = body.toParser,
         tpe = getParsleyType(varName),
         originalTree = body
       )
-    // similar cases for Defn.Var and Defn.Def
+    // ... similar cases for Defn.Var and Defn.Def
   }
 }
 
 val nonTerminals: Map[Symbol, ParserDefn] = doc.tree.collect {
+  // Every AST node that satisfies the pattern match is added to the map
   case VariableDecl(parserDef) => parserDefn.name.symbol -> parserDef
 }.toMap
 \end{minted}
@@ -330,7 +335,7 @@ The transformation requires the use of three higher-order functions:
 \begin{itemize}
   \item The identity function \scala{identity[A]: A => A} is defined in the standard library.
   \item The flip function reverses the order of arguments applied to a function. This isn't defined in the standard library, so it must be defined manually.
-  \item Function composition is define in the standard library, but a more versatile curried version is required by the transformation, so it is also defined manually.
+  \item Function composition is defined in the standard library, but a more versatile curried version is required by the transformation, so it is also defined manually.
 \end{itemize}
 %
 Therefore, \texttt{parsley-garnish} will insert the following definitions into the source file as a patch:
@@ -350,7 +355,7 @@ case class Ap(p: Parser, q: Parser) extends Parser {
     val UnfoldedParser(pe, pn, pl) = p.unfold
     val UnfoldedParser(qe, qn, ql) = q.unfold
 
-    val empty =
+    val result =
       if (pe.isDefined && qe.isDefined) Some(q"${pe.get}(${qe.get})")
       else None
 
@@ -366,7 +371,7 @@ case class Ap(p: Parser, q: Parser) extends Parser {
       lnl <|> rnl
     }
 
-    UnfoldedParser(empty, nonLefts, lefts)
+    UnfoldedParser(result, nonLefts, lefts)
   }
 }
 \end{minted}
@@ -395,9 +400,17 @@ lazy val example: Parsley[String] = chain.postfix(
 This is... disappointing, to say the least.
 There are \emph{many} things wrong with the transformed output:
 \begin{itemize}
-  \item The parser is horrendously complex and unreadable, its intent entirely obfuscated in a sea of combinators.
+  \item The parser is horrendously complex and unreadable, its intent entirely obfuscated in a sea of combinators. It's especially frustrating that there are so many \scala{empty} combinators, when \scala{p | empty} and \scala{empty | p} are both actually just equivalent to \scala{p}.
   \item Having to define the \scala{flip} and \scala{compose} functions is not ideal, but inlining them as lambdas would make the code even worse.
   \item Even worse, the parser does not even typecheck -- unlike classical Hindley-Milner-based type systems, Scala only has \emph{local} type inference~\cite{cremet_core_2006}. As a result, the compiler is unable to correctly infer correct types for \scala{flip} and also asks for explicit type annotations in the lambda \scala{(_ + _).curried}.
 \end{itemize}
+%
+This result is discouraging because it is not impossible to factor out the left-recursion in a nice manner.
+A hand-written equivalent using \scala{postfix} would resemble the following parser:
+\begin{minted}{scala}
+lazy val example: Parsley[String] = chain.postfix(string("b"))(string("a").as(_ + "a"))
+\end{minted}
+%
+There is still hope, though -- if the \scala{empty} combinators can be removed and something is done about the higher-order functions, perhaps \cref{fig:leftrec-example-bad} could be salvaged into something that looks more like the human-written version.
 
 \end{document}

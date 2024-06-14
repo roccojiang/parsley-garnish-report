@@ -31,7 +31,7 @@ The only difference lies in the purpose of performing these transformations:
 
 \subsection{Parser Laws}
 \textcite{willis_staged_2023} note that parser combinators are subject to \emph{parser laws}, which often form a natural simplification in one direction.
-Both \texttt{parsley} Scala~\cite{willis_garnishing_2018} and \texttt{parsley} Haskell~\cite{willis_parsley_2023} use these laws as the basis for high-level optimisations to simplify the structure of deeply-embedded parsers.
+Both \texttt{parsley} Scala~\cite{willis_garnishing_2018} and \texttt{parsley} Haskell~\cite{willis_parsley_2024} use these laws as the basis for high-level optimisations to simplify the structure of deeply-embedded parsers.
 These same principles are used by \texttt{parsley-garnish} to simplify parser terms to resemble the natural style that a human would write by hand.
 
 \Cref{fig:parser-laws} shows the subset of parser laws utilised by \texttt{parsley-garnish} for parser simplification.

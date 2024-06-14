@@ -81,18 +81,18 @@ Except for the possibly cryptic-looking implementation of \texttt{num} to parse 
 \end{figure}
 
 \begin{figure}[htbp]
-  \centering
-  \begin{minted}{scala}
-    val ident = "x" | "y" | "z"
-    val num: Parsley[Int] = digit.foldLeft1(0)((n, d) => n * 10 + d.asDigit)
+\centering
+\begin{minted}{scala}
+val ident = "x" | "y" | "z"
+val num: Parsley[Int] = digit.foldLeft1(0)((n, d) => n * 10 + d.asDigit)
 
-    lazy val expr: Parsley[Expr] = (factor, "+" ~> expr).zipped(Add)
-    lazy val factor: Parsley[Expr] = (atom, "*" ~> factor).zipped(Mul)
-    lazy val atom: Parsley[Expr]
-      = ident.map(Ident) | num.map(Num) | "(" ~> expr <~ ")"
-  \end{minted}
-  \caption{A parser for our simple expression language.}
-  \label{fig:simple-grammar-parser}
+lazy val expr: Parsley[Expr] = (factor, "+" ~> expr).zipped(Add)
+lazy val factor: Parsley[Expr] = (atom, "*" ~> factor).zipped(Mul)
+lazy val atom: Parsley[Expr] =
+  ident.map(Ident) | num.map(Num) | "(" ~> expr <~ ")"
+\end{minted}
+\caption{A parser for our simple expression language.}
+\label{fig:simple-grammar-parser}
 \end{figure}
 
 % TODO
@@ -106,7 +106,6 @@ This provides a guideline for writing idiomatic \texttt{parsley} code for practi
 This thesis hopes to explore how these common problems can be formalised into code smells and suspicious code patterns that can be automatically detected using linting rules.
 Some of the design patterns are also theoretically amenable to automated refactoring, which we hope to explore and implement in \texttt{parsley-garnish}.
 
-\subsection{Parsley Haskell}
-\TODO{TODO: Should I introduce the idea that haskell parsley uses staged metaprogramming for optimisation purposes here?}
+% \subsection{Parsley Haskell} % probably not worth mentioning staged metaprogramming, it doesn't play a huge role
 
 \end{document}
