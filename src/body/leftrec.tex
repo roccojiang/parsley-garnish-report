@@ -22,7 +22,7 @@ These combinators encapsulate the behaviour of right-associating left-recursive 
 
 Left-recursion often comes as a nasty surprise for novice users naïvely translating \textsc{bnf} grammars into parser implementations -- this issue is not unique to parser combinators, but also extends to many popular parser generators that use recursive-descent.
 Thus, it would be beneficial to provide a linting rule for \texttt{parsley} that can warn users when parsers are left-recursive.
-In fact, \texttt{parsley} 5.0 is already planned to introduce a \scala{detectDivergence} combinator, which performs \emph{dynamic} analysis to detect unproductive looping at runtime.
+In fact, the next major release of \texttt{parsley} 5.0 will introduce a \scala{detectDivergence} combinator, which performs \emph{dynamic} analysis to detect unproductive looping at runtime.
 Therefore, \texttt{parsley-garnish} could complement this functionality with an auto-fix rule to refactor left-recursive parsers to use \texttt{parsley}'s idiomatic \scala{chain} combinators.
 % TODO: could compare what the static vs dynamic analyses can detect?
 
@@ -61,7 +61,7 @@ This transformation is applied in-order to each parser in the source file, repla
 An unfolded parser is recombined using \scala{chain.postfix}: this combinator encapsulates the general form of left-associative parsing, and most other iterative combinators can be derived from it~\cite{willis_parsley_2024}.
 % def postfix[A](p: Parsley[A])(op: => Parsley[A => A]): Parsley[A]
 \begin{minted}{scala}
-val result = results match {
+val result: Parsley[A] = results match {
   case None    => empty
   case Some(x) => pure(x)
 }
@@ -74,8 +74,9 @@ However, even though \texttt{parsley} programs are written in Scala, it is impor
 Domain-specific transformations like left-recursion factoring are therefore naturally defined as transformations on the \texttt{parsley} \textsc{ast}, at a higher level of abstraction than the generic Scala \textsc{ast}.
 Thus, this \namecref{sec:leftrec-infra} discusses the extra infrastructure used to support the left-recursion factoring transformation:
 \begin{itemize}
-  \item \cref{sec:parser-ast-motivation} motivates the idea of using an intermediate \textsc{ast} representation for parsers, distinct from the general-purpose Scala \textsc{ast}.
-  \item \cref{sec:lifting-parsers} shows how the \textsc{ast} of a Scala source file is converted into this intermediate representation, whereas \cref{sec:lowering-parsers} discusses how this is converted back into Scala code so that it can be applied as a Scalafix patch.
+  \item Firstly, \cref{sec:parser-ast-motivation} motivates the idea of using an intermediate \textsc{ast} representation for parsers, distinct from the general-purpose Scala \textsc{ast}.
+  \item Following this, \cref{sec:lifting-parsers} shows how the \textsc{ast} of a Scala source file is converted into this intermediate representation.
+  \item Finally, \cref{sec:lowering-parsers} discusses how the intermediate \textsc{ast} is converted back into Scala code so that it can be applied as a Scalafix patch.
 \end{itemize}
 
 \subsection{An Intermediate \textsc{ast}}\label{sec:parser-ast-motivation}
@@ -124,8 +125,10 @@ case class Pure(x: Term) extends Parser
 case object Empty extends Parser
 case class <*>(p: Parser, q: Parser) extends Parser
 case class <|>(p: Parser, q: Parser) extends Parser
+case class Str(s: String) extends Parser
+case class Chr(c: Char) extends Parser
 \end{minted}
-\caption{A subset of the core combinators in the \scala{Parser} \textsc{adt}.}
+\caption{A subset of the \scala{Parser} \textsc{adt}, representing the core combinators in \texttt{parsley-garnish}.}
 \label{fig:parser-adt}
 \end{figure}
 
@@ -159,12 +162,6 @@ val EXAMPLE = NonTerminal(Sym(Term.Name("example").symbol))
 // val example: Parsley[String] =     (example,  string("a")).zipped(  _ + _ ) | string("b")
    val example: Parser          = List(EXAMPLE,     Str("a")).zipped(q"_ + _") |    Str("b")
 \end{minted}
-
-% Instead, represent parsers as an algebraic data type \textsc{adt} in the same way that Parsley itself uses a deep embedding to represent combinators as objects.
-% Methods on these objects can then be used to manipulate them, and the resulting object can still be pattern matched, maintaining the static inspectability of the parsers.
-% So then it's just like writing parsers in Parsley itself: \scala{p <*> q} constructs a \scala{Ap(p, q)} node which can still be pattern matched on.
-% And similar to Parsley, representing everything as objects makes it easy to optimise using pattern matching on constructors.
-% This representation also then gives us for free the implementation for lint rules such as \emph{Simplify Complex Parsers} rule, which applies parser laws to simplify parsers.
 
 \subsection{Lifting to the Intermediate Parser \textsc{ast}}\label{sec:lifting-parsers}
 Converting the raw Scala \textsc{ast} to this intermediate parser combinator \textsc{ast} requires the following basic operations:
@@ -235,22 +232,22 @@ Each \scala{Parser} defines a partial function \scala{fromTerm} to instantiate a
 These \scala{fromTerm} methods perform the menial work of pattern matching on the low-level syntactic constructs of the Scala \textsc{ast}.
 All \scala{fromTerm} methods are combined to define the \scala{toParser} extension method on \scala{scala.meta.Term} -- this is where \textsc{ast} nodes are lifted to their corresponding \scala{Parser} representation.
 
-The pattern matching example from \cref{sec:parser-ast-motivation} makes a reappearance in the definition of \scala{Ap.fromTerm}, where the arguments to the \scala{<*>} combinator are instead recursively lifted to \scala{Parser} objects:
+The pattern matching example from \cref{sec:parser-ast-motivation} makes a reappearance in the definition of \scala{<*>.fromTerm}, where the arguments to the \scala{<*>} combinator are instead recursively lifted to \scala{Parser} objects:
 % Use Scalafix's \scala{SymbolMatcher} to match tree nodes that resolve to a specific set of symbols.
 % This makes use of semantic information from SemanticDB, so we are sure that a \scala{<*>} is actually within the \scala{parsley.Parsley} package, rather than some other function with the same name.
 % This is much more robust compared to HLint, which suffers from false positives due to its reliance on syntactic information only.
 \begin{minted}{scala}
 // Type signatures in Parsley:
 // p: Parsley[A => B], q: =>Parsley[A], p <*> q: Parsley[B]
-case class Ap(p: Parser, q: Parser) extends Parser
-object Ap {
+case class <*>(p: Parser, q: Parser) extends Parser
+object <*> {
   // Match the specific symbol for parsley's <*> combinator
   val matcher = SymbolMatcher.normalized("parsley.Parsley.`<*>`")
 
-  def fromTerm: PartialFunction[Term, Ap] = {
+  def fromTerm: PartialFunction[Term, <*>] = {
     // Pattern match succeeds only if the term has the structure 'p <*> q'
     case Term.ApplyInfix(p, matcher(_), _, Term.ArgClause(List(q), _)) =>
-      Ap(p.toParser, q.toParser)
+      p.toParser <*> q.toParser
   }
 }
 \end{minted}
@@ -308,29 +305,10 @@ case class Zipped(func: Function, parsers: List[Parser]) extends Parser {
 %
 This term can then be pretty-printed into a string, and applied as a Scalafix patch.
 
-\subsection{Implementing the Left-Recursion Transformation}
+\section{Implementing the Left-Recursion Transformation}
 \TODO{TODO \\}
 
-Core combinators: \scala{NonTerminal}, \scala{Pure}, \scala{Empty}, \scala{Ap}, \scala{Choice}.
-Combinators like \scala{String} are theoretically core combinators but they represent boring cases.
-Some composite combinators are supported, and desugared into the core combinators.
-
-\TODO{
-Can derive empty string? (good resource from packrat parsing paper)
-pure(x) -- yes, semantic action is x
-empty -- no
-p <|> q -- if p or q can derive empty, peg is ordered so semantic action is pe if it can derive empty, else qe
-p <*> q -- if p and q can derive empty, semantic action is pe(qe) due to pure(f) <*> pure(x) == pure(f(x)) law
-string -- only if given argument "", but this also illegal in parsely -- explicitly triggers a runtime error, so basically no
-    [error] java.lang.IllegalArgumentException: requirement failed: `string` may not be passed the empty string (`string("")` is meaningless, perhaps you meant `pure("")`?)
-char -- no (not implemented as a core comb, should do that)
-item -- no (not implemented as a core comb, should do that?)
-many(p) -- yes (not implemented properly?) -- semantic action is empty list??
-some(p) -- if p can derive empty (not a primitive, defined in terms of many -- p <::> many(p))
-NT -- if referenced rule can derive empty
-}
-
-\subsubsection{Defining Utility Functions}
+\subsection{Defining Utility Functions}
 The transformation requires the use of three higher-order functions:
 \begin{itemize}
   \item The identity function \scala{identity[A]: A => A} is defined in the standard library.
@@ -346,29 +324,85 @@ Therefore, \texttt{parsley-garnish} will insert the following definitions into t
 %
 This brings these higher-order functions into scope, allowing the transformed code to make use of it.
 
+\subsection{Core Combinators}
+Core combinators: \scala{NonTerminal}, \scala{Pure}, \scala{Empty}, \scala{<*>}, \scala{<|>}.
+Character combinators (e.g. string, char, item) are grouped as one as they behave the same.
+Some composite combinators are supported, and desugared into the core combinators.
+
+\TODO{
+Can derive empty string? (good resource from packrat parsing paper)
+pure(x) -- yes, semantic action is x
+empty -- no
+p <|> q -- if p or q can derive empty, peg is ordered so semantic action is pe if it can derive empty, else qe
+p <*> q -- if p and q can derive empty, semantic action is pe(qe) due to pure(f) <*> pure(x) == pure(f(x)) law
+string -- only if given argument "", but this also illegal in parsely -- explicitly triggers a runtime error, so basically no
+    [error] java.lang.IllegalArgumentException: requirement failed: `string` may not be passed the empty string (`string("")` is meaningless, perhaps you meant `pure("")`?)
+char -- no (implemented)
+item -- no (not implemented as a core comb, should do that?)
+many(p) -- yes (not implemented properly?) -- semantic action is empty list??
+some(p) -- if p can derive empty (not a primitive, defined in terms of many -- p <::> many(p))
+NT -- if referenced rule can derive empty
+}
+
+something something leftrec is where call to non-terminal is stripped off
+
+Top-level, call unfold on each non-terminal:
+\begin{minted}{scala}
+def unfold(env: Map[Symbol, ParserDefinition], currentNT: Symbol): UnfoldedParser =
+  env(currentNT).parser.unfold(currentNT, env, visited = Set.empty)
+\end{minted}
+
+\paragraph{Non-terminals}
+\begin{minted}{scala}
+case class NonTerminal(ref: Symbol) extends Parser {
+  def unfold(currentNT: Symbol, env: Map[Symbol, ParserDefn], visited: Set[Symbol]) =
+    if (ref == currentNT) UnfoldedParser(None, Empty, Pure(q"identity"))
+    else if (visited.contains(ref)) UnfoldedParser(None, NonTerminal(ref), Empty)
+    else env(ref).parser.unfold(currentNT, env, visited + ref)
+}
+\end{minted}
+
+\paragraph{Ap (\scala{<*>})}
+\paragraph{Choice (\scala{<|>})}
+\paragraph{The remainder}
+
+\subsection{Composite Combinators}
+
+
+
+
 The \scala{unfold} method is defined for every single combinator in the \scala{Parser} \textsc{adt}.
-Most important is the \scala{Ap} combinator, which is \texttt{parsley-garnish}'s primitive for composing parsers.
+
+Special case of right-factoring in reverse, holds unidirectionally.
+\begin{equation*}
+\text{\haskell{(p <|> pure f) <*> q}} \quad \Rightarrow \quad \text{\haskell{(p <*> q) <|> (pure f <*> q)}}
+\end{equation*}
+
+\begin{minted}{scala}
+(p | pure(f)) <*> q = (p <*> q) | q.map(f)
+\end{minted}
+Most important is the \scala{<*>} combinator, which \texttt{parsley-garnish} uses as the primitive combinator for composing parsers.
+* When can <*> derive empty? If both p and q can derive empty, then its semantic action is pe(qe) due to the pure(f) <*> pure(x) == pure(f(x)) law.
+* for nonleftrec and leftrec: if p can accept empty, q is changed to be subjected to the semantic value corresponding to the first empty parser
+  * leftrec: flip re-associates semantic actions back to the left
+  * leftrec: function composition required since type is A => A
 %
 \begin{minted}{scala}
-case class Ap(p: Parser, q: Parser) extends Parser {
+case class <*>(p: Parser, q: Parser) extends Parser {
   def unfold: UnfoldedParser = {
     val UnfoldedParser(pe, pn, pl) = p.unfold
     val UnfoldedParser(qe, qn, ql) = q.unfold
 
-    val result =
-      if (pe.isDefined && qe.isDefined) Some(q"${pe.get}(${qe.get})")
-      else None
-
-    val lefts = {
-      val llr = pl.map(q"flip") <*> q
-      val rlr = pe.map(q"ql.map(compose)").getOrElse(Empty)
-      llr <|> rlr
-    }
-
+    val result = if (pe.isDefined && qe.isDefined) Some(q"${pe.get}(${qe.get})") else None
     val nonLefts = {
       val lnl = pn <*> q
       val rnl = pe.map(q"f => qn.map(f)").getOrElse(Empty)
-      lnl <|> rnl
+      lnl | rnl
+    }
+    val lefts = {
+      val llr = pl.map(q"flip") <*> q
+      val rlr = pe.map(q"ql.map(compose)").getOrElse(Empty)
+      llr | rlr
     }
 
     UnfoldedParser(result, nonLefts, lefts)
@@ -376,7 +410,7 @@ case class Ap(p: Parser, q: Parser) extends Parser {
 }
 \end{minted}
 
-\subsubsection{Success...?}
+\subsection{Success...?}
 Running the transformation on the \scala{example} parser yields the output in \cref{fig:leftrec-example-bad}.
 %
 \begin{figure}[htbp]
