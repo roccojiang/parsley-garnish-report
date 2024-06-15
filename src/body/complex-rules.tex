@@ -2,22 +2,30 @@
 
 \begin{document}
 
-\ourchapter{Lint Rules Using the New Parser \textsc{ast}}
+\ourchapter{Using the New Parser \textsc{ast}}
 
 \section{Removing Left-Recursion: Revisited}
 Armed with the new \textsc{ast} representation of parsers, the left-recursion factorisation transformation can be revisited.
 What has changed?
-* Parsers should be simplified before making the patch
-* Update to use \scala{Expr} rather than quasiquotes, to allow the application of higher-order functions to be partially evaluated
-* Therefore no need to patch in definitions for flip and compose, since they are now lambdas
+\begin{itemize}
+  \item Parser terms should be lawfully simplified to a more readable form before being written as a Scalafix rewrite patch.
+  \item Parsers should take advantage of the new \scala{Expr} representation to allow for partial evaluation of higher-order functions, rather than manipulating terms as opaque quasiquotes.
+  \item The higher-order functions \scala{flip} and \scala{compose} can now be represented as \scala{Expr} lambda expressions, eliminating the need to patch in their definitions as previously required in \cref{sec:leftrec-utils}.
+\end{itemize}
+
+% * Parsers should be simplified before making the patch
+% * Update to use \scala{Expr} rather than quasiquotes, to allow the application of higher-order functions to be partially evaluated
+% * Therefore no need to patch in definitions for flip and compose, since they are now lambdas
 * no .curried
 * Resugaring
 * Optimisation: normalise leftrec part to see if it comes to empty -- if so, don't inline in the NT case
 
 \begin{minted}{scala}
 trait Parser {
-  def prettify: Parser = this.simplify.normaliseExprs.resugar
+  def normalise: Parser = this.simplify.normaliseExprs
+  def isEquivalent(other: Parser) = this.normalise == other.normalise
 
+  def prettify: Parser = this.normalise.resugar
   def resugar: Parser = this.rewrite {
     // p.map(\x -> \y -> y) <*> q == p ~> q
     case FMap(p, Abs(_, Abs(Var(y, _), Var(z, _)))) <*> q if (y == z) => p ~> q
@@ -29,11 +37,10 @@ trait Parser {
       Zipped(AbsN(List(x1, x2), body), List(p1, p2))
 
   }.transform {
-    // Scala 2 cannot resolve implicit stringLifts on "s".map(f)
+    // Scala 2 cannot resolve implicit stringLifts in some positions
     case FMap(Str(s, _), f) => FMap(Str(s, implicitSyntax = false), f)
+    case Zipped(f, Str(s, _) :: ps) => Zipped(f, Str(s, implicitSyntax = false) :: ps)
   }
-
-  def normaliseExprs: Parser // applies Expr.normalise on all parsers with Expr arguments
 }
 \end{minted}
 
@@ -92,12 +99,12 @@ so:
 Looking for dumb definitions of things e.g. endBy(p, sep) implemented as many(p <* sep); or count implemented as a foldLeft, fold fusion
 }
 
-\section{Convert to Parser Bridge}
-\TODO{
-* This would be cool, idk if I have time though, but this should also piggyback off of Func
-* the pos bridges don't actually exist, so we can ignore that case and just say its too much code synthesis
-* shouldn't be too bad? idk
-* indicate limitations that this will only work if the ADT is defined in the same file, in order to extend it
-}
+% \section{Convert to Parser Bridge}
+% \TODO{
+% * This would be cool, idk if I have time though, but this should also piggyback off of Func
+% * the pos bridges don't actually exist, so we can ignore that case and just say its too much code synthesis
+% * shouldn't be too bad? idk
+% * indicate limitations that this will only work if the ADT is defined in the same file, in order to extend it
+% }
 
 \end{document}

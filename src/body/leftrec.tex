@@ -447,7 +447,7 @@ case class <*>(p: Parser, q: Parser) extends Parser {
 }
 \end{minted}
 
-\subsection{Composite Combinators}
+\subsection{Composite Combinators}\label{sec:desguar-combinators}
 The remaining combinators are defined in terms of the core combinators, and are unfolded by recursively unfolding their constituent parts.
 For example, the \scala{map} combinator is defined as \scala{p.map(f) = pure(f) <*> p}, so its unfolding is simply implemented as:
 \begin{minted}{scala}
@@ -477,7 +477,7 @@ trait LiftLike extends Parser {
 }
 \end{minted}
 
-\subsection{Defining Utility Functions}
+\subsection{Defining Utility Functions}\label{sec:leftrec-utils}
 In various places within the unfolding transformations, three higher-order functions were utilised which may not be provided by the Scala standard library:
 \begin{itemize}
   \item The flip function reverses the order of arguments applied to a function. This isn't defined in the standard library, so it must be defined manually.
@@ -487,11 +487,11 @@ In various places within the unfolding transformations, three higher-order funct
 %
 Therefore, \texttt{parsley-garnish} will insert the following definitions into the source file as a patch:
 \begin{minted}{scala}
-  def flip[A, B, C](f: A => B => C)(x: B)(y: A): C = f(y)(x)
-  def compose[A, B, C](f: B => C)(g: A => B)(x: A): C = f(g(x))
+def flip[A, B, C](f: A => B => C)(x: B)(y: A): C = f(y)(x)
+def compose[A, B, C](f: B => C)(g: A => B)(x: A): C = f(g(x))
 \end{minted}
 %
-This brings these higher-order functions into scope, allowing the transformed code to make use of it.
+Although this isn't very aesthetically pleasing, it is necessary to bring these higher-order functions into scope for the transformed code to make use of them.
 
 \subsection*{Success...?}
 With the unfolding transformations defined for all core combinators, the left-recursion factoring transformation is now complete.
