@@ -9,6 +9,7 @@ Armed with the new \textsc{ast} representation of parsers, the left-recursion fa
 What has changed?
 * Parsers should be simplified before making the patch
 * Update to use \scala{Expr} rather than quasiquotes, to allow the application of higher-order functions to be partially evaluated
+* Therefore no need to patch in definitions for flip and compose, since they are now lambdas
 * Resugaring
 * Optimisation: normalise leftrec part to see if it comes to empty -- if so, don't inline in the NT case
 

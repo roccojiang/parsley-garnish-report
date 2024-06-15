@@ -342,21 +342,6 @@ The most important core combinators in the left-recursion transformation are \sc
 Character combinators such as \scala{Str} (\scala{string}), \scala{Chr} (\scala{char}), and \scala{Item} (\scala{item}), although technically handled by \texttt{parsley-garnish} as primitives, are grouped together as they behave in a simple and uniform manner.
 The rest of the combinators in \texttt{parsley} are defined in terms of the primitive combinators, and are desugared into the core combinators during unfolding.
 
-\TODO{
-Can derive empty string? (good resource from packrat parsing paper)
-pure(x) -- yes, semantic action is x
-empty -- no
-p <|> q -- if p or q can derive empty, peg is ordered so semantic action is pe if it can derive empty, else qe
-p <*> q -- if p and q can derive empty, semantic action is pe(qe) due to pure(f) <*> pure(x) == pure(f(x)) law
-string -- only if given argument "", but this also illegal in parsely -- explicitly triggers a runtime error, so basically no
-    [error] java.lang.IllegalArgumentException: requirement failed: `string` may not be passed the empty string (`string("")` is meaningless, perhaps you meant `pure("")`?)
-char -- no (implemented)
-item -- no (not implemented as a core comb, should do that?)
-many(p) -- yes (not implemented properly?) -- semantic action is empty list??
-some(p) -- if p can derive empty (not a primitive, defined in terms of many -- p <::> many(p))
-NT -- if referenced rule can derive empty
-}
-
 \paragraph{Non-terminals}
 Non-terminals are the primary base case of the recursive unfolding transformation.
 There are three cases to consider when a non-terminal symbol is encountered:
@@ -378,7 +363,7 @@ case class NonTerminal(ref: Symbol) extends Parser {
 
 \paragraph{Base cases}
 The base cases are mostly straightforward.
-The unfolded \scala{result} portion can be reasoned with by the combinators' correspondence to \textsc{peg} expressions, as shown in \cref{tab:base-case-empties}. If the combinator can succeed by parsing the empty string, \scala{result} is a \scala{Some} value of its semantic action, otherwise it is \scala{None}.
+The unfolded \scala{result} portion can be reasoned with by the combinators' correspondence to \textsc{peg} expressions~\cite{eichenroth_fast_2022}, as shown in \cref{tab:base-case-empties}. If the combinator can succeed by parsing the empty string, \scala{result} is a \scala{Some} value of its semantic action, otherwise it is \scala{None}.
 The other two portions are also easy: none are left-recursive, and if the combinator consumes input on success then \scala{nonLeftRec} is just the combinator itself.
 Thus, the base cases can be summed up as follows:
 \begin{minted}{scala}
@@ -421,6 +406,24 @@ case class <|>(p: Parser, q: Parser) extends Parser {
 \end{minted}
 
 \paragraph{Ap (\scala{<*>})}
+This is an important case, as \texttt{parsley-garnish} chooses to use \scala{<*>} as the primitive combinator for composing parsers.
+It is also the most complex:
+\begin{itemize}
+  \item \scala{p <*> q} can succeed without consuming input only if \emph{both} \scala{p} and \scala{q} can do so. Parser combinators abide by the law that \scala{pure(f) <*> pure(x) = pure(f(x))}, so the resulting semantic action is that of \scala{p} applied as a function to the semantic action of \scala{q}.
+  \item In the \scala{nonLeftRec} and \scala{leftRec} portions, if \scala{p} can succeed without consuming input, then \scala{q} must be subjected to the semantic value corresponding to \scala{p}~\cite{swierstra_deterministic_1996}. This is achieved using the result shown in \cref{eq:ap-leftrec}, which is a special case of grammar right-factoring in reverse.
+  \begin{itemize}
+    \item The \scala{leftRec} portion requires re-associating semantic actions back to the left, which requires using the \scala{flip} higher-order function. Thus, the left branch of the \textsc{rhs} of \cref{eq:ap-leftrec} is reformulated as \scala{p.map(flip) <*> q}.
+    \item Since \scala{leftRec} is a parser of a function, the right branch also needs adjusting: the function composition operation must be used in order to apply the function to \scala{q} with the \scala{<*>} combinator.
+  \end{itemize}
+\end{itemize}
+
+% \text{\scala{(p | pure(f)) <*> q}} \quad \Rightarrow \quad \text{\scala{(p <*> q) | q.map(f)}}
+\begin{equation} \label{eq:ap-leftrec}
+\text{\haskell{(p <|> pure f) <*> q}} \quad \Rightarrow \quad \text{\haskell{(p <*> q) <|> (f <$> q)}}
+\vspace{3ex} % shh...
+\end{equation}
+%
+Given the above observations, the implementation of the \scala{<*>} combinator's unfolding is as follows:
 \begin{minted}{scala}
 case class <*>(p: Parser, q: Parser) extends Parser {
   def unfold() = {
@@ -430,12 +433,12 @@ case class <*>(p: Parser, q: Parser) extends Parser {
     val result = if (pe.isDefined && qe.isDefined) Some(q"${pe.get}(${qe.get})") else None
     val nonLefts = {
       val lnl = pn <*> q
-      val rnl = pe.map(q"f => qn.map(f)").getOrElse(Empty)
+      val rnl = pe.map(q"f => qn.map(f)").getOrElse(Empty) // f <$> qn
       lnl | rnl
     }
     val lefts = {
       val llr = pl.map(q"flip") <*> q
-      val rlr = pe.map(q"ql.map(compose)").getOrElse(Empty)
+      val rlr = pe.map(q"$ql.map(compose)").getOrElse(Empty) // f.map(compose) <$> ql
       llr | rlr
     }
 
@@ -461,24 +464,6 @@ Therefore, \texttt{parsley-garnish} will insert the following definitions into t
 \end{minted}
 %
 This brings these higher-order functions into scope, allowing the transformed code to make use of it.
-
-
-The \scala{unfold} method is defined for every single combinator in the \scala{Parser} \textsc{adt}.
-
-Special case of right-factoring in reverse, holds unidirectionally.
-\begin{equation*}
-\text{\haskell{(p <|> pure f) <*> q}} \quad \Rightarrow \quad \text{\haskell{(p <*> q) <|> (pure f <*> q)}}
-\end{equation*}
-
-\begin{minted}{scala}
-(p | pure(f)) <*> q = (p <*> q) | q.map(f)
-\end{minted}
-Most important is the \scala{<*>} combinator, which \texttt{parsley-garnish} uses as the primitive combinator for composing parsers.
-* When can <*> derive empty? If both p and q can derive empty, then its semantic action is pe(qe) due to the pure(f) <*> pure(x) == pure(f(x)) law.
-* for nonleftrec and leftrec: if p can accept empty, q is changed to be subjected to the semantic value corresponding to the first empty parser
-  * leftrec: flip re-associates semantic actions back to the left
-  * leftrec: function composition required since type is A => A
-%
 
 \subsection{Success...?}
 Running the transformation on the \scala{example} parser yields the output in \cref{fig:leftrec-example-bad}.
