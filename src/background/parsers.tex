@@ -30,7 +30,7 @@ This is another motivating reason for the development of \texttt{parsley-garnish
 % interact directly with semantic actions within the host language
 
 \subsection{Parsley}
-% TODO
+% TODO introduce idea of PEG vs CFGs (see jamies phd? Mascarenhas, Medeiros, and Ierusalimschy [2014])
 \TODO{TODO: proper, worked example showcasing relevant design patterns and stuff which will be picked up by the linter}
 
 \texttt{Parsley}~\cite{willis_garnishing_2018} is a parser combinator library for Scala that provides an \textsc{api} inspired by the \texttt{parsec}~\cite{leijen_parsec_2001} style of parser combinators.
@@ -95,10 +95,7 @@ lazy val atom: Parsley[Expr] =
 \label{fig:simple-grammar-parser}
 \end{figure}
 
-% TODO
-\TODO{Types of left recursion}
-
-% TODO: merge design patterns into the parsley section
+% TODO: just a brief mention of design patterns, they get explored in-text later so I can contextualise them better
 \textcite{willis_design_2022} describe several design patterns for writing maintainable parsers using parser combinators in Scala.
 They identified common problems and anti-patterns in parser design, and proposed solutions in the form of design patterns.
 This provides a guideline for writing idiomatic \texttt{parsley} code for practical parser design, which enables opportunities for the development of linting and refactoring rules.
