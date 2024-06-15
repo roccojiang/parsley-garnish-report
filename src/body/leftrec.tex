@@ -448,13 +448,41 @@ case class <*>(p: Parser, q: Parser) extends Parser {
 \end{minted}
 
 \subsection{Composite Combinators}
+The remaining combinators are defined in terms of the core combinators, and are unfolded by recursively unfolding their constituent parts.
+For example, the \scala{map} combinator is defined as \scala{p.map(f) = pure(f) <*> p}, so its unfolding is simply implemented as:
+\begin{minted}{scala}
+case class FMap(p: Parser, f: Term) extends Parser {
+  def unfold() = (Pure(f) <*> p).unfold
+}
+\end{minted}
+%
+Further high-level combinators are defined in a similar manner.
+The improved sequencing combinators \scala{lift} and \scala{zipped}, as well as bridge constructors using the \emph{Parser Bridges} design pattern~\cite{willis_design_2022}, represent a further generalisation of the \scala{map} combinator:
+\begin{minted}{scala}
+liftN(f, p1, ..., pN) // explicit lift syntax, where f is a function of arity N
+f.lift(p1, ..., pN) // implicit lift syntax
+(p1, ..., pN).zipped(f) // zipped syntax, improves Scala's ability to infer types
+F(p1, ..., pN) // parser bridge pattern, abstracts the construction of f behind bridge F
+
+// All are equivalent to the following desugared form,
+// which is idiomatic in Haskell, but not in Scala for performance reasons
+= pure(f.curried) <*> p1 <*> ... <*> pN
+\end{minted}
+%
+These are handled in \texttt{parsley-garnish} as the \scala{LiftLike} family of combinators, which converts them into the desugared form in terms of core combinators \scala{pure} and \scala{<*>}, allowing the unfolding transformation to be applied:
+\begin{minted}{scala}
+trait LiftLike extends Parser {
+  // foldLeft builds a parser of the form 'pure(f.curried) <*> p1 <*> ... <*> pN'
+  def unfold() = parsers.foldLeft(Pure(q"$func.curried"))(_ <*> _).unfold
+}
+\end{minted}
 
 \subsection{Defining Utility Functions}
-In various places within the unfolding transformations, three higher-order functions are utilised which may not be provided by the Scala standard library:
+In various places within the unfolding transformations, three higher-order functions were utilised which may not be provided by the Scala standard library:
 \begin{itemize}
-  \item The identity function \scala{identity[A]: A => A} is defined in the standard library.
   \item The flip function reverses the order of arguments applied to a function. This isn't defined in the standard library, so it must be defined manually.
   \item Function composition is defined in the standard library, but a more versatile curried version is required by the transformation, so it is also defined manually.
+  \item The identity function \scala{identity[A]: A => A} is defined in the standard library.
 \end{itemize}
 %
 Therefore, \texttt{parsley-garnish} will insert the following definitions into the source file as a patch:
@@ -465,7 +493,8 @@ Therefore, \texttt{parsley-garnish} will insert the following definitions into t
 %
 This brings these higher-order functions into scope, allowing the transformed code to make use of it.
 
-\subsection{Success...?}
+\subsection*{Success...?}
+With the unfolding transformations defined for all core combinators, the left-recursion factoring transformation is now complete.
 Running the transformation on the \scala{example} parser yields the output in \cref{fig:leftrec-example-bad}.
 %
 \begin{figure}[htbp]
@@ -486,6 +515,7 @@ lazy val example: Parsley[String] = chain.postfix(
 \label{fig:leftrec-example-bad}
 \end{figure}
 
+\noindent % TODO: keep/remove this depending on if needed, based on positioning of the figure
 This is... disappointing, to say the least.
 There are \emph{many} things wrong with the transformed output:
 \begin{itemize}
@@ -494,8 +524,8 @@ There are \emph{many} things wrong with the transformed output:
   \item Even worse, the parser does not even typecheck -- unlike classical Hindley-Milner-based type systems, Scala only has \emph{local} type inference~\cite{cremet_core_2006}. As a result, the compiler is unable to correctly infer correct types for \scala{flip} and also asks for explicit type annotations in the lambda \scala{(_ + _).curried}.
 \end{itemize}
 % foreshadowing lol
-This result is discouraging especially because it is not impossible to factor out the left-recursion in a nice manner.
-A hand-written equivalent using \scala{postfix} would resemble the concisely defined parser in \cref{fig:leftrec-example-hand}.
+The result is discouraging especially because it is not impossible to factor out the left-recursion in a nice manner:
+a hand-written equivalent using \scala{postfix} would resemble the concisely defined parser in \cref{fig:leftrec-example-hand}.
 There is still hope, though -- if the \scala{empty} combinators can be removed and something is done about the higher-order functions, perhaps \cref{fig:leftrec-example-bad} could be salvaged into something that looks more like the human-written version.
 
 \begin{figure}[htbp]
