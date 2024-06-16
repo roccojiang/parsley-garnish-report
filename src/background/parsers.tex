@@ -19,90 +19,106 @@ Parser combinators~\cite{hutton_higher-order_1992}, which stem from a functional
 They take the form of an embedded \textsc{dsl} written directly in a general-purpose language, rather than the parser generator approach where the \textsc{dsl} is a separate language.
 With a parser generator, the provided \textsc{dsl} is often limited in its expressiveness.
 This is not the case with parser combinators, as the full power of the host language is available to the programmer.
-This approach also reduces boilerplate code: for example, the programmer does not need to convert between the \textsc{ast} produced by the parser generator and their own \textsc{ast}.
+This approach also reduces overall boilerplate code: the programmer does not need to convert between the \textsc{ast} produced by the parser generator and their own \textsc{ast}.
+Instead, the results of parsers, known as their \emph{semantic actions}, are incorporated as part of the parsers themselves.
 
 A downside of parser combinators, however, is that they are unstandardised compared to parser generators.
 Across different implementations, parser combinator \textsc{api}s can vary significantly, making it difficult to transfer knowledge between different libraries.
 Experienced users of parser combinators may approach a new library with prior knowledge of general concepts but may have misconceptions about the specifics of the \textsc{api} which can lead to confusion and frustration.
-This is another motivating reason for the development of \texttt{parsley-garnish}, to lower the barrier of entry for new users of the \texttt{parsley} library.
+This is a motivating reason for the development of \texttt{parsley-garnish}: to lower the barrier of entry for new users of the \texttt{parsley} library.
 
-% TODO: crucial difference is that semantic actions (i.e. results of the parser e.g. some datatype like an AST or just evaluation into a result) can be incorporated directly into the parsers themselves
-% interact directly with semantic actions within the host language
-
-\subsection{Parsley}
-% TODO introduce idea of PEG vs CFGs (see jamies phd? Mascarenhas, Medeiros, and Ierusalimschy [2014])
-\TODO{TODO: proper, worked example showcasing relevant design patterns and stuff which will be picked up by the linter}
-
-\texttt{Parsley}~\cite{willis_garnishing_2018} is a parser combinator library for Scala that provides an \textsc{api} inspired by the \texttt{parsec}~\cite{leijen_parsec_2001} style of parser combinators.
-This section provides an illustrative example of a simple expression parser to demonstrate what a parser written in \texttt{parsley} looks like.
-
-Consider the \textsc{ebnf} grammar for a simple expression language shown in fig.~\ref{fig:simple-grammar-ebnf}.
-The parser in fig.~\ref{fig:simple-grammar-parser} will parse an expression into the \textsc{ast} represented by the Scala datatype in fig.~\ref{fig:simple-grammar-ast}.
-
-% TODO: crucially, this parser works because the grammar has been left-factored to remove left-recursion. We will explore an example later (design patterns section) where we can still utilise parser combinators to parse a left-recursive grammar.
-Notice how the parser closely resembles the high-level \textsc{ebnf} grammar.
-The main differences of note include the use of:
-\begin{itemize}
-  \item \texttt{map} to transform the result of a parser to help construct tree nodes consisting of a single value.
-  \item \texttt{zipped} to combine the results of two parsers to help construct tree nodes consisting of multiple values.
-  \item \texttt{<\textasciitilde} and \texttt{\textasciitilde>} operators to guide the direction of parsers.
-\end{itemize}
-Except for the possibly cryptic-looking implementation of \texttt{num} to parse a series of digits into an integer, the parser is relatively straightforward to understand.
-
-\begin{figure}[htbp]
-  \centering
-  \begin{subfigure}{0.6\textwidth}
-    \vspace{3ex} % TODO: ew
-    \centering
-    \begin{minted}{text}
-      ident ::= "x" | "y" | "z"
-      num ::= digit+
-      expr ::= factor "+" expr
-      factor ::= atom "*" factor
-      atom ::= ident | num | "(" expr ")"
-    \end{minted}
-    \caption{The grammar in \textsc{ebnf}.}
-    \label{fig:simple-grammar-ebnf}
-  \end{subfigure}
-  \begin{subfigure}{0.8\textwidth}
-    \vspace{5ex} % TODO: ew
-    \centering
-    \begin{minted}{scala}
-      sealed trait Expr
-      case class Ident(name: String) extends Expr
-      case class Num(x: Int) extends Expr
-      case class Add(x: Expr, y: Expr) extends Expr
-      case class Mul(x: Expr, y: Expr) extends Expr
-    \end{minted}
-    \caption{The Scala \textsc{ast} to parse into.}
-    \label{fig:simple-grammar-ast}
-  \end{subfigure}
-  \caption{The grammar and \textsc{ast} for our simple expression language.}
-\end{figure}
+\subsection{The \texttt{parsley} Library}
+\texttt{parsley}~\cite{willis_garnishing_2018} is a parser combinator library for Scala that provides an \textsc{api} inspired by the \texttt{parsec}~\cite{leijen_parsec_2001} style of parser combinators.
+This section expands upon the example parser from the introduction to provide a further demonstration of \texttt{parsley}.
+As opposed to directly evaluating the results of the parser, this parser will instead construct an \textsc{ast} representing the structure of arithmetic expression language.
 
 \begin{figure}[htbp]
 \centering
+\begin{subfigure}{0.575\textwidth}
+\vspace{3ex}
+\centering
+\begin{align*}
+\langle \mathit{digit} \rangle &::= \text{`\texttt{0}'} \ldots \text{`\texttt{9}'} \\
+\langle \mathit{number} \rangle &::= \langle \mathit{digit} \rangle+ \\
+\langle \mathit{expr} \rangle &::= \langle \mathit{expr} \rangle \; \text{`\texttt{+}'} \; \langle \mathit{term} \rangle \enspace | \enspace
+                                \langle \mathit{expr} \rangle \; \text{`\texttt{-}'} \; \langle \mathit{term} \rangle \enspace | \enspace
+                                \langle \mathit{term} \rangle \\
+\langle \mathit{term} \rangle &::= \langle \mathit{term} \rangle \; \text{`\texttt{*}'} \; \langle \mathit{atom} \rangle \enspace | \enspace
+                                \langle \mathit{term} \rangle \; \text{`\texttt{/}'} \; \langle \mathit{atom} \rangle \enspace | \enspace
+                                \langle \mathit{atom} \rangle \\
+\langle \mathit{atom} \rangle &::= \text{`\texttt{(}'} \; \langle \mathit{expr} \rangle \; \text{`\texttt{)}'} \enspace | \enspace
+                                \langle \mathit{number} \rangle
+\end{align*}
+\caption{The grammar in \textsc{ebnf}.}
+\label{fig:simple-grammar-ebnf}
+\end{subfigure}
+\hfill
+\begin{subfigure}{0.325\textwidth}
+\vspace{5ex}
+\centering
 \begin{minted}{scala}
-val ident = "x" | "y" | "z"
-val num: Parsley[Int] = digit.foldLeft1(0)((n, d) => n * 10 + d.asDigit)
-
-lazy val expr: Parsley[Expr] = (factor, "+" ~> expr).zipped(Add)
-lazy val factor: Parsley[Expr] = (atom, "*" ~> factor).zipped(Mul)
-lazy val atom: Parsley[Expr] =
-  ident.map(Ident) | num.map(Num) | "(" ~> expr <~ ")"
+enum Expr {
+  case Num(n: Int)
+  case Add(x: Expr, y: Expr)
+  case Sub(x: Expr, y: Expr)
+  case Mul(x: Expr, y: Expr)
+  case Div(x: Expr, y: Expr)
+}
 \end{minted}
-\caption{A parser for our simple expression language.}
-\label{fig:simple-grammar-parser}
+\caption{The Scala \textsc{ast} to parse into.}
+\label{fig:simple-grammar-ast}
+\end{subfigure}
+\caption{The grammar and \textsc{ast} for a simple arithmetic expression language.}
 \end{figure}
 
-% TODO: just a brief mention of design patterns, they get explored in-text later so I can contextualise them better
+\noindent % TODO: remove as necessary if the figure moves
+Recall the e\textsc{bnf} grammar for the arithmetic expression language introduced in the introduction, shown again in \cref{fig:simple-grammar-ebnf}.
+The following parser will parse an expression into the \textsc{ast} represented by the Scala datatype in \cref{fig:simple-grammar-ast}.
+To demonstrate an alternate approach, this parser deals with left-recursion using the lower-level \scala{chain.left1} combinator, rather than the higher-level precedence table \textsc{api}:
+\begin{minted}{scala}
+import parsley.Parsley
+import parsley.character.digit
+import parsley.expr.chain
+import parsley.syntax.character.charLift
+
+val number: Parsley[Int] = digit.foldLeft1(0)((n, d) => n * 10 + d.asDigit)
+
+lazy val expr: Parsley[Expr] = chain.left1(term)('+' as Add(_, _) | '-' as Sub(_, _))
+lazy val term: Parsley[Expr] = chain.left1(atom)('*' as Mul(_, _) | '/' as Div(_, _))
+lazy val atom: Parsley[Expr] = '(' ~> expr <~ ')' | number.map(Num(_))
+
+// Example usage: this parser constructs an AST, rather than evaluating its input
+expr.parse("1+2*3/4") // => Add(Num(1), Div(Mul(Num(2), Num(3)), Num(4)))
+\end{minted}
+\vspace{1ex} % TODO: remove if necessary? idk why the vertical space here is so tiny
+%
+Notice that although the parser retains high-level similarities to the grammar, it is more verbose because it encodes semantic actions (i.e. constructing the resulting \textsc{ast}) directly in the parser.
+\begin{itemize}
+  \item The \scala{digit} combinator used in \scala{number} is a parser that recognises a single digit character.
+  \item The \scala{number} parser uses the \scala{foldLeft1} combinator to parse one or more digits, folding them together to form an integer.
+  \item Left-associative parsing is idiomatically handled by the \scala{chain.left1} combinator. This preserves the left-associative structure of the grammar, while avoiding left-recursion. Since the chain combinator makes it obvious that it is parsing a left-associative binary operator, it can be argued that this is a clearer and higher-level way of expressing the intent of the grammar rather than by left-recursion.
+  \item The \scala{'+' as Add(_, _)} parser consumes a \scala{+} character, discarding its result and replacing it with the semantic action of constructing an \scala{Add} node.
+  \item The \scala{map} combinator is used to transform the result of the \scala{number} parser into a \scala{Num} node, lifting its \scala{Int} result to an \scala{Expr}.
+  \item The \scala{~>} and \scala{<~} operators guide the direction of the parser, ensuring that the parentheses are consumed but not included in the final \scala{Expr}.
+\end{itemize}
+
+\paragraph{Design Patterns for Parser Combinators}
 \textcite{willis_design_2022} describe several design patterns for writing maintainable parsers using parser combinators in Scala.
-They identified common problems and anti-patterns in parser design, and proposed solutions in the form of design patterns.
-This provides a guideline for writing idiomatic \texttt{parsley} code for practical parser design, which enables opportunities for the development of linting and refactoring rules.
+They identify common problems and anti-patterns in parser design, and propose solutions in the form of design patterns.
+This provides a guideline for writing idiomatic \texttt{parsley} code for practical parser design, enabling opportunities for the development of linting and refactoring rules.
+These design patterns therefore form the basis for many linting rules implemented in \texttt{parsley-garnish}.
 
-This thesis hopes to explore how these common problems can be formalised into code smells and suspicious code patterns that can be automatically detected using linting rules.
-Some of the design patterns are also theoretically amenable to automated refactoring, which we hope to explore and implement in \texttt{parsley-garnish}.
+The example parser already utilises the \emph{Implicit Conversions} design pattern, eliding the need to explicitly use the \scala{char} combinator to parse characters.
+This is achieved by bringing \scala{parsley.syntax.character.charLift} into scope, allowing Scala to automatically treat character literals as \scala{char} parsers.
+It also uses the \emph{Chain Combinators} pattern to parse left-associative binary operators, rather than left-factoring the grammar to remove left-recursion -- this is seen as an anti-pattern that obfuscates the intent of the grammar.
 
-% \subsection{Parsley Haskell} % probably not worth mentioning staged metaprogramming, it doesn't play a huge role
+% This thesis hopes to explore how these common problems can be formalised into code smells and suspicious code patterns that can be automatically detected using linting rules.
+% Some of the design patterns are also theoretically amenable to automated refactoring, which we hope to explore and implement in \texttt{parsley-garnish}.
+
+\paragraph{Parsing Expression Grammars}
+Formally, the semantics of \texttt{parsley} parsers are based on parsing expression grammars (\textsc{peg}s)~\cite{ford_peg_2004}.
+They differ from traditional context-free grammars (\textsc{cfg}s)~\cite{mascarenhas_on_2014} in that the choice operator is ordered: $e_1 / e_2$ will try $e_2$ only if $e_1$ fails.
+In contrast, the choice operator in a \textsc{cfg} is unbiased, which leads to the possibility of ambiguous grammars.
+The ordered choice operator means that \textsc{peg}s cannot be ambiguous.
 
 \end{document}

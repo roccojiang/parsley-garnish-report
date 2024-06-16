@@ -4,8 +4,6 @@
 
 \ourchapter{Introduction}
 
-% TODO: JW feedback -- Example of problem, outline how hard that is to solve for users etc. Then contributions + outline
-
 Parser combinators~\cite{hutton_higher-order_1992} are an elegant approach for writing parsers in a manner that remains close to their original grammar specification.
 \texttt{parsley}~\cite{willis_garnishing_2018} is a parser combinator library implemented as an embedded domain-specific language (\textsc{dsl})~\cite{hudak_building_1996} in Scala, with an \textsc{api} inspired by the \texttt{parsec}~\cite{leijen_parsec_2001} family of libraries in Haskell.
 However, as with many libraries, there exists a learning curve to utilising \texttt{parsley} and parser combinator libraries in an idiomatic manner.
@@ -92,7 +90,7 @@ lazy val atom: Parsley[Float] = char('(') ~> expr <~ char(')') | number
 \end{minted}
 %
 The aim of \texttt{parsley-garnish} is to provide relevant linting rules, like the above, to guide users towards writing improved \texttt{parsley} code.
-With useful hints and possibly automatic fixes, our hypothetical user can be steered towards a correct and idiomatic parser:
+With useful hints and automatic fixes, our hypothetical user can be steered towards a correct and idiomatic parser:
 % import parsley.Parsley
 % import parsley.syntax.character.charLift
 % import parsley.expr.{precedence, Ops, InfixL}
@@ -128,5 +126,19 @@ The contributions of this project are summarised as follows:
 \end{itemize}
 
 \section*{Outline}
+\Cref{sec:background} begins this report by outlining the key background material required to understand the project.
+This includes an introduction to linters and how they are typically implemented; a discussion on writing linters specifically for Scala; and an overview of parser combinators, their design patterns, and the \texttt{parsley} library.
+
+From there, \Cref{sec:simple-rules} dives into the first set of linting rules that \texttt{parsley-garnish} implements.
+These relatively simple rules focus on enforcing idiomatic design patterns relating to \emph{implicit conversions} in Scala, and were largely inspired by common issues I've seen in my experiences as a teaching assistant for the second-year undergraduate \textsc{Wacc} compilers project at Imperial.
+
+\Cref{sec:factor-leftrec} tackles a more ambitious rule to automatically refactor left-recursive parsers into a form that \texttt{parsley} can handle.
+This chapter introduces the idea of utilising intermediate \textsc{ast} representations to perform higher-level domain-specific transformations.
+It shows that a basic implementation is not sufficient to handle the complexities of the problem, and motivates the need for a more sophisticated approach.
+\Cref{sec:impl} therefore further develops and refines these ideas, drawing inspiration from metaprogramming techniques and \texttt{parsley}'s own optimisation machinery.
+
+These improvements allow the left-recursion transformation to be revisited and completed in \Cref{sec:complex-rules}, which also explores more advanced rules that are unlocked by the new \textsc{ast}.
+Finally, \Cref{sec:evaluation} evaluates \TODO{TODO}.
+The remainder of the report concludes with discussion of related work and future directions for the project.
 
 \end{document}
