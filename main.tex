@@ -65,7 +65,8 @@
 \ifLuaTeX
   \lstset{
     language=Haskell,
-    basicstyle=\ttfamily,
+    basicstyle=\ttfamily\linespread{1.5}\selectfont,
+    keywordstyle=\ttfamily, % disable bold keywords
     flexiblecolumns=false,
     escapechar=\%, % char to escape out of listings and back to LaTeX
     style=FiraCodeStyle,

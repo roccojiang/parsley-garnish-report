@@ -9,33 +9,42 @@
 * But it also meant that the project was more complex than initially anticipated, and that the variety of implemented linting rules were not as comprehensive as I would have liked
 * Left-recursion transformation is the big one which motivated much of the work on the intermediate ASTs in the first place, and therefore uses it the most
 * Evaluating the outputs of the left-recursion transformation therefore also evaluates the success of the intermediate machinery
-Evaluation criteria:
-* Was it able to detect this instance of left-recursion?
-* If it performed an auto-fix, correctness
-* Clarity of output
-* Does it compile?
 
-* Dealing with types of syntactic sugar in parsley
-
-Types of left-recursion:
-Assuming we have the number parser from before:
+\section{Removing Left-Recursion}\label{sec:eval-leftrec}
+Broadly speaking, there are three classes of left-recursion: direct, indirect, and hidden left-recursion.
+This \namecref{sec:eval-leftrec} evaluates \texttt{parsley-garnish}'s ability to handle each of these cases, based on a mostly qualitative set of evaluation criteria:
+\begin{itemize}
+  \item Was the instance of left-recursion detected?
+  \item If an auto-fix was performed, was it correct?
+  \item How clear was the output? How does it compare to an idiomatic, manually fixed version?
+  \item Does the output compile?
+\end{itemize}
+% * Dealing with types of syntactic sugar in parsley
+%
+The following examples assume the existence of a \scala{number} parser, defined the same way as earlier in \cref{sec:background-parsers}:
 \begin{minted}{scala}
 val number: Parsley[Int] = digit.foldLeft1(0)((n, d) => n * 10 + d.asDigit)
 \end{minted}
 
-Direct left-recursion
+\subsection{Direct Left-Recursion}
+Direct left-recursion is the simplest and most obvious form of left-recursion, where a parser directly refers to itself in its definition.
+This makes it relatively easy to detect and handle, regardless of the transformation technique used.
+The following minimal grammar for a postfix unary incrementing operator is directly left-recursive:
 % <inc> ::= <inc> '+' | <number>
 \begin{align*}
 \langle \mathit{inc} \rangle &::= \langle \mathit{inc} \rangle \enspace \text{`\texttt{+}'} \enspace | \enspace \langle \mathit{number} \rangle
 \end{align*}
+%
+A parser for this grammar, written in left-recursive form, would be as follows:
 \begin{minted}{scala}
 enum Expr {
   case Num(n: Int)
   case Inc(x: Expr)
 }
-
 val incs: Parsley[Expr] = Inc.lift(incs) <~ "+" | Num.lift(number)
 \end{minted}
+%
+In this instance, \texttt{parsley-garnish} detects the left-recursion and transforms the parser into the form shown below; this is compared with a hand-written version.
 \begin{minted}{scala}
 // Transformed by parsley-garnish
 val incs = chain.postfix[Expr](number.map(x1 => Num(x1)))
@@ -43,16 +52,89 @@ val incs = chain.postfix[Expr](number.map(x1 => Num(x1)))
 // "Optimal" version written by hand
 val incsByHand = chain.postfix[Expr](number.map(Num(_)))("+" as Inc)
 \end{minted}
-Note \scala{chain.postfix[Expr]} type ascription is necessary in this case to help type inference -- even in the hand-written version.
-This is not always necessary, but since parsley-garnish cannot typecheck its outputs, it is always included.
+%
+The output from \texttt{parsley-garnish} manages to compile and is clear and idiomatic, although the hand-written version is slightly more concise.
+These two versions can be shown to be equivalent via equational reasoning --
+the first argument to \scala{postfix} is obviously the same, but with placeholder syntax instead of using explicit lambda arguments.
+The second argument can be derived as follows:
+\begin{minted}[baselinestretch=1.5,escapeinside=\%\%]{scala}
+string("+").map(x1 => x2 => Inc(x2))
+% \proofstep{Definition of \texttt{as}:  \texttt{p.as(x) = p.map(\textunderscore => x)}} %
+string("+") as (x2 => Inc(x2))
+% \proofstep{$\eta$-reduction on \texttt{Inc}} %
+string("+") as Inc
+% \proofstep{Re-introduce \emph{Implicit Conversions} pattern} %
+"+" as Inc
+\end{minted}
+%
+This example highlights some subtle points that \texttt{parsley-garnish} considers in order to improve the likelihood of producing compilable output:
+\begin{itemize}
+  \item The type ascription \scala{chain.postfix[Expr]} is not always necessary, although in this case it is actually required to help Scala correctly unify the types expected by the combinator. Since \texttt{parsley-garnish} cannot typecheck its outputs, it always includes this type ascription to boost Scala's type inference.
+  \item The original parser used the \emph{Implicit Conversions} pattern to elide the \scala{string} combinator, but \texttt{parsley-garnish} re-introduces the explicit \scala{string} combinator in its output. This is intentional -- Scala 2 has trouble with implicit conversions in certain positions, such as in this case where \scala{"+".map(...)} would not compile. \texttt{parsley-garnish} attempts to add the explicit combinator back in cases like this, although in general it will respect the original style the parser was written in.
+\end{itemize}
+%
+As a larger-scale example, the left-associative arithmetic operators from \cref{sec:background-parsers} are also defined in a directly left-recursive manner.
+Recall how the hand-written version using \scala{chain.left1} was presented:
+\begin{minted}{scala}
+lazy val expr: Parsley[Expr] = chain.left1(term)('+' as Add(_, _) | '-' as Sub(_, _))
+\end{minted}
+%
+Compared with the full transformed output from \texttt{parsley-garnish}:
+\begin{minted}{scala}
+lazy val expr = chain.postfix[Expr](term)(
+  ('+' ~> term).map(x1 => x2 => Add(x2, x1)) | ('-' ~> term).map(x1 => x2 => Sub(x2, x1)))
+lazy val term = chain.postfix[Expr](atom)(
+  ('*' ~> atom).map(x1 => x2 => Mul(x2, x1)) | ('/' ~> atom).map(x1 => x2 => Div(x2, x1)))
+lazy val atom = '(' ~> expr <~ ')' | number.map(Num(_))
+\end{minted}
+%
+This also manages to successfully compile, and is relatively clear to read.
+However, it does highlight a current shortcoming of the left-recursion rule: left-recursive parsers can only be transformed into the most generalised \scala{postfix} form, which may not always be the most optimal choice of combinator.
+In this case, the \scala{chain.left1} combinator would've been a more appropriate choice; even better would be the \scala{precedence} combinator, since the grammar forms multiple layers of expression operators.
 
-Indirect left-recursion
+\scala{chain.left1} can be defined in terms of \scala{postfix}~\cite{willis_parsley_2024}.
+This is presented in Haskell syntax, as it illustrates the relationship more clearly.
+The only major difference in syntax is that Haskell uses \haskell{<$>} for the \scala{map} combinator:
+\begin{equation*}
+\text{\haskell{chainl1 p op}} \enspace = \enspace \text{\haskell{postfix p (flip <$> op <*> p)}}
+\end{equation*}
+%
+Using this definition, the \scala{postfix} version can be provably shown to be equivalent to the \scala{chain.left1} version.
+This proof will again be shown in Haskell, as it is more suitable for equational reasoning:
+\begin{lstlisting}
+    (\x1 x2 -> Add x2 x1) <$> ('+' *> term)
+% \proofstep{Definition of \texttt{flip}} %
+    flip Add <$> ('+' *> term)
+% \proofstep{Definition of \texttt{*>}  (equivalent to \texttt{\~{}>} in Scala):  \texttt{p *> q = const id <\$> p <*> q}} %
+    flip Add <$> (const id <$> '+' <*> term)
+% \proofstep{Re-association:  \texttt{u <*> (v <*> w) = pure ($\circ$) <*> u <*> v <*> w}} %
+    pure (%$\circ$%) <*> flip Add <$> (const id <$> '+') <*> term
+% \proofstep{Applicative fusion:  \texttt{pure f <*> pure x = pure (f x)}} %
+    (flip Add .) <$> (const id <$> '+') <*> term
+% \proofstep{Functor composition: \texttt{fmap f $\circ$ fmap g = fmap (f $\circ$ g)}} %
+    ((flip Add .) . const id) <$> '+' <*> term
+% \proofstep{Point-free manipulation} %
+    (flip . const Add) <$> '+' <*> term
+% \proofstep{Functor composition, in reverse} %
+    flip <$> (const Add <$> '+') <*> term
+% \proofstep{Definition of \texttt{\$>}  (equivalent to \texttt{.as} in Scala)} %
+    flip <$> ('+' $> Add) <*> term
+\end{lstlisting}
+
+% TODO; future work to somwhoew factor these out
+
+\subsection{Indirect Left-Recursion}
+Indirect left-recursion is more subtle and tricky to spot, since the parser's reference to itself takes more than one step to reach.
+Consider the following alternate grammar for arithmetic expressions, reduced to only addition for simplicity:
 % <expr> ::= <add> | '(' <expr> ')' | <number>
 % <add> ::= <expr> '+' <expr>
 \begin{align*}
 \langle \mathit{expr} \rangle &::= \langle \mathit{add} \rangle \enspace | \enspace \text{`\texttt{(}'} \; \langle \mathit{expr} \rangle \; \text{`\texttt{)}'} \enspace | \enspace \langle \mathit{number} \rangle \\
 \langle \mathit{add} \rangle &::= \langle \mathit{expr} \rangle \enspace \text{`\texttt{+}'} \enspace \langle \mathit{expr} \rangle 
 \end{align*}
+%
+The indirect left-recursive cycle arises since \scala{expr} firstly needs to parse \scala{add}, which needs to parse \scala{expr} first.
+This pattern of left-recursion can be formulated as the following parser:
 \begin{minted}{scala}
 enum Expr {
   case Num(n: Int)
@@ -62,6 +144,7 @@ enum Expr {
 lazy val expr: Parsley[Expr] = add | '(' ~> expr <~ ')' | num
 lazy val add: Parsley[Expr] = (expr, '+' ~> expr).zipped(Add(_, _))
 \end{minted}
+%
 For brevity, the type annotations will be omitted in the transformed code, as they are not changed by parsley-garnish.
 \begin{minted}{scala}
 // Transformed by parsley-garnish
