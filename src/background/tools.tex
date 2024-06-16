@@ -343,13 +343,6 @@ Semantic rules are implemented in the same manner as \cref{fig:syntactic-rule-ex
 This allows rule authors to query \textsc{ast} nodes for their associated symbols: textual identifiers that represent definitions in the Scala program.
 Although symbols are not guaranteed to be unique outside the document they are defined in~\cite{scalameta_semanticdb_spec_2023}, within the context of Scalafix rule authoring, they can be treated as unique since rules are applied per-file.
 
-The following methods are the most important for querying the semantic information associated with a tree node:
-\begin{itemize}
-  \item \scala{Tree.symbol} retrieves the symbol associated with a node.
-  \item \scala{Symbol.info} queries a symbol for any \scala{SymbolInformation} attached to it, including metadata such as its type signature.
-  \item \scala{Tree.synthetics} reveals extra compiler-generated tree nodes not present in the original source code, such as implicit conversions or inferred \scala{.apply} methods.
-\end{itemize}
-
 \begin{figure}[htbp]
 \begin{subfigure}{\textwidth}
 \begin{minted}{scala}
@@ -398,6 +391,13 @@ object Main {
 % Basically a stripped-down version of \textsc{tast}y (Typed Abstract Syntax Trees)\footnote{\url{https://docs.scala-lang.org/scala3/guides/tasty-overview.html}} but for both scala 2 and 3.
 % Scalafix then presents a seamless API to implement semantic rules, allowing users to inspect an AST node and any semantic information associated with it.
 
+The following methods are the most important for querying the semantic information associated with a tree node:
+\begin{itemize}
+  \item \scala{Tree.symbol} retrieves the symbol associated with a node.
+  \item \scala{Symbol.info} queries a symbol for any \scala{SymbolInformation} attached to it, including metadata such as its type signature.
+  \item \scala{Tree.synthetics} reveals extra compiler-generated tree nodes not present in the original source code, such as implicit conversions or inferred \scala{.apply} methods.
+\end{itemize}
+%
 Additionally, the \scala{SymbolMatcher} trait provides a convenient way to create predicates that match specific symbols.
 \Cref{fig:semantic-rule-ex} demonstrates how symbol matching can be used to detect integer addition operations, emitting a diagnostic warning when found.
 The \scala{intAdd} symbol matcher only matches the \scala{+} method on integers, so the rule does not emit a diagnostic for addition operations on other types, as seen in \cref{fig:semantic-rule-ex-example}.
