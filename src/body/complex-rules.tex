@@ -3,22 +3,19 @@
 \begin{document}
 
 \ourchapter{Using the New Parser \textsc{ast}}
+The ability to simplify parsers, as well as normalising their expression arguments, makes it feasible to use the intermediate \scala{Parser} \textsc{ast} for high-level parser transformations.
 
 \section{Removing Left-Recursion: Revisited}
-Armed with the new \textsc{ast} representation of parsers, the left-recursion factorisation transformation can be revisited.
-What has changed?
+\Cref{sec:factor-leftrec} left off with a disappointing result for the left-recursion factorisation transformation, producing a mostly unreadable output in \cref{fig:leftrec-example-bad}.
+This transformation can now be revisited given the improvements made to the \scala{Parser} \textsc{ast}.
+The following changes can be made to improve the rule's output:
 \begin{itemize}
-  \item Parser terms should be lawfully simplified to a more readable form before being written as a Scalafix rewrite patch.
+  \item Parser terms should be simplified via parser laws to get a more readable final output.
   \item Parsers should take advantage of the new \scala{Expr} representation to allow for partial evaluation of higher-order functions, rather than manipulating terms as opaque quasiquotes.
   \item The higher-order functions \scala{flip} and \scala{compose} can now be represented as \scala{Expr} lambda expressions, eliminating the need to patch in their definitions as previously required in \cref{sec:leftrec-utils}.
 \end{itemize}
 
-% * Parsers should be simplified before making the patch
-% * Update to use \scala{Expr} rather than quasiquotes, to allow the application of higher-order functions to be partially evaluated
-% * Therefore no need to patch in definitions for flip and compose, since they are now lambdas
-* no .curried
-* Resugaring
-* Optimisation: normalise leftrec part to see if it comes to empty -- if so, don't inline in the NT case
+Define normalise and prettify, attempt to resugar decomposed parsers back into a nicer form.
 
 \begin{minted}{scala}
 trait Parser {
@@ -44,9 +41,60 @@ trait Parser {
 }
 \end{minted}
 
+No .curried
+\begin{minted}{scala}
+trait Expr {
+  def curried: Expr = this match {
+    case Abs(x, f)        => Abs(x, f.curried)
+    case AbsN(x :: xs, f) => Abs(x, AbsN(xs, f).curried)
+    case _                => this
+  }
+}
+\end{minted}
+
+\begin{minted}{scala}
+trait LiftLike extends Parser {
+  def unfold() = {
+    val curriedFunc = Pure(func match {
+      // If the Expr is still opaque, it is treated as before
+      case Translucent(term, env) => Translucent(q"($term).curried", env)
+      // If statically inspectable, curry the lambda expr properly
+      case _ => func.curried
+    })
+
+    parsers.foldLeft(curriedFunc)(_ <*> _).unfold
+  }
+}
+\end{minted}
+
+% * Parsers should be simplified before making the patch
+% * Update to use \scala{Expr} rather than quasiquotes, to allow the application of higher-order functions to be partially evaluated
+% * Therefore no need to patch in definitions for flip and compose, since they are now lambdas
+* no .curried
+* Resugaring
+* Optimisation: normalise leftrec part to see if it comes to empty -- if so, don't inline in the NT case
+
+\begin{minted}{scala}
+def transform(results: Option[Expr], nonLeftRec: Parser, leftRec: Parser) = {
+  val result = results match {
+    case None    => Empty
+    case Some(t) => Pure(t)
+  }
+
+  leftRec.normalise match {
+    case Empty   => Patch.empty // not left-recursive, don't rewrite
+    case Pure(_) => Patch.lint(LeftRecDerivesEmptyLint) // left-recursive but unfixable
+    case _ =>
+      val transformed = Postfix(nonLeftRec | results, leftRec).prettify
+      Patch.replaceTree(originalTree, transformed.toString)
+  }
+}
+\end{minted}
+
+
 % TODO: significant engineering work to make sure things compile
 
-\subsubsection{The Final Result}
+\subsection*{The Final Result}
 \begin{minted}{scala}
 lazy val example: Parsley[String] =
   chain.postfix[String](string("b"))(string("a").map(x1 => x2 => x2 + x1))

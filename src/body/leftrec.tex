@@ -18,7 +18,7 @@ Although it is possible to address the issue by transforming the grammar with al
 in the context of parser combinators this is considered an anti-pattern by \textcite{willis_design-haskell_2021}.
 They argue that this transformation obscures the original intent of the grammar, and exposes lower-level implementation details when this can be abstracted behind a combinator.
 Instead, they propose that the idiomatic method to handle left-recursion in parser combinators is to use the \scala{chain} family of combinators~\cite{fokker_functional_1995}.
-These combinators encapsulate the behaviour of right-associating left-recursive rules and correcting the result back to a left-associative form.
+These combinators embody the behaviour of right-associating left-recursive rules and correcting the result back to a left-associative form.
 
 Left-recursion often comes as a nasty surprise for novice users naïvely translating \textsc{bnf} grammars into parser implementations -- this issue is not unique to parser combinators, but also extends to many popular parser generators that use recursive-descent.
 Thus, it would be beneficial to provide a linting rule for \texttt{parsley} that can warn users when parsers are left-recursive.
