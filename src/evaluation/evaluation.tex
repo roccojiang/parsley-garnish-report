@@ -4,6 +4,89 @@
 
 \ourchapter{Evaluation}\label{sec:evaluation}
 
+* Project ended up requiring a lot more work on internal machinery i.e. intermediate ASTs in order to get high-level parser transformations to work
+* This is good because it makes it allows parsley-garnish to be easily extended with more domain-specific rules in the future
+* But it also meant that the project was more complex than initially anticipated, and that the variety of implemented linting rules were not as comprehensive as I would have liked
+* Left-recursion transformation is the big one which motivated much of the work on the intermediate ASTs in the first place, and therefore uses it the most
+* Evaluating the outputs of the left-recursion transformation therefore also evaluates the success of the intermediate machinery
+Evaluation criteria:
+* Was it able to detect this instance of left-recursion?
+* If it performed an auto-fix, correctness
+* Clarity of output
+* Does it compile?
+
+* Dealing with types of syntactic sugar in parsley
+
+Types of left-recursion:
+Assuming we have the number parser from before:
+\begin{minted}{scala}
+val number: Parsley[Int] = digit.foldLeft1(0)((n, d) => n * 10 + d.asDigit)
+\end{minted}
+
+Direct left-recursion
+% <inc> ::= <inc> '+' | <number>
+\begin{align*}
+\langle \mathit{inc} \rangle &::= \langle \mathit{inc} \rangle \enspace \text{`\texttt{+}'} \enspace | \enspace \langle \mathit{number} \rangle
+\end{align*}
+\begin{minted}{scala}
+enum Expr {
+  case Num(n: Int)
+  case Inc(x: Expr)
+}
+
+val incs: Parsley[Expr] = Inc.lift(incs) <~ "+" | Num.lift(number)
+\end{minted}
+\begin{minted}{scala}
+// Transformed by parsley-garnish
+val incs = chain.postfix[Expr](number.map(x1 => Num(x1)))
+                              (string("+").map(x1 => x2 => Inc(x2)))
+// "Optimal" version written by hand
+val incsByHand = chain.postfix[Expr](number.map(Num(_)))("+" as Inc)
+\end{minted}
+Note \scala{chain.postfix[Expr]} type ascription is necessary in this case to help type inference -- even in the hand-written version.
+This is not always necessary, but since parsley-garnish cannot typecheck its outputs, it is always included.
+
+Indirect left-recursion
+% <expr> ::= <add> | '(' <expr> ')' | <number>
+% <add> ::= <expr> '+' <expr>
+\begin{align*}
+\langle \mathit{expr} \rangle &::= \langle \mathit{add} \rangle \enspace | \enspace \text{`\texttt{(}'} \; \langle \mathit{expr} \rangle \; \text{`\texttt{)}'} \enspace | \enspace \langle \mathit{number} \rangle \\
+\langle \mathit{add} \rangle &::= \langle \mathit{expr} \rangle \enspace \text{`\texttt{+}'} \enspace \langle \mathit{expr} \rangle 
+\end{align*}
+\begin{minted}{scala}
+enum Expr {
+  case Num(n: Int)
+  case Add(x: Expr, y: Expr)
+}
+
+lazy val expr: Parsley[Expr] = add | '(' ~> expr <~ ')' | num
+lazy val add: Parsley[Expr] = (expr, '+' ~> expr).zipped(Add(_, _))
+\end{minted}
+For brevity, the type annotations will be omitted in the transformed code, as they are not changed by parsley-garnish.
+\begin{minted}{scala}
+// Transformed by parsley-garnish
+lazy val expr = chain.postfix[Expr]('(' ~> expr <~ ')' | num)
+                                   (('+' ~> expr).map(x1 => x2 => Add(x2, x1)))
+lazy val add = (expr, '+' ~> expr).zipped(Add(_, _)) // no longer referenced by expr
+\end{minted}
+
+Hidden left-recursion:
+\begin{align*}
+\langle \mathit{a} \rangle &::= \langle \mathit{b} \rangle \; \langle \mathit{a} \rangle \; \dotsb \\
+\langle \mathit{b} \rangle &::= \epsilon
+\end{align*}
+
+\begin{minted}{scala}
+lazy val a: Parsley[Int] = b ~> a
+// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+// error: [FactorLeftRecursion] Left-recursion detected, but could not be removed from a.
+// The resulting chain would be given a parser which consumes no input,
+// causing it to loop indefinitely:
+// chain.postfix[Int](some(digit) ~> a)(pure(x1 => x1))
+
+lazy val b: Parsley[Int] = many(digit).map(_.mkString.toInt)
+\end{minted}
+
 % TODO: perform experiment: types of left recursion on the rule - evaluation criteria??
 % TODO: library ergonomics - see ethan's thesis
 % TODO: benchmarks here?

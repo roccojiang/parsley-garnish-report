@@ -92,11 +92,11 @@ expr.parse("1+2*3/4") // => Add(Num(1), Div(Mul(Num(2), Num(3)), Num(4)))
 \end{minted}
 \vspace{1ex} % TODO: remove if necessary? idk why the vertical space here is so tiny
 %
-Notice that although the parser retains high-level similarities to the grammar, it is more verbose because it encodes semantic actions (i.e. constructing the resulting \textsc{ast}) directly in the parser.
+Notice that although the form of the parser retains high-level similarities to the grammar, it is more verbose because it encodes semantic actions (i.e. constructing the resulting \textsc{ast}) directly in the parser.
 \begin{itemize}
   \item The \scala{digit} combinator used in \scala{number} is a parser that recognises a single digit character.
   \item The \scala{number} parser uses the \scala{foldLeft1} combinator to parse one or more digits, folding them together to form an integer.
-  \item Left-associative parsing is idiomatically handled by the \scala{chain.left1} combinator. This preserves the left-associative structure of the grammar, while avoiding left-recursion. Since the chain combinator makes it obvious that it is parsing a left-associative binary operator, it can be argued that this is a clearer and higher-level way of expressing the intent of the grammar rather than by left-recursion.
+  \item Left-associative parsing is idiomatically handled by the \scala{chain.left1} combinator. This preserves the left-associative structure of the grammar, while avoiding left-recursion. Since the chain combinator makes it explicit that it is parsing a left-associative binary operator, it can be argued that this is a clearer and higher-level way of expressing the intent of the grammar rather than by left-recursion.
   \item The \scala{'+' as Add(_, _)} parser consumes a \scala{+} character, discarding its result and replacing it with the semantic action of constructing an \scala{Add} node.
   \item The \scala{map} combinator is used to transform the result of the \scala{number} parser into a \scala{Num} node, lifting its \scala{Int} result to an \scala{Expr}.
   \item The \scala{~>} and \scala{<~} operators guide the direction of the parser, ensuring that the parentheses are consumed but not included in the final \scala{Expr}.

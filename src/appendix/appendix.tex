@@ -4,9 +4,9 @@
 
 \ourchapter{Proofs of Parser Laws} \label{appendix:parser-law-proofs}
 
-% Strength of functional programming - can prove much more simply using reasoning
-% TODO: one more sentence to justify why gigaparsec semantics is easier to prove on
-The approach taken to prove the following parser laws for \texttt{parsley} is via equational reasoning on \texttt{gigaparsec} semantics, under the assumption that their semantics are equivalent.
+The Haskell \texttt{gigaparsec} library uses a continuation-passing style (\textsc{cps}) to define its parsers, which makes it easier to reason about their semantics.
+% TODO: pluralise "parser law" if any extra proofs are added
+The approach taken to prove the following parser law for \texttt{parsley} is via equational reasoning on \texttt{gigaparsec} semantics, under the assumption that their semantics are equivalent.
 While there is no formal proof of this equivalence at the present, \texttt{gigaparsec} was designed to have semantics equivalent to \texttt{parsley}'s.
 
 \section{Left absorption for \texttt{fmap}}
