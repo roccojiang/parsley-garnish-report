@@ -104,13 +104,6 @@ lazy val expr: Parsley[Float] = precedence('(' ~> expr <~ ')', number)(
 With this definition of \scala{expr}, the parser is able to parse left-associative expressions without left-recursion, and the syntactic noise of the \scala{char} combinators has been removed.
 Executing \scala{expr.parse("1+2*3/4")} now correctly evaluates to \scala{2.5}!
 
-% \section{Project Goals}
-% This project aims to explore the potential of harnessing static code analysis techniques to develop a new tool, \texttt{parsley-garnish}, that offers code hints aimed at assisting programmers in writing idiomatic and correct \texttt{parsley} code.
-% Additionally, for certain issues that can be automatically fixed, \texttt{parsley-garnish} will provide automated actions to resolve the issue. % TODO: via code transformations - put this in the background?
-% The goal of \texttt{parsley-garnish} is to be used as a companion library to \texttt{parsley}, in order to improve its ease of adoption and to help users enforce best practices.
-
-% TODO: mention wacc students
-
 % Introduces domain-specific lint rules for Parsec-style parser combinator libraries
 % Implementation of these rules for Parsley Scala
 % Developing the required machinery on top of raw AST manipulation, to perform code rewrites for them
@@ -122,7 +115,7 @@ Executing \scala{expr.parse("1+2*3/4")} now correctly evaluates to \scala{2.5}!
 \section*{Contributions}
 The contributions of this project are summarised as follows:
 \begin{itemize}
-  \item poo
+  \item \TODO{TODO} %TODO
 \end{itemize}
 
 \section*{Outline}
@@ -138,7 +131,7 @@ It shows that a basic implementation is not sufficient to handle the complexitie
 \Cref{sec:impl} therefore further develops and refines these ideas, drawing inspiration from metaprogramming techniques and \texttt{parsley}'s own optimisation machinery.
 
 These improvements allow the left-recursion transformation to be revisited and completed in \Cref{sec:complex-rules}, which also explores more advanced rules that are unlocked by the new \textsc{ast}.
-Finally, \Cref{sec:evaluation} evaluates \TODO{TODO}.
+Finally, \Cref{sec:evaluation} evaluates \TODO{TODO}. %TODO
 The remainder of the report concludes with discussion of related work and future directions for the project.
 
 \end{document}

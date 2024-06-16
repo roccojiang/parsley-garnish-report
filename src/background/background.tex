@@ -3,9 +3,14 @@
 \begin{document}
 
 \ourchapter{Background}\label{sec:background}
-
-% TODO: JW feedback -- chapter intro = what is needed to know to understand the rest of the report, and which sections they're found in
-% see Jamie's thesis for inspiration too
+This \namecref{sec:background} covers the basic knowledge required to understand this project's two main areas of focus:
+\begin{itemize}
+  \item \textbf{Linters} and the types of issues that they detect (\cref{sec:background-linters}), and how the \texttt{parsley-garnish} linter can be implemented as a Scala metaprogram that manipulates abstract syntax trees (\cref{sec:writing-scala-linters}).
+  \item \textbf{Parser combinators}, their design patterns, and the \texttt{parsley} library (\cref{sec:background-parsers}).
+\end{itemize}
+%
+Familiarity with basic Scala concepts is expected, but the code examples will be comprehensible for those experienced with a \textsc{jvm} language like Java or Kotlin.
+Surface-level familiarity with Haskell syntax is also beneficial, but not required.
 
 \subfile{tools}%
 \subfile{parsers}%
