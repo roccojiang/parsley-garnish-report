@@ -243,6 +243,12 @@ Revisiting the evaluation criteria:
 % want to be able to preview changes in editor, and also apply auto-fixes one by one
 
 % TODO: benchmarks here?
+\subsubsection{Evaluating Performance of Normalisation Strategies}
+% TODO: move this to evaluation chapter?
+% TODO: tbh could've just stopped at HOAS, but in our case, NbE was an easily attainable logical next step to more aggressively use meta-language constructs
+\texttt{parsley-garnish} originally used a named approach with Barendregt's convention, generating fresh variable names using an atomic counter.
+However, this required an extra $\alpha$-conversion pass to clean up variable names before pretty-printing the term, since the fresh variable names were very ugly.
+
 
 % A large corpus of student WACC parsers is available to evaluate the real-world applicability of \texttt{parsley-garnish}.
 % This can be utilised to assess the tool's ability to achieve quantitative and qualitative metrics.

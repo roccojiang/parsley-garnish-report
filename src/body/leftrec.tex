@@ -88,7 +88,7 @@ Thus, this \namecref{sec:leftrec-infra} discusses the extra infrastructure used 
 
 \subsection{An Intermediate \textsc{ast}}\label{sec:parser-ast-motivation}
 The transformations described by \textcite{baars_leftrec_2004} require an explicit representation of the grammar and production rules so that they can be inspected and manipulated before generating code.
-They achieve this by representing parsers as a deep-embedded datatype in the form of an intermediate \textsc{ast}, in a similar manner to \texttt{parsley}.
+They achieve this by representing parsers as a deep-embedded datatype in the form of an intermediate \textsc{ast}, similarly to \texttt{parsley}.
 
 Since \texttt{parsley-garnish} is a linter, by nature, it has access to an explicit grammar representation in the form of the full \scala{scala.meta.Tree} \textsc{ast} of the source program.
 However, this datatype represents general-purpose abstract Scala syntax, rather than the abstract syntax of a specialised parser combinator \textsc{dsl}.
@@ -110,12 +110,11 @@ Although quasiquotes can be used as extractor patterns in pattern matching, this
 Thus, extracting the parsers necessitates a long-winded pattern match like so:
 \begin{minted}{scala}
 val ap = SymbolMatcher.normalized("parsley.Parsley.`<*>`")
-
 def deconstructAp(parser: Term) = parser match {
   case Term.ApplyInfix(p, ap(_), _, Term.ArgClause(List(q), _)) => (p, q)
 }
 \end{minted}
-This involves dealing with abstract general-purpose syntax constructs like \scala{Term.ApplyInfix}, which are low-level details not relevant to the task of manipulating parsers.
+This involves dealing with abstract general-purpose syntax constructs like \scala{Term.ApplyInfix}, which are low-level details irrelevant to the task of manipulating parsers.
 Although this is not an issue for simple one-off transformations, for more specialised transformations like left-recursion factoring, it would be desirable to abstract away from these low-level syntactic details.
 This motivates the need for an higher-level, intermediate \textsc{ast} representation that is more specialised to the domain of parser combinators.
 
@@ -143,9 +142,7 @@ case class Chr(c: Char) extends Parser
 Scala allows users to define symbolic class names (as evidenced by the definitions of \scala{<*>} and \scala{<|>} in \cref{fig:parser-adt}), and provides syntactic sugar to pattern match on these constructors using infix notation.
 This results in a very natural and readable pattern matching syntax:
 \begin{minted}{scala}
-def deconstructAp(parser: Parser) = parser match {
-  case p <*> q => (p, q)
-}
+def deconstructAp(parser: Parser) = parser match { case p <*> q => (p, q) }
 \end{minted}
 
 \paragraph{Constructing parsers}
@@ -267,7 +264,7 @@ object Pure {
   val matcher = SymbolMatcher.normalized("parsley.ParsleyImpl.pure")
 
   def fromTerm: PartialFunction[Term, Pure] = {
-    // expr is an opaque AST node that can't be further inspected
+    // expr is an opaque AST node that cannot be further inspected
     case Term.Apply(matcher(_), Term.ArgClause(List(expr), _)) => Pure(expr)
   }
 }
@@ -333,7 +330,7 @@ transformedGrammar.mapValues { defn =>
 %
 The unfolding transformation is defined as follows, which is dynamically dispatched to the appropriate combinator's \scala{unfold} method:
 \begin{minted}{scala}
-def unfold(env: Grammar, currentNT: Symbol): UnfoldedParser =
+def unfold(env: Grammar, currentNT: Symbol) =
   env(currentNT).parser.unfold(currentNT, env, visited = Set.empty)
 \end{minted}
 
@@ -346,8 +343,8 @@ The rest of the combinators in \texttt{parsley} are defined in terms of the prim
 Non-terminals are the primary base case of the recursive unfolding transformation.
 There are three cases to consider when a non-terminal symbol is encountered:
 \begin{itemize}
-  \item This non-terminal is the same as the current non-terminal being analysed, which means it may be in a left-recursive position. Recall that the \scala{leftRec} result corresponds to a function, where the call to the left-recursive non-terminal is stripped off. Therefore in this case, the left-recursive call is the \scala{identity} function which just returns its argument, i.e. the non-terminal itself. If the non-terminal is not in left-recursive position, this doesn't matter as the \scala{leftRec} result will be subsumed by the \scala{nonLeftRec} result in the final recombination.
-  \item The non-terminal refers to a different non-terminal, but has already been visited in the current unfolding process. This means it shouldn't be recursively visited again, as it has already been factored out. It is not left-recursive and the \scala{nonLeftRec} part is just a reference to this non-terminal's name.
+  \item This non-terminal is the same as the current non-terminal being analysed, which means it may be in a left-recursive position. Recall that the \scala{leftRec} result corresponds to a function, where the call to the left-recursive non-terminal is stripped off. Therefore in this case, the left-recursive call is the \scala{identity} function which just returns its argument, i.e. the non-terminal itself. It is not an issue if the non-terminal is not in left-recursive position, as the \scala{leftRec} result will be subsumed by the \scala{nonLeftRec} result during the final recombination.
+  \item The non-terminal refers to a different non-terminal, but has already been visited in the current unfolding process. This means it should not be recursively visited again, as it has already been factored out. It is not left-recursive and the \scala{nonLeftRec} part is just a reference to this non-terminal's name.
   \item The non-terminal refers to a different non-terminal that has not been visited yet. In this case, the non-terminal is recursively unfolded, and the \scala{visited} set is updated to include this non-terminal.
 \end{itemize}
 %
@@ -363,7 +360,7 @@ case class NonTerminal(ref: Symbol) extends Parser {
 
 \paragraph{Base cases}
 The base cases are mostly straightforward.
-The unfolded \scala{result} portion can be reasoned with by the combinators' correspondence to \textsc{peg} expressions~\cite{eichenroth_fast_2022}, as shown in \cref{tab:base-case-empties}. If the combinator can succeed by parsing the empty string, \scala{result} is a \scala{Some} value of its semantic action, otherwise it is \scala{None}.
+The unfolded \scala{results} portion can be reasoned with by the combinators' correspondence to \textsc{peg} expressions~\cite{eichenroth_fast_2022}, as shown in \cref{tab:base-case-empties}. If the combinator can succeed by parsing the empty string, \scala{results} is a \scala{Some} value of its semantic action, otherwise it is \scala{None}.
 The other two portions are also easy: none are left-recursive, and if the combinator consumes input on success then \scala{nonLeftRec} is just the combinator itself.
 Thus, the base cases can be summed up as follows:
 \begin{minted}{scala}
@@ -379,17 +376,17 @@ Thus, the base cases can be summed up as follows:
 Combinator        & Can succeed without consuming input?                                                                                                               \\ \midrule
 \scala{pure(x)}   & Yes, semantic action is \scala{x}.                                                                                                                         \\
 \scala{empty}     & No, combinator fails immediately regardless of input.                                                                                              \\
-\scala{string(s)} & Functionally no. Can theoretically be given the empty string \scala{""}, but this is illegal in \texttt{parsley} and triggers a runtime exception. \\
+\scala{string(s)} & Functionally, no. Can theoretically be given the empty string \scala{""}, but this is illegal in \texttt{parsley} and triggers a runtime exception. \\
 \scala{char(c)}   & No, always consumes the given character.                                                                                                           \\
 \scala{item}      & No, always consumes any single character.                                                                                                          \\ \bottomrule
 \end{tabular}%
-\caption{Semantic action (\scala{result}) portion behaviour for each base case.}
+\caption{Semantic action (\scala{results}) portion behaviour for each base case.}
 \label{tab:base-case-empties}
 \end{table}
 
 \paragraph{Choice (\scala{<|>})}
 This recursive case is also relatively simple: each branch is unfolded, then the \scala{nonLeftRec} and \scala{leftRec} portions are recombined with the \scala{|} combinator.
-The \scala{result} portion is that of the left branch if it can derive the empty string, otherwise it is the right branch.
+The \scala{results} portion is that of the left branch if it can derive the empty string, otherwise it is the right branch.
 This behaviour differs slightly from the original presentation of the transformation by \textcite{baars_leftrec_2004}, where \scala{|} is based on \textsc{cfg} semantics.
 The consequence of this is that choice is unbiased in the original transformation, triggering an ambiguity error if both branches can succeed without consuming input.
 However, since \texttt{parsley} uses \textsc{peg} semantics, this ambiguity is not possible --
@@ -412,7 +409,7 @@ It is also the most complex:
   \item \scala{p <*> q} can succeed without consuming input only if \emph{both} \scala{p} and \scala{q} can do so. Parser combinators abide by the law that \scala{pure(f) <*> pure(x) = pure(f(x))}, so the resulting semantic action is that of \scala{p} applied as a function to the semantic action of \scala{q}.
   \item In the \scala{nonLeftRec} and \scala{leftRec} portions, if \scala{p} can succeed without consuming input, then \scala{q} must be subjected to the semantic value corresponding to \scala{p}~\cite{swierstra_deterministic_1996}. This is achieved using the result shown in \cref{eq:ap-leftrec}, which is a special case of grammar right-factoring in reverse.
   \begin{itemize}
-    \item The \scala{leftRec} portion requires re-associating semantic actions back to the left, which requires using the \scala{flip} higher-order function. Thus, the left branch of the \textsc{rhs} of \cref{eq:ap-leftrec} is reformulated as \scala{p.map(flip) <*> q}.
+    \item The \scala{leftRec} portion requires re-associating semantic actions back to the left, which uses the \scala{flip} higher-order function. Thus, the left branch of the \textsc{rhs} of \cref{eq:ap-leftrec} is reformulated as \scala{p.map(flip) <*> q}.
     \item Since \scala{leftRec} is a parser of a function, the right branch also needs adjusting: the function composition operation must be used in order to apply the function to \scala{q} with the \scala{<*>} combinator.
   \end{itemize}
 \end{itemize}
@@ -478,9 +475,9 @@ trait LiftLike extends Parser {
 \end{minted}
 
 \subsection{Defining Utility Functions}\label{sec:leftrec-utils}
-In various places within the unfolding transformations, three higher-order functions were utilised which may not be provided by the Scala standard library:
+In various places within the unfolding transformations, three higher-order functions are utilised, which may not be provided by the Scala standard library:
 \begin{itemize}
-  \item The flip function reverses the order of arguments applied to a function. This isn't defined in the standard library, so it must be defined manually.
+  \item The flip function reverses the order of arguments applied to a function. This is not defined in the standard library, so it must be defined manually.
   \item Function composition is defined in the standard library, but a more versatile curried version is required by the transformation, so it is also defined manually.
   \item The identity function \scala{identity[A]: A => A} is defined in the standard library.
 \end{itemize}
@@ -491,7 +488,7 @@ def flip[A, B, C](f: A => B => C)(x: B)(y: A): C = f(y)(x)
 def compose[A, B, C](f: B => C)(g: A => B)(x: A): C = f(g(x))
 \end{minted}
 %
-Although this isn't very aesthetically pleasing, it is necessary to bring these higher-order functions into scope for the transformed code to make use of them.
+Although this is not very aesthetically pleasing, it is necessary to bring these higher-order functions into scope for the transformed code to make use of them.
 
 \subsection*{Success...?}
 With the unfolding transformations defined for all core combinators, the left-recursion factoring transformation is now complete.
@@ -519,7 +516,7 @@ lazy val example: Parsley[String] = chain.postfix(
 This is... disappointing, to say the least.
 There are \emph{many} things wrong with the transformed output:
 \begin{itemize}
-  \item The parser is horrendously complex and unreadable, its intent entirely obfuscated in a sea of combinators. It's especially frustrating that there are so many \scala{empty} combinators, when \scala{p | empty} and \scala{empty | p} are both actually just equivalent to \scala{p}.
+  \item The parser is horrendously complex and unreadable, its intent entirely obfuscated in a sea of combinators. It's especially frustrating that there are so many \scala{empty} combinators, when both \scala{p | empty} and \scala{empty | p} are just equivalent to \scala{p}.
   \item Having to define the \scala{flip} and \scala{compose} functions is not ideal, but inlining them as lambdas would make the code even worse.
   \item Even worse, the parser does not even typecheck -- unlike classical Hindley-Milner-based type systems, Scala only has \emph{local} type inference~\cite{cremet_core_2006}. As a result, the compiler is unable to correctly infer correct types for \scala{flip} and also asks for explicit type annotations in the lambda \scala{(_ + _).curried}.
 \end{itemize}

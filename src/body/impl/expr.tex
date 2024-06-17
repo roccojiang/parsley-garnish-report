@@ -10,7 +10,7 @@
 
 The previous \namecref{sec:simplify-parsers} demonstrated the process of simplifying the \scala{Parser} \textsc{ast}, but this is not the only syntactic structure that requires simplification.
 So far, parsers such as \scala{pure} and \scala{map} still treat expressions as black boxes in the form of raw \scala{scala.meta.Term} \textsc{ast} nodes.
-This is evident from where the example in \cref{sec:simplify-example} left off, where the parser itself is in a simplified form, but the function passed to \scala{map} isn't:
+This is evident from where the example in \cref{sec:simplify-example} left off, where the parser itself is in a simplified form, but the function passed to \scala{map} is not:
 \begin{minted}{scala}
 val f = flip(compose((_ + _).curried)(identity))
 \end{minted}
@@ -18,7 +18,7 @@ val f = flip(compose((_ + _).curried)(identity))
 Therefore, this \namecref{sec:simplify-exprs} explores the following:
 \begin{itemize}
   \item How expressions can be represented as another intermediate \textsc{ast}, so that they are statically inspectable enough to be simplified.
-  \item The notion of \emph{normalisation}, reducing expressions into a semantically equivalent but syntactically simpler form.
+  \item The idea of \emph{normalisation} to reduce expressions into a semantically equivalent but syntactically simpler form.
 \end{itemize}
 
 \subsection{The $n$-ary Lambda Calculus}
@@ -109,8 +109,7 @@ case class App[A, B](f: Lambda[A => B], x: Lambda[A]) extends Lambda[B]
 case class Var[A](name: VarName) extends Lambda[A]
 
 // λf. λx. f x
-val f = Var("f")
-val x = Var("x")
+val f = Var("f"), val x = Var("x")
 val expr = Abs(f, Abs(x, App(f, x)))
 \end{minted}
 %
@@ -172,7 +171,7 @@ The goal is to achieve beta normal form ($\beta$-\textsc{nf}) by allowing $\beta
 
 \subsubsection{Normalisation by Evaluation}
 An interesting alternative strategy stems from a notion of \emph{reduction-free} normalisation, based on an undirected notion of term equivalence, rather than directed reduction.
-\emph{Normalisation by Evaluation} (\textsc{nbe})~\cite{filinski_nbe_2004} achieves this by \emph{evaluating} syntactical terms into a semantic model, then \emph{reifying} them back into the syntactic domain.
+\emph{Normalisation by evaluation} (\textsc{nbe})~\cite{filinski_nbe_2004} achieves this by \emph{evaluating} syntactical terms into a semantic model, then \emph{reifying} them back into the syntactic domain.
 The denotational model (denoted by $\text{\textlbrackdbl} - \text{\textrbrackdbl}$) generally involves implementing a separate datatype from the syntactic \textsc{ast} representation of functions.
 The semantics is specifically constructed to be \emph{residualising}, meaning that terms can be extracted out into the original syntactic representation.
 Normalisation is then just defined as the composition of these two operations, as illustrated in \cref{fig:nbe}.
@@ -314,12 +313,6 @@ However, attempting to implement this ran into two main hurdles:
   \item Scala 2's type inference for \textsc{gadt}s is less than ideal, requiring extra type annotations and unsafe casts which ultimately defeat the original purpose of type safety. This situation is improved, although not completely solved, in Dotty~\cite{parreaux_towards_2019} -- but Scalafix does not yet support Scala 3.
 \end{itemize}
 
-\subsubsection{Evaluating Performance of Normalisation Strategies}
-% TODO: move this to evaluation chapter?
-% TODO: tbh could've just stopped at HOAS, but in our case, NbE was an easily attainable logical next step to more aggressively use meta-language constructs
-\texttt{parsley-garnish} originally used a named approach with Barendregt's convention, generating fresh variable names using an atomic counter.
-However, this required an extra $\alpha$-conversion pass to clean up variable names before pretty-printing the term, since the fresh variable names were very ugly.
-
 \subsection{Lifting to the Intermediate Expression \textsc{ast}}\label{sec:lifting-expr}
 The \scala{Parser} \textsc{ast} is amended to take \scala{Expr} arguments where they used to take \scala{scala.meta.Term} values.
 Take the \scala{Pure} parser as an example:
@@ -395,7 +388,7 @@ The $\eta$-expanded form of \scala{AsciiCode.apply} would be as follows:
 \end{minted}
 %
 To $\eta$-expand \scala{scala.meta.Term} nodes, \texttt{parsley-garnish} attempts to look up the method signature of its symbol using Scalafix's semantic \textsc{api}.
-This is not always possible -- in that case, the term can't be statically inspected any further and is just wrapped in a \scala{Translucent} term.
+This is not always possible -- in that case, the term cannot be statically inspected any further and is just wrapped in a \scala{Translucent} term.
 
 \subsection{Normalising Expression Terms}
 Using \textsc{nbe}, normalisation therefore follows a two-step process: \scala{Expr} values \scala{evaluate} into \scala{Sem} values, which are then \scala{reify}ed back into \scala{Expr}:

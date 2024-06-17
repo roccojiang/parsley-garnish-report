@@ -5,54 +5,55 @@
 \ourchapter{Using the New Parser \textsc{ast}}\label{sec:complex-rules}
 The ability to simplify parsers, as well as normalising their expression arguments, makes it feasible to use the intermediate \scala{Parser} \textsc{ast} for high-level parser transformations.
 
-\section{Removing Left-Recursion: Revisited}
+\section{Removing Left-Recursion: Revisited}\label{sec:leftrec-revisited}
 \Cref{sec:factor-leftrec} left off with a disappointing result for the left-recursion factorisation transformation, producing a mostly unreadable output in \cref{fig:leftrec-example-bad}.
-This transformation can now be revisited given the improvements made to the \scala{Parser} \textsc{ast}.
-The following changes can be made to improve the rule's output:
+The transformation can now be revisited given the improvements made to the \scala{Parser} \textsc{ast}.
+This \namecref{sec:leftrec-revisited} briefly explores some of the changes made to the rule, and the final result of the transformation on the \scala{example} parser.
+
+\subsection{Pretty Parsers}
+The need to obtain simpler parser terms was the main driving motivation behind the new \scala{Parser} \textsc{ast}, which now defines the following methods on top of \scala{simplify}:
 \begin{itemize}
-  \item Parser terms should be simplified via parser laws to get a more readable final output.
-  \item Parsers should take advantage of the new \scala{Expr} representation to allow for partial evaluation of higher-order functions, rather than manipulating terms as opaque quasiquotes.
-  \item The higher-order functions \scala{flip} and \scala{compose} can now be represented as \scala{Expr} lambda expressions, eliminating the need to patch in their definitions as previously required in \cref{sec:leftrec-utils}.
+  \item \scala{normalise}: Simplifies parsers via parser laws and normalises their expression arguments. This is used to check parser equivalence using their canonical forms.
+  \item \scala{prettify}: Adds an extra step after normalisation, using a set of ``resugaring'' rules to rebuild the combinators that were desugared during the left-recursion unfolding.
 \end{itemize}
-
-Define normalise and prettify, attempt to resugar decomposed parsers back into a nicer form.
-
+%
+After the left-recursion transformation, \scala{prettify} is used to make parser terms more readable, before applying the final Scalafix patch.
+The following demonstrates the implementation of these methods, as well as a subset of the resugaring rewrite rules:
 \begin{minted}{scala}
 trait Parser {
   def normalise: Parser = this.simplify.normaliseExprs
   def isEquivalent(other: Parser) = this.normalise == other.normalise
-
   def prettify: Parser = this.normalise.resugar
   def resugar: Parser = this.rewrite {
-    // p.map(\x -> \y -> y) <*> q == p ~> q
+    // p.map(x => y => y) <*> q == p ~> q
     case FMap(p, Abs(_, Abs(Var(y, _), Var(z, _)))) <*> q if (y == z) => p ~> q
-    // p.map(\x -> \y -> x) <*> q == p <~ q
-    case FMap(p, Abs(Var(x, _), Abs(_, Var(z, _)))) <*> q if (x == z) => p <~ q
-
     // f.curried.map(p) <*> q == (p, q).zipped(f)
     case FMap(p1, Abs(x1, Abs(x2, body))) <*> p2 =>
       Zipped(AbsN(List(x1, x2), body), List(p1, p2))
-
   }.transform {
     // Scala 2 cannot resolve implicit stringLifts in some positions
+    // Replace with explicit 'string' combinator so the compiler does not complain
     case FMap(Str(s, _), f) => FMap(Str(s, implicitSyntax = false), f)
-    case Zipped(f, Str(s, _) :: ps) => Zipped(f, Str(s, implicitSyntax = false) :: ps)
   }
 }
 \end{minted}
 
-No .curried
+\subsection{Evaluating Expressions}
+The higher-order functions \scala{flip} and \scala{compose} are represented as in \cref{fig:higher-order-funcs}, eliminating the need to patch in their definitions as Scala code.
+Instead, they get partially evaluated as lambda expressions during the normalisation process.
+
+The currying of functions passed to \scala{LiftLike} combinators are also expressed with the \scala{Expr} \textsc{ast}, to ensure that they are well-formed during the transformation.
+This also significantly reduces the occurrence of \scala{.curried} method calls in the transformed output, which helps Scala's type inference and reduces syntactic noise in the final output.
 \begin{minted}{scala}
 trait Expr {
+  // Curries a lambda expression, flattening into a chain of unary functions
   def curried: Expr = this match {
     case Abs(x, f)        => Abs(x, f.curried)
     case AbsN(x :: xs, f) => Abs(x, AbsN(xs, f).curried)
     case _                => this
   }
 }
-\end{minted}
 
-\begin{minted}{scala}
 trait LiftLike extends Parser {
   def unfold() = {
     val curriedFunc = Pure(func match {
@@ -61,19 +62,23 @@ trait LiftLike extends Parser {
       // If statically inspectable, curry the lambda expr properly
       case _ => func.curried
     })
-
     parsers.foldLeft(curriedFunc)(_ <*> _).unfold
   }
 }
 \end{minted}
 
-% * Parsers should be simplified before making the patch
-% * Update to use \scala{Expr} rather than quasiquotes, to allow the application of higher-order functions to be partially evaluated
-% * Therefore no need to patch in definitions for flip and compose, since they are now lambdas
-* no .curried
-* Resugaring
-* Optimisation: normalise leftrec part to see if it comes to empty -- if so, don't inline in the NT case
+% * Optimisation: normalise leftrec part to see if it comes to empty -- if so, don't inline in the NT case
 
+\subsection{The Improved Rule}
+Being able to normalise parsers lets \texttt{parsley-garnish} make more informed decisions about the result of the transformation.
+By normalising the \scala{leftRec} portion of the unfolded parser, it can be determined whether the transformation was successful or not:
+\begin{itemize}
+  \item If \scala{leftRec} resolves to \scala{empty}, the original parser was not left-recursive, so \texttt{parsley-garnish} does not bother rewriting it.
+  \item If it simplifies to a \scala{pure(x)}, this indicates a deeper problem which rewriting into the \scala{postfix} combinator cannot solve. This generates a lint error diagnostic instead of an auto-fix.
+  \item Otherwise, the parser is left-recursive and can be fixed using the \scala{postfix} combinator. This result is prettified before applying the final patch.
+\end{itemize}
+%
+These cases are implemented in the \scala{transform} method to generate the a Scalafix patch per unfolded parser:
 \begin{minted}{scala}
 def transform(results: Option[Expr], nonLeftRec: Parser, leftRec: Parser) = {
   val result = results match {
@@ -82,7 +87,7 @@ def transform(results: Option[Expr], nonLeftRec: Parser, leftRec: Parser) = {
   }
 
   leftRec.normalise match {
-    case Empty   => Patch.empty // not left-recursive, don't rewrite
+    case Empty   => Patch.empty // not left-recursive, do not rewrite
     case Pure(_) => Patch.lint(LeftRecDerivesEmptyLint) // left-recursive but unfixable
     case _ =>
       val transformed = Postfix(nonLeftRec | results, leftRec).prettify
@@ -91,14 +96,15 @@ def transform(results: Option[Expr], nonLeftRec: Parser, leftRec: Parser) = {
 }
 \end{minted}
 
-
-% TODO: significant engineering work to make sure things compile
-
 \subsection*{The Final Result}
+Finally, the \scala{example} parser from \cref{sec:factor-leftrec} can be automatically transformed into the following form:
 \begin{minted}{scala}
 lazy val example: Parsley[String] =
   chain.postfix[String](string("b"))(string("a").map(x1 => x2 => x2 + x1))
 \end{minted}
+%
+This is a \emph{significant} improvement over the original output in \cref{fig:leftrec-example-bad}, and is visually very similar to the ``optimal'' hand-written version in \cref{fig:leftrec-example-good}.
+In fact, the two parsers can be proven to be equivalent -- \cref{sec:eval-leftrec} explores this further with some different examples.
 
 \section{Simplify Parser}
 The improved \scala{Parser} \textsc{ast} also gives a new auto-fix rule for free: automatic simplification of parsers.

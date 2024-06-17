@@ -16,7 +16,7 @@ A deep-embedded \textsc{dsl} and a linter for that \textsc{dsl} can thus be view
   \item The \textsc{dsl} semantics are \emph{evaluation}. The syntactic structure may be transformed for optimisation purposes before generating code to be evaluated. % For \texttt{parsley}, the evaluation produces an optimised parser.
   \item The linter's semantics are two-fold for lint diagnostics and code rewrites:
   \begin{itemize}
-    \item \emph{Emitting side-effects} in the form of diagnostics, based on patterns of interest within the syntactic structure.
+    \item \emph{Emitting side-effects} as diagnostics, based on patterns of interest within the syntactic structure.
     \item \emph{Pretty-printing} a transformation over the syntactic structure, as a rewrite action -- crucially, unlike evaluation, the transformed output is not converted into code but rather a textual representation to be rewritten over the original source file. The output of this transformation may benefit from \emph{the same optimisation transformations as with the \textsc{dsl} semantics} to simplify the pretty-printed textual output.
   \end{itemize}
 \end{itemize}
@@ -159,7 +159,7 @@ Although this formulation of the traversal is inspired by generic traversals, it
 In Scala, this would require the use of an external dependency such as \texttt{shapeless}\footnote{\url{https://github.com/milessabin/shapeless}},
 which is overkill given the relative simplicity of the \scala{Parser} \textsc{adt}.
 
-\subsection{Discussion}
+\subsection*{Discussion}
 The design of the parser simplification process for \texttt{parsley-garnish} was not intended to closely follow the methods used in \texttt{parsley}, so it is remarkable that the two approaches have ended up being so similar.
 However, in retrospect, this resemblance is not surprising given that the act of parser simplification and optimisation are fundamentally the same transformation.
 Since both \texttt{parsley} and \texttt{parsley-garnish} represent the parser \textsc{ast} as a deep-embedded structure, it is natural that this transformation is implemented similarly in both cases as a bottom-up traversal over the abstract syntax.
