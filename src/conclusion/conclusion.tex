@@ -43,7 +43,7 @@ Scala 3's macro system~\cite{stucki_multi-stage_2021} has similar type-safety an
 These techniques supersede the work in \cref{sec:simplify-exprs}, which was necessitated only because Scalameta trees do not have the same functionalities.
 Squid and Scala 3 macros are superior to the expression representation in this project in the sense that they formalise their type-safety and hygienic properties.
 
-Finally, as already noted, the implementation of the \scala{Expr} \textsc{ast} also shares similarities with the \haskell{Defunc} and \haskell{Lam} infrastructures for code optimisation in \texttt{parsley} Haskell.
+Finally, as already noted in \cref{sec:simplify-exprs}, the implementation of the \scala{Expr} \textsc{ast} also shares similarities with the \haskell{Defunc} and \haskell{Lam} infrastructures for code optimisation in \texttt{parsley} Haskell.
 
 % Things that could help:
 % Squid quasiquotes: type-safe and hygienic quasiquotes -- but only for scala 2.11/12
@@ -70,18 +70,37 @@ It provides a high-level interface for writing syntax-directed transformations o
 % declarative manner of writing rewrite rules
 The \scala{Expr} \textsc{ast} (\cref{sec:simplify-exprs} models an extension of the $\lambda$-calculus, allowing static representation of expressions to be partially evaluated and normalised to a simpler form.
 
+\Cref{sec:eval-leftrec} shows that the left-recursion rule is effective at refactoring parsers for the majority of cases, representing a success for both the transformation algorithm itself, but also the internal \scala{Parser} and \scala{Expr} infrastructure that simplifies terms to a readable form.
+
 \section{Future Work}
-Separate into practical (improvements to parsley-garnish) and theoretical (cool research things)?
+% Separate into practical (improvements to parsley-garnish) and theoretical (cool research things)?
+Other than the obvious of adding more lint rules to \texttt{parsley-garnish}, and those already discussed in the body of the report, there are several avenues for future work that could be pursued.
 
-The left-recursion factoring transformation could be implemented in a staged version of \texttt{parsley} to eliminate left-recursion at compile-time with no run-time overhead.
-However, from a design perspective this is potentially controversial as it obfuscates the \textsc{peg} semantics of the parser combinator library, allowing \textsc{cfg}-like parsers to be written directly.
-One could also argue (pedagogical perspective? not really) that the higher-level abstraction of the \scala{chain} combinators is a more desirable form to write parsers for left-associative operations, rather than a lower-level left-recursive grammar rule.
+\subsection{Implementing Left-Recursion Factoring in \texttt{parsley}}
+Implementing the left-recursion factoring transformation in \texttt{parsley} itself would allow users to directly write parsers in left-recursive form without needing to transform it to use a \scala{chain} combinator, whether by hand or via \texttt{parsley-garnish}.
+This is obviously possible in \texttt{parsley}: \cref{sec:simplify-parsers} discusses the relationship between the \texttt{parsley-garnish} \scala{Parser} \textsc{ast} and \texttt{parsley}'s own internal \textsc{ast}.
+Since \texttt{parsley} is introspective enough to be able to inspect and manipulate its deep-embedded combinator tree, this transformation is possible.
+However, this is not ideal from a performance perspective, since this transformation would have a runtime overhead -- it is because of this reasoning that this project was developed as a linter rather than part of \texttt{parsley} itself.
 
-\subsection{Expression \textsc{ast}}
-Eta reduction -- this is more complicated than in Haskell since Scala has special syntax % https://docs.scala-lang.org/scala3/book/fun-eta-expansion.html
-Proper partial evaluation, not just normalisation (if we reduce to fully closed terms 1+1 can we get it to evaluate to 2? -- except currently this would be a Translucent term)
+On the other hand, \texttt{parsley} Haskell and the future \texttt{meta-parsley} implementation in Scala would be able to implement a staged version of this transformation, eliminating this overhead.
+This could therefore be future work for the \texttt{meta-parsley} project.
 
-\subsection{Resugaring}
-https://dl.acm.org/doi/10.1145/2858949.2784755
+One could argue from a design perspective that the higher-level abstraction of the \scala{chain} combinators is a more desirable form to write parsers for left-associative operations, rather than a lower-level left-recursive grammar rule.
+It could also be controversial for purists, in the sense that it obfuscates the \textsc{peg} semantics of the parser combinator library, allowing \textsc{cfg}-like parsers to be written directly.
+These are design problems that could warrant further discussion in future work.
+
+\subsection{Resugaring Parsers}
+Significant improvements can be made in the resugaring of parser terms, since the current implementation is relatively naive: \cref{sec:eval-leftrec} shows where this sometimes fails.
+The work by \textcite{pombrio_hygienic_2015} seems to be a promising approach to this problem, describing a resugaring approach that remembers and reflects the original style in which the expression was written.
+This may have further ramifications, such as allowing the left-recursion transformation (or any future transformation rules) to show the user how it was achieved step-by-step, by resugaring the parser at each step of the transformation process.
+This would further improve the pedagogical value of the \texttt{parsley-garnish} linter.
+
+\subsection{Intermediate Expression \textsc{ast}}
+The \scala{Expr} \textsc{ast} could be further improved in a number of ways:
+\begin{itemize}
+  \item Introducing a proper notion of $\eta$-reduction of \scala{Expr} terms could further simplify their final output. This is not well-defined on Scala, although a pseudo-$\eta$-reduction transformation would see lambda expressions being transformed to use placeholder syntax if they can.
+  \item Implementing proper hygiene and well-scopedness in the \scala{Expr} \textsc{ast} would improve the reliability of the normalisation and partial evaluation techniques. Although the transformation of terms into expressions should be well-formed, there is no guarantee that the resulting expression is well-scoped. An approach similar to Squid's quasiquotes or Scala 3 macros would be beneficial for the expression architecture.
+  \item Further improving the static inspectability of what are currently \scala{Translucent} terms could allow expressions to undergo real partial evaluation, rather than just normalisation. For example, if a fully closed term is reduced to \scala{Translucent(1 + 1)}, this could be evaluated to just \scala{2}. At the moment, this is not possible since \scala{Translucent} represents the furthest the term can be inspected.
+\end{itemize}
 
 \end{document}
