@@ -27,7 +27,7 @@ val number: Parsley[Int] = digit.foldLeft1(0)((n, d) => n * 10 + d.asDigit)
 \end{minted}
 
 \subsection{Direct Left-Recursion}
-Direct left-recursion is the simplest and most obvious form of left-recursion, where a parser directly refers to itself in its definition.
+\emph{Direct} left-recursion is the simplest and most obvious form of left-recursion, where a parser directly refers to itself in its definition.
 Thus, it is the easiest form of left-recursion to detect and handle, regardless of the transformation technique used.
 This section evaluates \texttt{parsley-garnish}'s handling of direct left-recursion in a few different scenarios.
 
@@ -138,8 +138,7 @@ Therefore, the proof shows that the final term obtained from \texttt{parsley-gar
 The evaluating parser variant of the same grammar, as presented in the introduction, has the same resulting form:
 \begin{minted}{scala}
 lazy val expr: Parsley[Float] = chain.postfix[Float](term)(
-  ('+' ~> term).map(x1 => x2 => x2 + x1) | ('-' ~> term).map(x1 => x2 => x2 - x1)
-)
+  ('+' ~> term).map(x1 => x2 => x2 + x1) | ('-' ~> term).map(x1 => x2 => x2 - x1))
 \end{minted}
 %
 However, in this case, the output unfortunately fails to compile.
@@ -157,8 +156,8 @@ The transformation on these test examples are provably correct, and the resultin
 The most significant weakness is the inability to specialise the \scala{postfix} parser into a more specific form, however this is not a critical issue as the \scala{postfix} form is still correct and idiomatic.
 
 \subsection{Indirect Left-Recursion}
-Indirect left-recursion is more subtle and tricky to spot, since the parser's reference to itself takes more than one step to reach.
-Consider the following alternate grammar for arithmetic expressions, reduced to only addition for simplicity:
+Instances of \emph{indirect} left-recursion are harder to detect, since the parser's reference to itself takes more than one step to reach.
+Consider the following alternative grammar for arithmetic expressions, reduced to only addition for simplicity:
 % <expr> ::= <add> | '(' <expr> ')' | <number>
 % <add> ::= <expr> '+' <expr>
 \begin{align*}
@@ -166,25 +165,32 @@ Consider the following alternate grammar for arithmetic expressions, reduced to 
 \langle \mathit{add} \rangle &::= \langle \mathit{expr} \rangle \enspace \text{`\texttt{+}'} \enspace \langle \mathit{expr} \rangle 
 \end{align*}
 %
-The indirect left-recursive cycle arises since \scala{expr} firstly needs to parse \scala{add}, which needs to parse \scala{expr} first.
-This pattern of left-recursion can be formulated as the following parser:
+The indirect left-recursive cycle arises since \scala{expr} firstly needs to parse \scala{add}, which firstly needs to parse \scala{expr}, and so on.
+This grammar can be naïvely translated in its left-recursive form in the following code segment.
+For variety, this example utilises the \emph{Parser Bridges} pattern instead of using \scala{lift} combinators:
 \begin{minted}{scala}
 enum Expr {
   case Num(n: Int)
+  object Num extends ParserBridge1[Int, Num]
   case Add(x: Expr, y: Expr)
+  object Add extends ParserBridge2[Expr, Expr, Add]
 }
-
-lazy val expr: Parsley[Expr] = add | '(' ~> expr <~ ')' | num
-lazy val add: Parsley[Expr] = (expr, '+' ~> expr).zipped(Add(_, _))
+lazy val expr: Parsley[Expr] = add | '(' ~> expr <~ ')' | Num(number)
+lazy val add: Parsley[Expr] = Add(expr, '+' ~> expr)
 \end{minted}
 %
-For brevity, the type annotations will be omitted in the transformed code, as they are not changed by parsley-garnish.
+\texttt{parsley-garnish} successfully detects the indirect left-recursion and offers an automated fix.
+For brevity, the parser type annotations will be omitted in subsequent examples, as they are not changed by \texttt{parsley-garnish}.
 \begin{minted}{scala}
-// Transformed by parsley-garnish
-lazy val expr = chain.postfix[Expr]('(' ~> expr <~ ')' | num)
+lazy val expr = chain.postfix[Expr]('(' ~> expr <~ ')' | number.map(x1 => Num(x1)))
                                    (('+' ~> expr).map(x1 => x2 => Add(x2, x1)))
-lazy val add = (expr, '+' ~> expr).zipped(Add(_, _)) // no longer referenced by expr
+lazy val add = Add(expr, '+' ~> expr) // unchanged and no longer referenced by expr
 \end{minted}
+%
+
+* can handle it
+* but it's a bit more cluttered, since it has to remove left-recursion on two levels, inlining the add parser into the expr parser
+* also, fails to resugar the parser bridge in number.map(x1 => Num(x1))
 
 Hidden left-recursion:
 \begin{align*}
