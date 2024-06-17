@@ -3,30 +3,55 @@
 \begin{document}
 
 \ourchapter{Related Work}
-Library-specific linters are rare because they require a non-trivial amount of work to implement.
-Even more niche is linters for embedded DSLs.
-This thesis can also be seen as a rough framework for implementing a linter for an eDSL (esp. Parser datatype to represent DSL model).
-afaik nothing this complex has been done in scalafix
+The work in this project draws inspiration from a variety of areas, which are briefly summarised in this chapter.
 
-Related to scalafix, so it could be possible to do very similar things as I've done:
-Rust (I can see this as possible, ask Boogle people for thoughts?) -- Clippy lint passes % https://doc.rust-lang.org/clippy/development/lint_passes.html
-C\# -- Roslyn
+\section{Library-Specific Linters}
+% Linters and related static analysers require a non-trivial amount of work to implement, so they are generally developed for general-purpose languages.
+% Library- and \textsc{dsl}-specific linters are relatively uncommon as they often do not have enough users to justify the effort to develop the tooling.
+% Much of existing literature on the topic therefore focuses on lowering the development cost to develop \textsc{dsl}-specific tooling.
+\textcite{renggli_domain-specific_2010} acknowledge that generic language-level linters and static analysers fail to capture best practices and common errors particular to specialised domains.
+This is a sentiment shared by \textcite{gregor_stllint_2006}, who discuss how statically checking library semantics is very different from checking language semantics, arguing that this necessitates new program representation at the appropriate level of abstraction.
+The work in this project corroborates these claims, as the work in \cref{sec:impl} demonstrates that the generic Scala \textsc{ast} is not at a sufficient level of abstraction to perform complex parser transformations.
+\textcite{gregor_stllint_2006} also use a similar terminology to \texttt{parsley-garnish} of ``lifting'' their static checker from language to library level.
 
-Library-specific linters:
-xunit.analyzers -- seems to be relatively simple one-off rules though, not a DSL
+The situation that \textcite{renggli_domain-specific_2010} face is similar to the one in this project, as they work with an embedded \textsc{dsl}, but in Smalltalk.
+For their static analyser, the authors also have access to a Scalafix-like tool which reuses the existing \scala{ast} of the host language.
+However, they opt to define their own separate \textsc{dsl} to specify lint and rewrite rules.
+In contrast, this project argues that the most ergonomic approach is to model the linter \textsc{ast} on the original \textsc{ast} of the \textsc{dsl} itself -- this allows \texttt{parsley-garnish} to manipulate \textsc{ast}s of parsers in a high-level declarative manner comparable to writing standard \texttt{parsley} code.
 
-Things that could help:
-Squid quasiquotes: type-safe and hygienic quasiquotes -- but only for scala 2.11/12
-* squid quasiquotes have rudimentary function inlining features https://infoscience.epfl.ch/record/231700
-Scala 3 macros: I wonder if this could help?
+% xunit.analyzers -- seems to be relatively simple one-off rules though, not a DSL
+% Related to scalafix, so it could be possible to do very similar things as I've done:
+% Rust (I can see this as possible, ask Boogle people for thoughts?) -- Clippy lint passes % https://doc.rust-lang.org/clippy/development/lint_passes.html
+% C\# -- Roslyn
 
-Related concepts to the Function stuff:
-Metaprogramming and multi-staged programming? a dual: instead of for optimisation/code-generation purposes, we do it just for stringifying
-Actually I feel like I've borrowed a lot of stuff from metaprogramming optimisation techniques -- Haskell Parsley itself
+\section{Left-Recursion Removal}
+The need to remove left-recursion from parsers is not a new problem, since many popular parser-writing tools such as \textsc{antlr}~\cite{parr_antlr_2013} produce recursive-descent parsers.
+Classical left-factoring algorithms such as Paull's algorithm~\cite{moore_removing_2000} and the left-corner transform~\cite{rosenkrantz_deterministic_1970} have been around for decades.
+The idea of using the \scala{chain} family to idiomatically write left-associative parsers using parser combinators is also rather established~\cite{fokker_functional_1995}, and the left-recursion transformation algorithm in \texttt{parsley-garnish} is itself based on work from 2004~\cite{baars_leftrec_2004}.
+However, the context in which this transformation is applied is relatively novel, as it is implemented as a code rewrite rule for a linter.
+Since the output of the transformation is user-facing, rather than generated code, it must be readable and understandable to the end user -- this is one of the key challenges faced in this project.
 
-The leftrec transformation is not new but its implementation as a linter rule is novel
-Other left-recursion removal transformations??
+\section{Metaprogramming and Domain-Specific Languages}
+The work in \cref{sec:impl} draws many parallels to techniques in the field of metaprogramming, especially in its intersection with \textsc{dsl}s.
+Squid~\cite{parreaux_squid_2017,parreaux_quoted_2017,parreaux_unifying_2017} implements quasiquotes for Scala 2.11 and 2.12 that, unlike Scalameta's quasiquotes, are type-safe and hygienic.
+These quasiquotes also have rudimentary function inlining features, similar to the $\beta$-reduction and normalisation techniques used in this project.
+Squid quasiquotes were used to perform multi-staged rewrite-based optimisations on a linear-algebra \textsc{dsl}~\cite{shaikhna_finally_2019}, generating optimised code using the same flavour of approach as \texttt{parsley} Haskell~\cite{willis_staged_2023,willis_parsley_2024}.
+This \textsc{dsl}, similar to parser combinators, is highly based on algebraic laws, so there are many similarities in the optimisation techniques used in both projects.
+By the observation in \cref{sec:simplify-parsers}, therefore, this work is dual to the simplification work achieved in \texttt{parsley-garnish} -- it is possible to adapt the work used by the authors to develop a linter for their \textsc{dsl}.
 
+Scala 3's macro system~\cite{stucki_multi-stage_2021} has similar type-safety and hygiene guarantees as Squid, and supports $\beta$-reduction on staged \scala{Expr} trees.
+These techniques supersede the work in \cref{sec:simplify-exprs}, which was necessitated only because Scalameta trees do not have the same functionalities.
+Squid and Scala 3 macros are superior to the expression representation in this project in the sense that they formalise their type-safety and hygienic properties.
+
+Finally, as already noted, the implementation of the \scala{Expr} \textsc{ast} also shares similarities with the \haskell{Defunc} and \haskell{Lam} infrastructures for code optimisation in \texttt{parsley} Haskell.
+
+% Things that could help:
+% Squid quasiquotes: type-safe and hygienic quasiquotes -- but only for scala 2.11/12
+% * squid quasiquotes have rudimentary function inlining features https://infoscience.epfl.ch/record/231700
+% Scala 3 macros: I wonder if this could help?
+% Related concepts to the Function stuff:
+% Metaprogramming and multi-staged programming? a dual: instead of for optimisation/code-generation purposes, we do it just for stringifying
+% Actually I feel like I've borrowed a lot of stuff from metaprogramming optimisation techniques -- Haskell Parsley itself
 
 \ourchapter{Conclusion}
 This project has presented a number of lint rules for the \texttt{parsley} parser combinator library:
@@ -38,9 +63,11 @@ This project has presented a number of lint rules for the \texttt{parsley} parse
   \item \emph{Avoid Parser Redefinitions} (\cref{sec:avoid-redefinitions-rule}) suggests and applies rewrites to parsers that accidentally redefine existing higher-level combinators in the \texttt{parsley} \textsc{api}.
 \end{itemize}
 %
+%  For static checkers to be useful to the programmer, they must operate at or near the same level of abstraction as the source code itself.
 Implementing these rules necessitated the development of intermediate \textsc{ast} representations to improve the static inspectability of parser and expression terms.
 The \scala{Parser} \textsc{ast} (\cref{sec:parser-ast-motivation} and \cref{sec:simplify-parsers}) models the \texttt{parsley} \textsc{dsl}, allowing \emph{code} of parsers to be manipulated in a high-level manner, as if they were parsers themselves.
 It provides a high-level interface for writing syntax-directed transformations on parser terms, and most importantly handles the burden of simplifying parser terms into a readable form, based on similar optimisation techniques used in \texttt{parsley} itself.
+% declarative manner of writing rewrite rules
 The \scala{Expr} \textsc{ast} (\cref{sec:simplify-exprs} models an extension of the $\lambda$-calculus, allowing static representation of expressions to be partially evaluated and normalised to a simpler form.
 
 \section{Future Work}
@@ -49,7 +76,6 @@ Separate into practical (improvements to parsley-garnish) and theoretical (cool 
 The left-recursion factoring transformation could be implemented in a staged version of \texttt{parsley} to eliminate left-recursion at compile-time with no run-time overhead.
 However, from a design perspective this is potentially controversial as it obfuscates the \textsc{peg} semantics of the parser combinator library, allowing \textsc{cfg}-like parsers to be written directly.
 One could also argue (pedagogical perspective? not really) that the higher-level abstraction of the \scala{chain} combinators is a more desirable form to write parsers for left-associative operations, rather than a lower-level left-recursive grammar rule.
-
 
 \subsection{Expression \textsc{ast}}
 Eta reduction -- this is more complicated than in Haskell since Scala has special syntax % https://docs.scala-lang.org/scala3/book/fun-eta-expansion.html

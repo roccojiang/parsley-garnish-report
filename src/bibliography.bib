@@ -901,3 +901,127 @@
   keywords = {Context-free grammars, Parsing expression grammars, , , Natural semantics},
   abstract = {Context-Free Grammars (CFGs) and Parsing Expression Grammars (PEGs) have several similarities and a few differences in both their syntax and semantics, but they are usually presented through formalisms that hinder a proper comparison. In this paper we present a new formalism for CFGs that highlights the similarities and differences between them. The new formalism borrows from PEGs the use of parsing expressions and the recognition-based semantics. We show how one way of removing non-determinism from this formalism yields a formalism with the semantics of PEGs. We also prove, based on these new formalisms, how LL(1) grammars define the same language whether interpreted as CFGs or as PEGs, and also show how strong-LL(k), right-linear, and LL-regular grammars have simple language-preserving translations from CFGs to PEGs. Once these classes of CFGs can be automatically translated to equivalent PEGs, we can reuse classic top-down grammars in PEG-based tools.}
 }
+
+@article{ruiz-rube_applying_2020,
+  author   = {Ruiz-Rube, Iv{\'a}n
+              and Person, Tatiana
+              and Dodero, Juan Manuel
+              and Mota, Jos{\'e} Miguel
+              and S{\'a}nchez-Jara, Javier Merch{\'a}n},
+  title    = {Applying static code analysis for domain-specific languages},
+  journal  = {Software and Systems Modeling},
+  year     = {2020},
+  month    = jan,
+  day      = {01},
+  volume   = {19},
+  number   = {1},
+  pages    = {95-110},
+  abstract = {The use of code quality control platforms for analysing source code is increasingly gaining attention in the developer community. These platforms are prepared to parse and check source code written in a variety of general-purpose programming languages. The emergence of domain-specific languages enables professionals from different areas to develop and describe problem solutions in their disciplines. Thus, source code quality analysis methods and tools can also be applied to software artefacts developed with a domain-specific language. To evaluate the quality of domain-specific language code, every software component required by the quality platform to parse and query the source code must be developed. This becomes a time-consuming and error-prone task, for which this paper describes a model-driven interoperability strategy that bridges the gap between the grammar formats of source code quality parsers and domain-specific text languages. This approach has been tested on the most widespread platforms for designing text-based languages and source code analysis. This interoperability approach has been evaluated on a number of specific contexts in different domain areas.},
+  issn     = {1619-1374},
+  doi      = {10.1007/s10270-019-00729-w},
+  url      = {https://doi.org/10.1007/s10270-019-00729-w}
+}
+
+@inproceedings{rosenkrantz_deterministic_1970,
+  author    = {Rosenkrantz, D. J. and Lewis, P. M.},
+  booktitle = {11th Annual Symposium on Switching and Automata Theory (swat 1970)},
+  title     = {Deterministic left corner parsing},
+  year      = {1970},
+  volume    = {},
+  number    = {},
+  pages     = {139--152},
+  keywords  = {Production;Automata;Character recognition;Iron;Natural languages},
+  doi       = {10.1109/SWAT.1970.5},
+  url       = {https://doi.org/10.1109/SWAT.1970.5}
+}
+
+@inproceedings{parreaux_squid_2017,
+  author    = {Parreaux, Lionel and Shaikhha, Amir and Koch, Christoph E.},
+  title     = {Squid: type-safe, hygienic, and reusable quasiquotes},
+  year      = {2017},
+  isbn      = {9781450355292},
+  publisher = {Association for Computing Machinery},
+  address   = {New York, NY, USA},
+  url       = {https://doi.org/10.1145/3136000.3136005},
+  doi       = {10.1145/3136000.3136005},
+  booktitle = {Proceedings of the 8th ACM SIGPLAN International Symposium on Scala},
+  pages     = {56--66},
+  numpages  = {11},
+  keywords  = {Type-Safety, Quasiquotes, Embedded Domain-Specific Languages},
+  location  = {Vancouver, BC, Canada},
+  series    = {SCALA 2017}
+}
+@article{parreaux_quoted_2017,
+  author     = {Parreaux, Lionel and Shaikhha, Amir and Koch, Christoph E.},
+  title      = {Quoted staged rewriting: a practical approach to library-defined optimizations},
+  year       = {2017},
+  issue_date = {December 2017},
+  publisher  = {Association for Computing Machinery},
+  address    = {New York, NY, USA},
+  volume     = {52},
+  number     = {12},
+  issn       = {0362-1340},
+  url        = {https://doi.org/10.1145/3170492.3136043},
+  doi        = {10.1145/3170492.3136043},
+  abstract   = {Staging has proved a successful technique for programmatically removing code abstractions, thereby allowing for faster program execution while retaining a high-level interface for the programmer. Unfortunately, techniques based on staging suffer from a number of problems — ranging from practicalities to fundamental limitations — which have prevented their widespread adoption. We introduce Quoted Staged Rewriting (QSR), an approach that uses type-safe, pattern matching-enabled quasiquotes to define optimizations. The approach is “staged” in two ways: first, rewrite rules can execute arbitrary code during pattern matching and code reconstruction, leveraging the power and flexibility of staging; second, library designers can orchestrate the application of successive rewriting phases (stages). The advantages of using quasiquote-based rewriting are that library designers never have to deal directly with the intermediate representation (IR), and that it allows for non-intrusive optimizations — in contrast with staging, it is not necessary to adapt the entire library and user programs to accommodate optimizations.  We show how Squid, a Scala macro-based framework, enables QSR and renders library-defined optimizations more practical than ever before: library designers write domain-specific optimizers that users invoke transparently on delimited portions of their code base. As a motivating example we describe an implementation of stream fusion (a well-known deforestation technique) that is both simpler and more powerful than the state of the art, and can readily be used by Scala programmers with no knowledge of metaprogramming.},
+  journal    = {SIGPLAN Not.},
+  month      = oct,
+  pages      = {131--145},
+  numpages   = {15},
+  keywords   = {Staging, Rewrite Rules, Optimization}
+}
+@article{parreaux_unifying_2017,
+  author     = {Parreaux, Lionel and Voizard, Antoine and Shaikhha, Amir and Koch, Christoph E.},
+  title      = {Unifying analytic and statically-typed quasiquotes},
+  year       = {2017},
+  issue_date = {January 2018},
+  publisher  = {Association for Computing Machinery},
+  address    = {New York, NY, USA},
+  volume     = {2},
+  number     = {POPL},
+  url        = {https://doi.org/10.1145/3158101},
+  doi        = {10.1145/3158101},
+  abstract   = {Metaprograms are programs that manipulate (generate, analyze and evaluate) other programs. These tasks are greatly facilitated by quasiquotation, a technique to construct and deconstruct program fragments using quoted code templates expressed in the syntax of the manipulated language. We argue that two main flavors of quasiquotes have existed so far: Lisp-style quasiquotes, which can both construct and deconstruct programs but may produce code that contains type mismatches and unbound variables; and MetaML-style quasiquotes, which rely on static typing to prevent these errors, but can only construct programs. In this paper, we show how to combine the advantages of both flavors into a unified framework: we allow the construction, deconstruction and evaluation of program fragments while ensuring that generated programs are well-typed and well-scoped, a combination unseen in previous work. We formalize our approach as λ{}, a multi-stage calculus with code pattern matching and rewriting, and prove its type safety. We also present its realization in Squid, a metaprogramming framework for Scala, leveraging Scala’s expressive type system. To demonstrate the usefulness of our approach, we introduce speculative rewrite rules, a novel code transformation technique that makes decisive use of these capabilities, and we outline how it simplifies the design of some crucial query compiler optimizations.},
+  journal    = {Proc. ACM Program. Lang.},
+  month      = dec,
+  articleno  = {13},
+  numpages   = {33},
+  keywords   = {metaprogramming, quasiquotes, rewriting, static typing}
+}
+
+@inproceedings{stucki_multi-stage_2021,
+  author    = {Stucki, Nicolas and Brachth\"{a}user, Jonathan Immanuel and Odersky, Martin},
+  title     = {Multi-stage programming with generative and analytical macros},
+  year      = {2021},
+  isbn      = {9781450391122},
+  publisher = {Association for Computing Machinery},
+  address   = {New York, NY, USA},
+  url       = {https://doi.org/10.1145/3486609.3487203},
+  doi       = {10.1145/3486609.3487203},
+  abstract  = {In metaprogramming, code generation and code analysis are complementary. Traditionally, principled metaprogramming extensions for programming languages, like MetaML and BER MetaOCaml, offer strong foundations for code generation but lack equivalent support for code analysis. Similarly, existing macro systems are biased towards the code generation aspect.  In this work, we present a calculus for macros featuring both code generation and code analysis. The calculus directly models separate compilation of macros, internalizing a commonly neglected aspect of macros. The system ensures that the generated code is well-typed and hygienic.  We implement our system in Scala 3, provide a formalization, and prove its soundness.},
+  booktitle = {Proceedings of the 20th ACM SIGPLAN International Conference on Generative Programming: Concepts and Experiences},
+  pages     = {110--122},
+  numpages  = {13},
+  keywords  = {formalization, macro systems, metaprogramming, multi-stage programming},
+  location  = {Chicago, IL, USA},
+  series    = {GPCE 2021}
+}
+
+@inproceedings{shaikhna_finally_2019,
+  author    = {Shaikhha, Amir and Parreaux, Lionel},
+  title     = {Finally, a Polymorphic Linear Algebra Language},
+  booktitle = {33rd European Conference on Object-Oriented Programming (ECOOP 2019)},
+  pages     = {25:1--25:29},
+  series    = {Leibniz International Proceedings in Informatics (LIPIcs)},
+  isbn      = {978-3-95977-111-5},
+  issn      = {1868-8969},
+  year      = {2019},
+  volume    = {134},
+  editor    = {Donaldson, Alastair F.},
+  publisher = {Schloss Dagstuhl -- Leibniz-Zentrum f{\"u}r Informatik},
+  address   = {Dagstuhl, Germany},
+  url       = {https://doi.org/10.4230/LIPIcs.ECOOP.2019.255},
+  urn       = {urn:nbn:de:0030-drops-108172},
+  doi       = {10.4230/LIPIcs.ECOOP.2019.25},
+  annote    = {Keywords: Linear Algebra, Domain-Specific Languages, Tagless Final, Polymorphic Embedding, Object Algebra, Multi-Stage Programming, Graph Processing, Probabilistic Programming, Automatic Differentiation}
+}

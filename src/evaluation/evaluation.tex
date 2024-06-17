@@ -10,6 +10,122 @@
 * Left-recursion transformation is the big one which motivated much of the work on the intermediate ASTs in the first place, and therefore uses it the most
 * Evaluating the outputs of the left-recursion transformation therefore also evaluates the success of the intermediate machinery
 
+% TODO: benchmarks here?
+\subsection{Evaluating Performance of Normalisation Strategies}
+% TODO: move this to evaluation chapter?
+% TODO: tbh could've just stopped at HOAS, but in our case, NbE was an easily attainable logical next step to more aggressively use meta-language constructs
+\texttt{parsley-garnish} originally used a named approach with Barendregt's convention, generating fresh variable names using an atomic counter.
+However, this required an extra $\alpha$-conversion pass to clean up variable names before pretty-printing the term, since the fresh variable names were very ugly.
+
+% \begin{figure}
+%     \centering
+%     \begin{tikzpicture}
+%         \begin{axis}[
+%             width=14cm,
+%             height=8cm,
+%             xmode=log,
+%             xlabel={Average Score (ms/op)},
+%             ylabel={Benchmark Levels},
+%             ytick={0,1,2,3,4},
+%             yticklabels={parser, norm tree, sum tree, eq 20, eq 40},
+%             y dir=reverse,
+%             legend style={at={(1.05,1)}, anchor=north west},
+%             bar width=0.25,
+%             log basis x={10},
+%             xticklabel style={/pgf/number format/fixed},
+%             xmajorgrids=true,
+%             grid style=dashed
+%         ]
+
+%         % NBE Scores
+%         \addplot+[
+%             xbar, 
+%             fill=green,
+%             draw=green,
+%             error bars/.cd, 
+%             x dir=both, 
+%             x explicit, 
+%             error bar style={line width=1pt, solid, color=green},
+%             error mark options={rotate=90, line width=1pt, mark size=2pt, color=green}
+%         ] 
+%         table[y expr=\coordindex-0.25, x=nbe_scores, x error=nbe_errors] {
+%             nbe_scores nbe_errors
+%             0.013      0
+%             0.305      0.002
+%             0.297      0.003
+%             0.308      0.004
+%             0.975      0.023
+%         };
+%         \addlegendentry{NBE}
+        
+%         % HOAS Scores
+%         \addplot+[
+%             xbar, 
+%             fill=blue,
+%             draw=blue,
+%             error bars/.cd, 
+%             x dir=both, 
+%             x explicit, 
+%             error bar style={line width=1pt, solid, color=blue},
+%             error mark options={rotate=90, line width=1pt, mark size=2pt, color=blue}
+%         ] 
+%         table[y expr=\coordindex, x=hoas_scores, x error=hoas_errors] {
+%             hoas_scores hoas_errors
+%             0.014      0
+%             0.332      0.002
+%             0.330      0.003
+%             0.365      0.001
+%             1.132      0.013
+%         };
+%         \addlegendentry{HOAS}
+
+%         % SUB Scores
+%         \addplot+[
+%             xbar, 
+%             fill=red,
+%             draw=red,
+%             error bars/.cd, 
+%             x dir=both, 
+%             x explicit, 
+%             error bar style={line width=1pt, solid, color=red},
+%             error mark options={rotate=90, line width=1pt, mark size=2pt, color=red}
+%         ] 
+%         table[y expr=\coordindex+0.25, x=sub_scores, x error=sub_errors] {
+%             sub_scores sub_errors
+%             0.537      0
+%             36.859     0.451
+%             140.8994   0.598
+%             541.32     5.690
+%             6226       102.383
+%         };
+%         \addlegendentry{SUB}
+
+%         % Adding labels with errors
+%         \node[anchor=west, green, font=\footnotesize] at (axis cs:0.013+0, -0.25) {0.013 ± 0.00};
+%         \node[anchor=west, green, font=\footnotesize] at (axis cs:0.305+0.002, 0.75-0.25) {0.305 ± 0.002};
+%         \node[anchor=west, green, font=\footnotesize] at (axis cs:0.297+0.003, 1.75-0.25) {0.297 ± 0.003};
+%         \node[anchor=west, green, font=\footnotesize] at (axis cs:0.308+0.004, 2.75-0.25) {0.308 ± 0.004};
+%         \node[anchor=west, green, font=\footnotesize] at (axis cs:0.975+0.023, 3.75-0.25) {0.975 ± 0.023};
+
+%         \node[anchor=west, blue, font=\footnotesize] at (axis cs:0.014+0, 0) {0.014 ± 0.00};
+%         \node[anchor=west, blue, font=\footnotesize] at (axis cs:0.332+0.002, 1) {0.332 ± 0.002};
+%         \node[anchor=west, blue, font=\footnotesize] at (axis cs:0.330+0.003, 2) {0.330 ± 0.003};
+%         \node[anchor=west, blue, font=\footnotesize] at (axis cs:0.365+0.001, 3) {0.365 ± 0.001};
+%         \node[anchor=west, blue, font=\footnotesize] at (axis cs:1.132+0.013, 4) {1.132 ± 0.013};
+
+%         \node[anchor=west, red, font=\footnotesize] at (axis cs:0.537+0, 0.25) {0.537 ± 0.00};
+%         \node[anchor=west, red, font=\footnotesize] at (axis cs:36.859+0.451, 1.25) {36.859 ± 0.451};
+%         \node[anchor=west, red, font=\footnotesize] at (axis cs:140.8994+0.598, 2.25) {140.90 ± 0.60};
+%         \node[anchor=west, red, font=\footnotesize] at (axis cs:541.32+5.690, 3.25) {541.32 ± 5.69};
+%         \node[anchor=west, red, font=\footnotesize] at (axis cs:6226+102.383, 4.25) {6226.00 ± 102.38};
+
+%         \end{axis}
+%     \end{tikzpicture}
+%     \caption{Benchmark Performance Across Different Levels with Error Bars}
+% \end{figure}
+\includesvg{assets/test.svg}
+
+
 \section{Removing Left-Recursion}\label{sec:eval-leftrec}
 Broadly speaking, left-recursive grammars can be classified into three categories: direct, indirect, and hidden.
 The left-recursive transformation implemented by \texttt{parsley-garnish} is able to handle all three of these cases, however this does not necessarily mean that the output is of high quality.
@@ -241,13 +357,6 @@ Revisiting the evaluation criteria:
 % TODO: library ergonomics - see ethan's thesis
 % e.g. Introduce implicit conversions rule -- stunted because no in-editor support
 % want to be able to preview changes in editor, and also apply auto-fixes one by one
-
-% TODO: benchmarks here?
-\subsubsection{Evaluating Performance of Normalisation Strategies}
-% TODO: move this to evaluation chapter?
-% TODO: tbh could've just stopped at HOAS, but in our case, NbE was an easily attainable logical next step to more aggressively use meta-language constructs
-\texttt{parsley-garnish} originally used a named approach with Barendregt's convention, generating fresh variable names using an atomic counter.
-However, this required an extra $\alpha$-conversion pass to clean up variable names before pretty-printing the term, since the fresh variable names were very ugly.
 
 
 % A large corpus of student WACC parsers is available to evaluate the real-world applicability of \texttt{parsley-garnish}.
