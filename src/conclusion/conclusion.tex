@@ -25,16 +25,31 @@ Metaprogramming and multi-staged programming? a dual: instead of for optimisatio
 Actually I feel like I've borrowed a lot of stuff from metaprogramming optimisation techniques -- Haskell Parsley itself
 
 The leftrec transformation is not new but its implementation as a linter rule is novel
+Other left-recursion removal transformations??
 
 
 \ourchapter{Conclusion}
-\section{Review}
+This project has presented a number of lint rules for the \texttt{parsley} parser combinator library:
+\begin{itemize}
+  \item \emph{Ambiguous Implicit Conversions} (\cref{sec:ambiguous-implicits}) alerts the user when multiple conflicting implicit conversions are in scope for their parsers, providing further context why the Scala compiler rejects their program.
+  \item \emph{No Explicit Implicit Conversions} (\cref{sec:no-explicit-implicits}) automatically removes unnecessary explicit calls to the implicit conversion methods in \texttt{parsley}, which is a code smell.
+  \item \emph{Factor Left-Recursion} (\cref{sec:factor-leftrec} and \cref{sec:leftrec-revisited}) rewrites unproductive left-recursive parsers into an idiomatic form that \texttt{parsley} supports. In cases where this cannot be automatically fixed, the rule warns the user that their parser will cause an infinite loop at runtime.
+  \item \emph{Simplify Parsers} (\cref{sec:simplify-parsers-rule}) suggests and applies simplifications to parsers based on the rules of parser laws.
+  \item \emph{Avoid Parser Redefinitions} (\cref{sec:avoid-redefinitions-rule}) suggests and applies rewrites to parsers that accidentally redefine existing higher-level combinators in the \texttt{parsley} \textsc{api}.
+\end{itemize}
+%
+Implementing these rules necessitated the development of intermediate \textsc{ast} representations to improve the static inspectability of parser and expression terms.
+The \scala{Parser} \textsc{ast} (\cref{sec:parser-ast-motivation} and \cref{sec:simplify-parsers}) models the \texttt{parsley} \textsc{dsl}, allowing \emph{code} of parsers to be manipulated in a high-level manner, as if they were parsers themselves.
+It provides a high-level interface for writing syntax-directed transformations on parser terms, and most importantly handles the burden of simplifying parser terms into a readable form, based on similar optimisation techniques used in \texttt{parsley} itself.
+The \scala{Expr} \textsc{ast} (\cref{sec:simplify-exprs} models an extension of the $\lambda$-calculus, allowing static representation of expressions to be partially evaluated and normalised to a simpler form.
+
+\section{Future Work}
+Separate into practical (improvements to parsley-garnish) and theoretical (cool research things)?
+
 The left-recursion factoring transformation could be implemented in a staged version of \texttt{parsley} to eliminate left-recursion at compile-time with no run-time overhead.
 However, from a design perspective this is potentially controversial as it obfuscates the \textsc{peg} semantics of the parser combinator library, allowing \textsc{cfg}-like parsers to be written directly.
 One could also argue (pedagogical perspective? not really) that the higher-level abstraction of the \scala{chain} combinators is a more desirable form to write parsers for left-associative operations, rather than a lower-level left-recursive grammar rule.
 
-\section{Future Work}
-Separate into practical (improvements to parsley-garnish) and theoretical (cool research things)?
 
 \subsection{Expression \textsc{ast}}
 Eta reduction -- this is more complicated than in Haskell since Scala has special syntax % https://docs.scala-lang.org/scala3/book/fun-eta-expansion.html

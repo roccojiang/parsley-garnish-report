@@ -4,7 +4,10 @@
 
 \ourchapter{Using the New Parser \textsc{ast}}\label{sec:complex-rules}
 The ability to simplify parsers, as well as normalising their expression arguments, makes it feasible to use the intermediate \scala{Parser} \textsc{ast} for high-level parser transformations.
-This \namecref{sec:complex-rules} explores the rules that have been implemented on top of the intermediate \textsc{ast}s, rather than the Scalameta \textsc{ast}, to demonstrate the power of the new \scala{Parser} \textsc{ast} in expressing transformations in a more maintainable and readable way.
+This \namecref{sec:complex-rules} first revisits the left-recursion factoring rule from \cref{sec:factor-leftrec}, demonstrating how parser simplification drastically improves the quality of the rule.
+This is followed by a brief exploration of other rules that can be trivially implemented on top of the intermediate \textsc{ast}, rather than the generic Scalameta \textsc{ast}.
+
+% This \namecref{sec:complex-rules} explores the rules that have been implemented on top of the intermediate \textsc{ast}s, rather than the Scalameta \textsc{ast}, to demonstrate the power of the new \scala{Parser} \textsc{ast} in expressing transformations in a more maintainable and readable way.
 
 \section{Removing Left-Recursion: Revisited}\label{sec:leftrec-revisited}
 \Cref{sec:factor-leftrec} left off with a disappointing result for the left-recursion factorisation transformation, producing a mostly unreadable output in \cref{fig:leftrec-example-bad}.
@@ -104,10 +107,10 @@ lazy val example: Parsley[String] =
   chain.postfix[String](string("b"))(string("a").map(x1 => x2 => x2 + x1))
 \end{minted}
 %
-This is a \emph{significant} improvement over the original output in \cref{fig:leftrec-example-bad}, and is visually very similar to the ``optimal'' hand-written version in \cref{fig:leftrec-example-good}.
+This is a \emph{significant} improvement over the original output in \cref{fig:leftrec-example-bad}, and is visually very similar to the ``optimal'' hand-written version in \cref{fig:leftrec-example-hand}.
 In fact, the two parsers can be proven to be equivalent -- \cref{sec:eval-leftrec} explores this further with some different examples.
 
-\section{Simplify Parsers}
+\section{Simplify Parsers}\label{sec:simplify-parsers-rule}
 The improved \scala{Parser} \textsc{ast} also grants a new auto-fix rule for free: automatic simplification of parsers.
 At a high-level, the rule works as follows:
 \begin{itemize}
@@ -145,7 +148,7 @@ For example:
 % * So expressions within the original are also normalised -- $\alpha$-equivalence is preserved between normalised expressions
 % * Then this doesn not result in changing weird things like variable names
 
-\section{Avoid Parser Redefinitions}
+\section{Avoid Parser Redefinitions}\label{sec:avoid-redefinitions-rule}
 Another rule that can be easily implemented with the new \scala{Parser} \textsc{ast} is to catch cases where a user manually writes out a parser that is already defined in the library.
 This is similar in spirit to the previous rule, but makes use of the new \scala{rewrite} and \scala{transform} methods on parsers introduced in \cref{sec:parser-rewrites}, which makes it incredibly convenient to write syntax-directed rewrite rules on parsers.
 Expressing high-level rewrites is much less error-prone than working with the Scalameta \textsc{ast} directly, and prevents re-duplication of efforts.
@@ -182,5 +185,9 @@ This rule is likely to be much more useful in practice than \emph{Simplify Parse
 % }
 
 \section*{Summary}
+This \namecref{sec:complex-rules} demonstrates how the left-recursion factoring rule is made feasible with the simplification machinery in the new \scala{Parser} \textsc{ast}.
+It also introduces two rules, \emph{Simplify Parsers} and \emph{Avoid Parser Redefinitions}, that are trivial to implement on top of the new \scala{Parser} \textsc{ast}, showcasing the power of the new high-level \textsc{ast} in expressing transformations in a more maintainable and readable way.
+The improved \scala{Parser} \textsc{ast} machinery makes it easy to extend \texttt{parsley-garnish} with more complex rules on top of a parser abstraction, without having to worry about manually simplifying its output.
+Future work could explore more complex rules, such as detecting ambiguous parsers or conversely, overuse of the \scala{atomic} combinator.
 
 \end{document}
