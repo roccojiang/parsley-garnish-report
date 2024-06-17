@@ -4,6 +4,7 @@
 
 \ourchapter{Evaluation}\label{sec:evaluation}
 
+% TODO: signpost that the main contribution is left-recursion transformation so this is the most important thing to evaluate!!
 The project was initially intended to mostly focus on implementing a variety of parser lints, however implementing these rules revealed an unanticipated level of complexity in the infrastructure needed to support them.
 This ended up necessitating a lot more work on the intermediate \scala{Parser} and \scala{Expr} \textsc{ast}s than expected, which has led to a robust internal machinery that allows \texttt{parsley-garnish} to be easily extended with more domain-specific rules in the future.
 However, the time spent on this infrastructure work meant that the variety of implemented linting rules were not as comprehensive as initially desired.
@@ -17,17 +18,44 @@ Then, it evaluates the success of the left-recursion transformation by examining
 % TODO: move this to evaluation chapter?
 % TODO: tbh could've just stopped at HOAS, but in our case, NbE was an easily attainable logical next step to more aggressively use meta-language constructs
 Originally, the implementation of \scala{Expr} used a named approach with Barendregt's convention, generating fresh variable names using an atomic counter.
-However, this required an extra $\alpha$-conversion pass to clean up variable names before pretty-printing the expression term, since fresh name generation resulted in undesirably long names like \scala{x4657476}.
+Normalisation proceeded by manually substituting variable objects following the $\beta$-reduction rules.
+However, this required an extra $\alpha$-conversion pass to clean up variable names before pretty-printing the expression, as fresh name generation resulted in undesirably long names like \scala{x4657476}.
 
 The implementation was then switched to a \textsc{hoas} approach, which made the correctness of the normalisation process more easy to reason about.
 However, this lost the ability to easily show $\alpha$-equivalence of terms, so the next logical step was to implement the final two-tiered \textsc{nbe} approach, where a syntactic representation allowed for easy $\alpha$-equivalence checking, and a semantic \textsc{hoas}-based representation was used for normalisation.
 
+\Cref{fig:benchmark} shows the performance benchmarking results of the expression normalisation process on five different tasks.
+These were compiled on Scala 2.13.14, running on AdoptJDK \textsc{jvm} version 8.
+\begin{itemize}
+  \item \emph{parser} normalises a fairly standard parser term generated during the left-recursion transformation. This $\lambda$-expression has a maximum depth of 10 nested terms, and contains 39 total variables.
+  \item \emph{norm tree} normalises a $\lambda$-expression encoding a binary tree in the $\lambda$-calculus. This has a depth of 23 and contains 1,117 variables.
+  \item \emph{sum tree} normalises a $\lambda$-expression encoding a sum fold over the same binary tree, using Church numerals to represent integers. This has a depth of 25 and contains 1,144 variables.
+  \item \emph{eq 20} normalises a $\lambda$-expression comparing the equality of two differently-built Church numerals representing the integer 20. This has a depth of 27 and contains 326 variables.
+  \item \emph{eq 40} is the same as \emph{eq 20}, but for the integer 40. This also has a depth of 27 and contains 539 variables.
+\end{itemize}
+
 \begin{figure}[htbp]
-\includesvg{assets/benchmark.svg}
-\caption{Benchmark results for the expression normalisation process.}
-\label{fig:benchmark}
+  \includesvg{assets/benchmark.svg}
+  \caption{Benchmark results for the expression normalisation process on five tasks.}
+  \label{fig:benchmark}
 \end{figure}
 
+Note that the benchmark results are visualised on a log scale: \textsc{nbe} and \textsc{hoas}, are orders of magnitude faster than the named substitution approach.
+As expected, \textsc{nbe} and \textsc{hoas} are very close in performance, as they both use Scala's native variable bindings.
+In all cases, \textsc{nbe} is slightly faster than \textsc{hoas}, which is also expected as it has slightly less overhead in creating new \scala{Expr} objects.
+
+In the \emph{parser} task, which is representative of the standard use case for the normalisation process, the substitution approach is still relatively performant, taking only 0.5ms to normalise the term.
+This shows that even if \texttt{parsley-garnish} remained with the original approach, the performance would still be acceptable.
+However, the other approaches still outperform this by 50x in this simple case.
+For more complex tasks, this increases to as much as 6000x slower, as in the case of the \emph{eq 40} task.
+From the benchmark results it is rather evident that the reasoning behind this is not the total number of variables, since the \emph{eq} tasks have fewer variables than the \emph{tree} tasks, but perform worse.
+Maximum depth is also an unlikely explanation -- rather, it is likely that the individual size of specific terms being substituted is the main factor in the deteriorating performance of the named substitution approach.
+This requires copying and re-constructing objects for each variable substitution, which adds up to a significant amount of overhead.
+Contrast this with the \textsc{nbe} and \textsc{hoas} approaches, which do not experience the same rate of decrease in performance, as they mitigate this overhead by using Scala's native function application.
+
+\paragraph{Summary}
+The performance benchmarks show that the final implementation of expression normalisation is extremely performant, even for unrealistically large $\lambda$-terms.
+Although the original named substitution approach would've likely been sufficient for the standard use case of normalising parser terms, the cheap operational cost of \textsc{nbe} allows expression normalisation to be used frequently and liberally throughout the system, without worrying about performance bottlenecks.
 
 \section{Removing Left-Recursion}\label{sec:eval-leftrec}
 Broadly speaking, left-recursive grammars can be classified into three categories: direct, indirect, and hidden.
@@ -247,7 +275,7 @@ The mechanism in which it catches these cases is when the \scala{leftRec} portio
 This can be seen in the error message, although in this context it is not particularly helpful as it leaks how \texttt{parsley-garnish} has desugared the parser while attempting to unfold it -- for example, the \scala{some} results from unfolding the \scala{many} combinator.
 Future work could see improvements in the error messages to make them more helpful and informative in the case of hidden left-recursion.
 
-\subsection*{Summary}
+\paragraph{Summary}
 The evaluation in this \namecref{sec:eval-leftrec} shows that \texttt{parsley-garnish} is able to detect and handle all forms of left-recursion, although the quality of the output varies depending on the nature of the left-recursion.
 Revisiting the evaluation criteria:
 \begin{itemize}
