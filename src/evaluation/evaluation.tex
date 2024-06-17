@@ -4,126 +4,29 @@
 
 \ourchapter{Evaluation}\label{sec:evaluation}
 
-* Project ended up requiring a lot more work on internal machinery i.e. intermediate ASTs in order to get high-level parser transformations to work
-* This is good because it makes it allows parsley-garnish to be easily extended with more domain-specific rules in the future
-* But it also meant that the project was more complex than initially anticipated, and that the variety of implemented linting rules were not as comprehensive as I would have liked
-* Left-recursion transformation is the big one which motivated much of the work on the intermediate ASTs in the first place, and therefore uses it the most
-* Evaluating the outputs of the left-recursion transformation therefore also evaluates the success of the intermediate machinery
+The project was initially intended to mostly focus on implementing a variety of parser lints, however implementing these rules revealed an unanticipated level of complexity in the infrastructure needed to support them.
+This ended up necessitating a lot more work on the intermediate \scala{Parser} and \scala{Expr} \textsc{ast}s than expected, which has led to a robust internal machinery that allows \texttt{parsley-garnish} to be easily extended with more domain-specific rules in the future.
+However, the time spent on this infrastructure work meant that the variety of implemented linting rules were not as comprehensive as initially desired.
+The vast majority of work was spent on the left-recursion transformation, which motivated much of the work on the intermediate \textsc{ast}s.
+Therefore, evaluating the outputs of the left-recursion transformation also evaluates the success of the intermediate machinery.
 
-% TODO: benchmarks here?
-\subsection{Evaluating Performance of Normalisation Strategies}
+This chapter evaluates the overall project by assessing the performance of its expression normalisation infrastructure, which represents some of the most complex and critical parts of the system.
+Then, it evaluates the success of the left-recursion transformation by examining its ability to handle different forms of left-recursion.
+
+\subsection{Performance of Expression Normalisation}\label{sec:eval-exprs}
 % TODO: move this to evaluation chapter?
 % TODO: tbh could've just stopped at HOAS, but in our case, NbE was an easily attainable logical next step to more aggressively use meta-language constructs
-\texttt{parsley-garnish} originally used a named approach with Barendregt's convention, generating fresh variable names using an atomic counter.
-However, this required an extra $\alpha$-conversion pass to clean up variable names before pretty-printing the term, since the fresh variable names were very ugly.
+Originally, the implementation of \scala{Expr} used a named approach with Barendregt's convention, generating fresh variable names using an atomic counter.
+However, this required an extra $\alpha$-conversion pass to clean up variable names before pretty-printing the expression term, since fresh name generation resulted in undesirably long names like \scala{x4657476}.
 
-% \begin{figure}
-%     \centering
-%     \begin{tikzpicture}
-%         \begin{axis}[
-%             width=14cm,
-%             height=8cm,
-%             xmode=log,
-%             xlabel={Average Score (ms/op)},
-%             ylabel={Benchmark Levels},
-%             ytick={0,1,2,3,4},
-%             yticklabels={parser, norm tree, sum tree, eq 20, eq 40},
-%             y dir=reverse,
-%             legend style={at={(1.05,1)}, anchor=north west},
-%             bar width=0.25,
-%             log basis x={10},
-%             xticklabel style={/pgf/number format/fixed},
-%             xmajorgrids=true,
-%             grid style=dashed
-%         ]
+The implementation was then switched to a \textsc{hoas} approach, which made the correctness of the normalisation process more easy to reason about.
+However, this lost the ability to easily show $\alpha$-equivalence of terms, so the next logical step was to implement the final two-tiered \textsc{nbe} approach, where a syntactic representation allowed for easy $\alpha$-equivalence checking, and a semantic \textsc{hoas}-based representation was used for normalisation.
 
-%         % NBE Scores
-%         \addplot+[
-%             xbar, 
-%             fill=green,
-%             draw=green,
-%             error bars/.cd, 
-%             x dir=both, 
-%             x explicit, 
-%             error bar style={line width=1pt, solid, color=green},
-%             error mark options={rotate=90, line width=1pt, mark size=2pt, color=green}
-%         ] 
-%         table[y expr=\coordindex-0.25, x=nbe_scores, x error=nbe_errors] {
-%             nbe_scores nbe_errors
-%             0.013      0
-%             0.305      0.002
-%             0.297      0.003
-%             0.308      0.004
-%             0.975      0.023
-%         };
-%         \addlegendentry{NBE}
-        
-%         % HOAS Scores
-%         \addplot+[
-%             xbar, 
-%             fill=blue,
-%             draw=blue,
-%             error bars/.cd, 
-%             x dir=both, 
-%             x explicit, 
-%             error bar style={line width=1pt, solid, color=blue},
-%             error mark options={rotate=90, line width=1pt, mark size=2pt, color=blue}
-%         ] 
-%         table[y expr=\coordindex, x=hoas_scores, x error=hoas_errors] {
-%             hoas_scores hoas_errors
-%             0.014      0
-%             0.332      0.002
-%             0.330      0.003
-%             0.365      0.001
-%             1.132      0.013
-%         };
-%         \addlegendentry{HOAS}
-
-%         % SUB Scores
-%         \addplot+[
-%             xbar, 
-%             fill=red,
-%             draw=red,
-%             error bars/.cd, 
-%             x dir=both, 
-%             x explicit, 
-%             error bar style={line width=1pt, solid, color=red},
-%             error mark options={rotate=90, line width=1pt, mark size=2pt, color=red}
-%         ] 
-%         table[y expr=\coordindex+0.25, x=sub_scores, x error=sub_errors] {
-%             sub_scores sub_errors
-%             0.537      0
-%             36.859     0.451
-%             140.8994   0.598
-%             541.32     5.690
-%             6226       102.383
-%         };
-%         \addlegendentry{SUB}
-
-%         % Adding labels with errors
-%         \node[anchor=west, green, font=\footnotesize] at (axis cs:0.013+0, -0.25) {0.013 ± 0.00};
-%         \node[anchor=west, green, font=\footnotesize] at (axis cs:0.305+0.002, 0.75-0.25) {0.305 ± 0.002};
-%         \node[anchor=west, green, font=\footnotesize] at (axis cs:0.297+0.003, 1.75-0.25) {0.297 ± 0.003};
-%         \node[anchor=west, green, font=\footnotesize] at (axis cs:0.308+0.004, 2.75-0.25) {0.308 ± 0.004};
-%         \node[anchor=west, green, font=\footnotesize] at (axis cs:0.975+0.023, 3.75-0.25) {0.975 ± 0.023};
-
-%         \node[anchor=west, blue, font=\footnotesize] at (axis cs:0.014+0, 0) {0.014 ± 0.00};
-%         \node[anchor=west, blue, font=\footnotesize] at (axis cs:0.332+0.002, 1) {0.332 ± 0.002};
-%         \node[anchor=west, blue, font=\footnotesize] at (axis cs:0.330+0.003, 2) {0.330 ± 0.003};
-%         \node[anchor=west, blue, font=\footnotesize] at (axis cs:0.365+0.001, 3) {0.365 ± 0.001};
-%         \node[anchor=west, blue, font=\footnotesize] at (axis cs:1.132+0.013, 4) {1.132 ± 0.013};
-
-%         \node[anchor=west, red, font=\footnotesize] at (axis cs:0.537+0, 0.25) {0.537 ± 0.00};
-%         \node[anchor=west, red, font=\footnotesize] at (axis cs:36.859+0.451, 1.25) {36.859 ± 0.451};
-%         \node[anchor=west, red, font=\footnotesize] at (axis cs:140.8994+0.598, 2.25) {140.90 ± 0.60};
-%         \node[anchor=west, red, font=\footnotesize] at (axis cs:541.32+5.690, 3.25) {541.32 ± 5.69};
-%         \node[anchor=west, red, font=\footnotesize] at (axis cs:6226+102.383, 4.25) {6226.00 ± 102.38};
-
-%         \end{axis}
-%     \end{tikzpicture}
-%     \caption{Benchmark Performance Across Different Levels with Error Bars}
-% \end{figure}
-\includesvg{assets/test.svg}
+\begin{figure}[htbp]
+\includesvg{assets/benchmark.svg}
+\caption{Benchmark results for the expression normalisation process.}
+\label{fig:benchmark}
+\end{figure}
 
 
 \section{Removing Left-Recursion}\label{sec:eval-leftrec}
