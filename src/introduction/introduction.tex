@@ -66,7 +66,7 @@ A linter with knowledge of the \texttt{parsley} library could help users by prov
 \begin{minted}{scala}
 lazy val expr: Parsley[Float] = (expr, char('+') ~> term).zipped(_ + _)
 \end{minted}
-\vspace{-4ex}
+\vspace{-3ex}
 \begin{minted}[baselinestretch=1]{scala}
 //       ^^^^^^^^^^^^^^^^^^^^
 // Warning: This parser is left-recursive, which will cause an infinite loop when parsing.
@@ -81,7 +81,7 @@ Thus, a linter could also aid users in learning about \texttt{parsley} idioms an
 \begin{minted}{scala}
 lazy val atom: Parsley[Float] = char('(') ~> expr <~ char(')') | number
 \end{minted}
-\vspace{-4ex}
+\vspace{-3ex}
 \begin{minted}[baselinestretch=1]{scala}
 //                              ^^^^^^^^^            ^^^^^^^^^
 // Info: Explicit usage of the 'char' combinator may not be necessary.
