@@ -14,9 +14,9 @@ This is a sentiment shared by \textcite{gregor_stllint_2006}, who discuss how st
 The work in this project corroborates these claims, as the work in \cref{sec:impl} demonstrates that the generic Scala \textsc{ast} is not at a sufficient level of abstraction to perform complex parser transformations.
 \textcite{gregor_stllint_2006} also use a similar terminology to \texttt{parsley-garnish} of ``lifting'' their static checker from language to library level.
 
-The situation that \textcite{renggli_domain-specific_2010} face is similar to the one in this project, as they work with an embedded \textsc{dsl}, but in Smalltalk.
-For their static analyser, the authors also have access to a Scalafix-like tool which reuses the existing \scala{ast} of the host language.
-However, they opt to define their own separate \textsc{dsl} to specify lint and rewrite rules.
+The situation that \textcite{renggli_domain-specific_2010} faced is similar to the one in this project, as they worked with an embedded \textsc{dsl}, but in Smalltalk.
+For their static analyser, the authors also had access to a Scalafix-like tool which reuses the existing \scala{ast} of the host language.
+However, they opted to define their own separate \textsc{dsl} to specify lint and rewrite rules.
 In contrast, this project argues that the most ergonomic approach is to model the linter \textsc{ast} on the original \textsc{ast} of the \textsc{dsl} itself -- this allows \texttt{parsley-garnish} to manipulate \textsc{ast}s of parsers in a high-level declarative manner comparable to writing standard \texttt{parsley} code.
 
 % xunit.analyzers -- seems to be relatively simple one-off rules though, not a DSL
@@ -25,11 +25,11 @@ In contrast, this project argues that the most ergonomic approach is to model th
 % C\# -- Roslyn
 
 \section{Left-Recursion Removal}
-The need to remove left-recursion from parsers is not a new problem, since many popular parser-writing tools such as \textsc{antlr}~\cite{parr_antlr_2013} produce recursive-descent parsers.
+The need to remove left-recursion from parsers is not a new problem, as many popular parser-writing tools such as \textsc{antlr}~\cite{parr_antlr_2013} produce recursive-descent parsers.
 Classical left-factoring algorithms such as Paull's algorithm~\cite{moore_removing_2000} and the left-corner transform~\cite{rosenkrantz_deterministic_1970} have been around for decades.
 The idea of using the \scala{chain} family to idiomatically write left-associative parsers using parser combinators is also rather established~\cite{fokker_functional_1995}, and the left-recursion transformation algorithm in \texttt{parsley-garnish} is itself based on work from 2004~\cite{baars_leftrec_2004}.
 However, the context in which this transformation is applied is relatively novel, as it is implemented as a code rewrite rule for a linter.
-Since the output of the transformation is user-facing, rather than generated code, it must be readable and understandable to the end user -- this is one of the key challenges faced in this project.
+Since the output of the transformation is user-facing, rather than generated code, it must be readable and understandable to the end user -- this was one of the key challenges faced in this project.
 
 \section{Metaprogramming and Domain-Specific Languages}
 The work in \cref{sec:impl} draws many parallels to techniques in the field of metaprogramming, especially in its intersection with \textsc{dsl}s.
@@ -77,10 +77,10 @@ The \scala{Expr} \textsc{ast} (\cref{sec:simplify-exprs} models an extension of 
 Other than the obvious of adding more lint rules to \texttt{parsley-garnish}, and those already discussed in the body of the report, there are several avenues for future work that could be pursued.
 
 \subsection{Implementing Left-Recursion Factoring in \texttt{parsley}}
-Implementing the left-recursion factoring transformation in \texttt{parsley} itself would allow users to directly write parsers in left-recursive form without needing to transform it to use a \scala{chain} combinator, whether by hand or via \texttt{parsley-garnish}.
-This is obviously possible in \texttt{parsley}: \cref{sec:simplify-parsers} discusses the relationship between the \texttt{parsley-garnish} \scala{Parser} \textsc{ast} and \texttt{parsley}'s own internal \textsc{ast}.
+Implementing the left-recursion factoring transformation in \texttt{parsley} itself would allow users to directly write parsers in left-recursive form without needing to transform it into a \scala{chain} combinator, whether by hand or via \texttt{parsley-garnish}.
+This is possible to achieve in \texttt{parsley}: \cref{sec:simplify-parsers} discusses the relationship between the \texttt{parsley-garnish} \scala{Parser} \textsc{ast} and \texttt{parsley}'s own internal \textsc{ast}.
 Since \texttt{parsley} is introspective enough to be able to inspect and manipulate its deep-embedded combinator tree, this transformation is possible.
-However, this is not ideal from a performance perspective, since this transformation would have a runtime overhead -- it is because of this reasoning that this project was developed as a linter rather than part of \texttt{parsley} itself.
+However, this is not ideal from a performance perspective, since this transformation would have a runtime overhead -- because of this, \texttt{parsley-garnish} was conceptualised as a linter rather than part of \texttt{parsley} itself.
 
 On the other hand, \texttt{parsley} Haskell and the future \texttt{meta-parsley} implementation in Scala would be able to implement a staged version of this transformation, eliminating this overhead.
 This could therefore be future work for the \texttt{meta-parsley} project.
