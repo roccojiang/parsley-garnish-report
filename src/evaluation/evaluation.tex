@@ -20,8 +20,6 @@ This \namecref{sec:eval-leftrec} evaluates \texttt{parsley-garnish}'s ability to
   \item How clear was the output? How does it compare to an idiomatic, manually fixed version?
   \item Does the output compile?
 \end{itemize}
-% Given the nature of the transformation, it is difficult to provide quantitative metrics for evaluation, so the focus will be on qualitative aspects.
-% Given the lack of a direct competitor, the evaluation will be based on the author's experience with the tool and the quality of the output produced.
 %
 The following examples assume the existence of a \scala{number} parser, defined the same way as earlier in \cref{sec:background-parsers}:
 \begin{minted}{scala}
@@ -241,6 +239,9 @@ Revisiting the evaluation criteria:
 \end{itemize}
 
 % TODO: library ergonomics - see ethan's thesis
+% e.g. Introduce implicit conversions rule -- stunted because no in-editor support
+% want to be able to preview changes in editor, and also apply auto-fixes one by one
+
 % TODO: benchmarks here?
 
 % A large corpus of student WACC parsers is available to evaluate the real-world applicability of \texttt{parsley-garnish}.

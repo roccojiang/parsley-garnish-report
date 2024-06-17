@@ -65,6 +65,9 @@ This situation is exactly where a domain-specific linter like \texttt{parsley-ga
 A linter with knowledge of the \texttt{parsley} library could help users by providing \emph{relevant} suggestions at the \emph{precise} location of the issue:
 \begin{minted}{scala}
 lazy val expr: Parsley[Float] = (expr, char('+') ~> term).zipped(_ + _)
+\end{minted}
+\vspace{-4ex}
+\begin{minted}[baselinestretch=1]{scala}
 //       ^^^^^^^^^^^^^^^^^^^^
 // Warning: This parser is left-recursive, which will cause an infinite loop when parsing.
 // Suggestion: Refactor using chain combinators from the parsley.expr module,
@@ -77,6 +80,9 @@ In \texttt{parsley}, this can be addressed by using implicit conversions to lift
 Thus, a linter could also aid users in learning about \texttt{parsley} idioms and best practices:
 \begin{minted}{scala}
 lazy val atom: Parsley[Float] = char('(') ~> expr <~ char(')') | number
+\end{minted}
+\vspace{-4ex}
+\begin{minted}[baselinestretch=1]{scala}
 //                              ^^^^^^^^^            ^^^^^^^^^
 // Info: Explicit usage of the 'char' combinator may not be necessary.
 // Suggestion [auto-fix available]: Use implicit conversions:
@@ -88,6 +94,7 @@ lazy val atom: Parsley[Float] = char('(') ~> expr <~ char(')') | number
 //                                 ─┬─            ─┬─
 //      Remove char combinators ────┴──────────────┘
 \end{minted}
+% ^ why do the box chars not connect vertically??
 %
 The aim of \texttt{parsley-garnish} is to provide relevant linting rules, like the above, to guide users towards writing improved \texttt{parsley} code.
 With useful hints and automatic fixes, our hypothetical user can be steered towards a correct and idiomatic parser:
@@ -102,7 +109,7 @@ lazy val expr: Parsley[Float] = precedence('(' ~> expr <~ ')', number)(
 \end{minted}
 %
 With this definition of \scala{expr}, the parser is able to parse left-associative expressions without left-recursion, and the syntactic noise of the \scala{char} combinators has been removed.
-Executing \scala{expr.parse("1+2*3/4")} now correctly evaluates to \scala{2.5}!
+Executing \scala{expr.parse("1+2*3/4")} now evaluates to \scala{2.5}, as expected!
 
 % Introduces domain-specific lint rules for Parsec-style parser combinator libraries
 % Implementation of these rules for Parsley Scala
