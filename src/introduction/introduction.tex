@@ -120,10 +120,15 @@ Executing \scala{expr.parse("1+2*3/4")} now evaluates to \scala{2.5}, as expecte
 % If you implement simplifications for a code-rewriting linter, you unlock staged optimisations ⇔ if you implement staged optimisations, you unlock easily writing auto-fix lints
 
 \section*{Contributions}
-The contributions of this project are summarised as follows:
-\begin{itemize}
-  \item \TODO{TODO} %TODO
-\end{itemize}
+This project introduces two major contributions in separate areas:
+\begin{enumerate}
+  \item An auto-fix lint rule that detects and refactors left-recursive parsers to an idiomatic form that can be handled correctly by \texttt{parsley}. This rule can handle all forms of left-recursion, although to varying degrees of success. Although the most significant lint rule produced in this project is this \emph{left-recursion factoring} rule, \texttt{parsley-garnish} also implements a number of simpler rules that enforce idiomatic design patterns in \texttt{parsley} code.
+  \item The motivation behind the \emph{infrastructure} required to support complex lint rules such as the left-recursion rule, and its implementation. At a high-level, these are two separate intermediate \textsc{ast} representations that abstract away from the generic Scala \textsc{ast}:
+  \begin{itemize}
+    \item A parser \textsc{ast} designed to mirror the \textsc{ast} of the \texttt{parsley} \textsc{dsl}, which allows \emph{code} of parsers to be manipulated and transformed in a high-level declarative manner. This is based on the insight that any \textsc{dsl} and its accompanying linter are simply different semantic interpretations on the same underlying structure: the former folds over its \textsc{ast} structure to evaluate its results, while the latter performs a fold to emit lint diagnostics and pretty-print a transformed \textsc{ast}.
+    \item An expression \textsc{ast} based on the $\lambda$-calculus, granting static expression \textsc{ast}s the ability to be normalised via $\beta$-reduction. This approach draws inspiration from staged metaprogramming frameworks for manipulating \textsc{ast}s.
+  \end{itemize}
+\end{enumerate}
 
 \section*{Outline}
 \Cref{sec:background} begins this report by outlining the key background material required to understand the project.
@@ -138,7 +143,7 @@ It shows that a basic implementation is not sufficient to handle the complexitie
 \Cref{sec:impl} therefore further develops and refines these ideas, drawing inspiration from metaprogramming techniques and \texttt{parsley}'s own optimisation machinery.
 
 These improvements allow the left-recursion transformation to be revisited and completed in \Cref{sec:complex-rules}, which also explores more advanced rules that are unlocked by the new \textsc{ast}.
-Finally, \Cref{sec:evaluation} evaluates \TODO{TODO}. %TODO
+Finally, \Cref{sec:evaluation} evaluates the performance benchmarks and the effectiveness of the left-recursion factoring rule, and discusses the limitations of the current implementation.
 The remainder of the report concludes with discussion of related work and future directions for the project.
 
 \end{document}
