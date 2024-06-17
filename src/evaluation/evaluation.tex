@@ -11,15 +11,17 @@
 * Evaluating the outputs of the left-recursion transformation therefore also evaluates the success of the intermediate machinery
 
 \section{Removing Left-Recursion}\label{sec:eval-leftrec}
-Broadly speaking, there are three classes of left-recursion: direct, indirect, and hidden left-recursion.
-This \namecref{sec:eval-leftrec} evaluates \texttt{parsley-garnish}'s ability to handle each of these cases, based on a mostly qualitative set of evaluation criteria:
+Broadly speaking, left-recursive grammars can be classified into three categories: direct, indirect, and hidden.
+The left-recursive transformation implemented by \texttt{parsley-garnish} is able to handle all three of these cases, however this does not necessarily mean that the output is of high quality.
+This \namecref{sec:eval-leftrec} evaluates \texttt{parsley-garnish}'s ability to handle each case, based on a mostly qualitative set of evaluation criteria:
 \begin{itemize}
   \item Was the instance of left-recursion detected?
-  \item If an auto-fix was performed, was it correct?
+  \item If an auto-fix was performed, was it correct? Can it be proven to be correct?
   \item How clear was the output? How does it compare to an idiomatic, manually fixed version?
   \item Does the output compile?
 \end{itemize}
-% TODO: given the nature of the transfomration it is expected to be able to handle all cases
+% Given the nature of the transformation, it is difficult to provide quantitative metrics for evaluation, so the focus will be on qualitative aspects.
+% Given the lack of a direct competitor, the evaluation will be based on the author's experience with the tool and the quality of the output produced.
 %
 The following examples assume the existence of a \scala{number} parser, defined the same way as earlier in \cref{sec:background-parsers}:
 \begin{minted}{scala}
@@ -151,6 +153,7 @@ For example, if the parser was refactored into the \scala{chain.left1} form util
 
 \paragraph{Summary}
 Direct left-recursion is the most straightforward form of left-recursion to detect, so it is unsurprising that \texttt{parsley-garnish} handles it well.
+It is important that this case is handled well, however, since it is generally the most common form of left-recursion.
 The transformation on these test examples are provably correct, and the resulting parsers are relatively clear and idiomatic.
 \texttt{parsley-garnish} also takes care to improve the likelihood of producing compilable output, although there is still some future work to be done in this area.
 The most significant weakness is the inability to specialise the \scala{postfix} parser into a more specific form, however this is not a critical issue as the \scala{postfix} form is still correct and idiomatic.
@@ -179,7 +182,7 @@ lazy val expr: Parsley[Expr] = add | '(' ~> expr <~ ')' | Num(number)
 lazy val add: Parsley[Expr] = Add(expr, '+' ~> expr)
 \end{minted}
 %
-\texttt{parsley-garnish} successfully detects the indirect left-recursion and offers an automated fix.
+The indirect left-recursion is successfully detected by \texttt{parsley-garnish}, and it is able to offer an automated fix.
 For brevity, the parser type annotations will be omitted in subsequent examples, as they are not changed by \texttt{parsley-garnish}.
 \begin{minted}{scala}
 lazy val expr = chain.postfix[Expr]('(' ~> expr <~ ')' | number.map(x1 => Num(x1)))
@@ -187,17 +190,25 @@ lazy val expr = chain.postfix[Expr]('(' ~> expr <~ ')' | number.map(x1 => Num(x1
 lazy val add = Add(expr, '+' ~> expr) // unchanged and no longer referenced by expr
 \end{minted}
 %
+Although the output compiles and is functionally correct, there are a few areas for improvement:
+\begin{itemize}
+  \item The definition of \scala{expr} becomes somewhat cluttered, as the transformation operates by recursively visiting non-terminals and inlining their transformed definitions if they are left-recursive. In this example, the \scala{add} parser was originally mutually left-recursive with \scala{expr}, so it was inlined into \scala{expr}. A possible solution to address this is to separate out these inlined parsers into new variables -- they cannot overwrite the original definitions, as they may still be required by other parsers.
+  \item Use of the parser bridge constructor for \scala{Num} is not preserved -- \texttt{parsley-garnish} was unable to resugar this back into its original form, instead leaving it in a more syntactically noisy form with \scala{map}.
+\end{itemize}
 
-* can handle it
-* but it's a bit more cluttered, since it has to remove left-recursion on two levels, inlining the add parser into the expr parser
-* also, fails to resugar the parser bridge in number.map(x1 => Num(x1))
+% TODO: discussion in future work referencing back to this, talking about resugaring improvements with tagging
 
-Hidden left-recursion:
+\subsection{Hidden Left-Recursion}
+The final class of left-recursive grammars is \emph{hidden} left-recursion, which in general are the most challenging to detect and handle.
+Hidden left-recursion occurs when a parser invokes itself after invoking other parsers that have not consumed any input.
+They generally have a form similar to the following:
 \begin{align*}
 \langle \mathit{a} \rangle &::= \langle \mathit{b} \rangle \; \langle \mathit{a} \rangle \; \dotsb \\
 \langle \mathit{b} \rangle &::= \epsilon
 \end{align*}
-
+%
+In this example, $\langle \mathit{b} \rangle$ is able to derive the empty string, so $\langle \mathit{a} \rangle$ is able to parse $\langle \mathit{b} \rangle$ without consuming input and then invoke itself, creating a left-recursive cycle.
+The following rather contrived example showcases a hidden left-recursive cycle in \scala{a}, and the warning that \texttt{parsley-garnish} issues:
 \begin{minted}{scala}
 lazy val a: Parsley[Int] = b ~> a
 // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -208,8 +219,27 @@ lazy val a: Parsley[Int] = b ~> a
 
 lazy val b: Parsley[Int] = many(digit).map(_.mkString.toInt)
 \end{minted}
+%
+This parser is an instance of hidden left-recursion, since \scala{many} repeatedly parses its given parser \emph{zero} or more times, allowing it to succeed without consuming any input. 
+\texttt{parsley-garnish} can detect cases of hidden left-recursion as long as it encounters combinators that it recognises, because as part of the unfolding transformation it must know about the empty-deriving semantics of parsers.
+However, it is unable to provide an automated fix since the \scala{postfix} combinator encodes the behaviour of associative operators, which is not the case here.
 
-% TODO: perform experiment: types of left recursion on the rule - evaluation criteria??
+Most cases of hidden left-recursion likely require manual intervention to fix, as it is unclear what the intended behaviour of the parser is.
+Therefore, although \texttt{parsley-garnish} is able to detect hidden left-recursion, it is unable to suggest a fix in any case.
+The mechanism in which it catches these cases is when the \scala{leftRec} portion of the unfolded parser simplifies to \scala{pure(x)}, which \texttt{parsley-garnish} rejects because it would cause an infinite loop.
+This can be seen in the error message, although in this context it is not particularly helpful as it leaks how \texttt{parsley-garnish} has desugared the parser while attempting to unfold it -- for example, the \scala{some} results from unfolding the \scala{many} combinator.
+Future work could see improvements in the error messages to make them more helpful and informative in the case of hidden left-recursion.
+
+\subsection*{Summary}
+The evaluation in this \namecref{sec:eval-leftrec} shows that \texttt{parsley-garnish} is able to detect and handle all forms of left-recursion, although the quality of the output varies depending on the nature of the left-recursion.
+Revisiting the evaluation criteria:
+\begin{itemize}
+  \item All classes of left-recursion can be detected, although hidden left-recursion cannot be automatically fixed. However, this is mostly due to the difficult nature and inherent ambiguity of grammars with hidden left-recursion.
+  \item In all tested examples, the automated fixes were correct -- some of these have been proven by equational reasoning. A natural extension of this work would be to formally prove the correctness of the transformation in the general case.
+  \item The transformed output is generally clear and idiomatic, although there are areas for improvement in the preservation of syntactic sugar. A desirable next step would be to refactor \scala{postfix} parsers into more specialised forms if possible for the given parser.
+  \item In most tested cases, the transformed output is able to compile. However, since \texttt{parsley-garnish} tends to prefer creating curried functions, more complex parsers may require manual intervention to fix type inference issues. This is one of the major limitations of the current implementation, as it is undesirable for linters to suggest non-compiling fixes.
+\end{itemize}
+
 % TODO: library ergonomics - see ethan's thesis
 % TODO: benchmarks here?
 
