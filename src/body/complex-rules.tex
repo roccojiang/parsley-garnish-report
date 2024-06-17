@@ -4,6 +4,7 @@
 
 \ourchapter{Using the New Parser \textsc{ast}}\label{sec:complex-rules}
 The ability to simplify parsers, as well as normalising their expression arguments, makes it feasible to use the intermediate \scala{Parser} \textsc{ast} for high-level parser transformations.
+This \namecref{sec:complex-rules} explores the rules that have been implemented on top of the intermediate \textsc{ast}s, rather than the Scalameta \textsc{ast}, to demonstrate the power of the new \scala{Parser} \textsc{ast} in expressing transformations in a more maintainable and readable way.
 
 \section{Removing Left-Recursion: Revisited}\label{sec:leftrec-revisited}
 \Cref{sec:factor-leftrec} left off with a disappointing result for the left-recursion factorisation transformation, producing a mostly unreadable output in \cref{fig:leftrec-example-bad}.
@@ -40,7 +41,7 @@ trait Parser {
 
 \subsection{Evaluating Expressions}
 The higher-order functions \scala{flip} and \scala{compose} are represented as in \cref{fig:higher-order-funcs}, eliminating the need to patch in their definitions as Scala code.
-Instead, they get partially evaluated as lambda expressions during the normalisation process.
+Instead, they get partially evaluated as lambda expressions during normalisation.
 
 The currying of functions passed to \scala{LiftLike} combinators are also expressed with the \scala{Expr} \textsc{ast}, to ensure that they are well-formed during the transformation.
 This also significantly reduces the occurrence of \scala{.curried} method calls in the transformed output, which helps Scala's type inference and reduces syntactic noise in the final output.
@@ -67,7 +68,7 @@ trait LiftLike extends Parser {
 }
 \end{minted}
 
-% * Optimisation: normalise leftrec part to see if it comes to empty -- if so, don't inline in the NT case
+% * Optimisation: normalise leftrec part to see if it comes to empty -- if so, do not inline in the NT case
 
 \subsection{The Improved Rule}
 Being able to normalise parsers lets \texttt{parsley-garnish} make more informed decisions about the result of the transformation.
@@ -106,14 +107,15 @@ lazy val example: Parsley[String] =
 This is a \emph{significant} improvement over the original output in \cref{fig:leftrec-example-bad}, and is visually very similar to the ``optimal'' hand-written version in \cref{fig:leftrec-example-good}.
 In fact, the two parsers can be proven to be equivalent -- \cref{sec:eval-leftrec} explores this further with some different examples.
 
-\section{Simplify Parser}
-The improved \scala{Parser} \textsc{ast} also gives a new auto-fix rule for free: automatic simplification of parsers.
-
-Idea
-* For each parser, simplify it via parser laws, and compare to its original.
-* If the result is different, apply the simplified version as a patch.
-
-The implementation of the entire rule is only 20 lines long:
+\section{Simplify Parsers}
+The improved \scala{Parser} \textsc{ast} also grants a new auto-fix rule for free: automatic simplification of parsers.
+At a high-level, the rule works as follows:
+\begin{itemize}
+  \item For each parser, get its prettified form and compare it to the original.
+  \item If the result is different, apply the simplified version as a code rewrite.
+\end{itemize}
+%
+The implementation of the entire rule is very straightforward, and only 20 lines long:
 \begin{minted}{scala}
 class SimplifyParser extends SemanticRule("SimplifyParser") {
   override def fix(implicit doc: SemanticDocument): Patch = {
@@ -130,35 +132,55 @@ class SimplifyParser extends SemanticRule("SimplifyParser") {
 }
 \end{minted}
 %
+This rule therefore lints for overly complex parsers that can be automatically simplified with parser laws.
+It is unclear how useful this rule would be in practice, but it demonstrates the power of the new \scala{Parser} \textsc{ast} in enabling high-level transformations, and is gained with very minimal effort.
+For example:
+\begin{minted}{scala}
+/* Before */  val anise = pure("basil").map(add(_, "coriander"))
+/* After */   val anise = pure(add("basil", "coriander"))
+\end{minted}
 % Subtle detail:
 % * During expression normalisation, bound variables may be $\alpha$-renamed
-% * So a parser that hasn't actually changed may still be different when compared to the original
+% * So a parser that has not actually changed may still be different when compared to the original
 % * So expressions within the original are also normalised -- $\alpha$-equivalence is preserved between normalised expressions
-% * Then this doesn't result in changing weird things like variable names
+% * Then this doesn not result in changing weird things like variable names
 
-* Apply parser laws, re-using Parser and Func representations to do cool things
-prettify = resugar . normaliseFunctions . simplify
-
-\section{Avoid Parser Redefinition}
-\TODO{
-Similar in spirit to the previous rule
-* Catch cases when user manually writes out a parser that is already defined in the library
-
-\Cref{sec:parser-rewrites} makes it easy to write syntax-directed rewrite rules on parsers.
-Less annoying than working with scalameta ast directly
-better design patterns idk, symbolmatcher etc all in one place defined as a trait for parser
-% ** although still annoying for e.g. def countMany(p: Parsley[_]): Parsley[Int] = p.foldLeft(0)((n, _) => n + 1)    <---- still no good way to pattern match expr given that "n + 1" is translucent, easier to just reify this back to scala.meta.term and then low-level pattern match
-
-so:
-Looking for dumb definitions of things e.g. endBy(p, sep) implemented as many(p <* sep); or count implemented as a foldLeft, fold fusion
+\section{Avoid Parser Redefinitions}
+Another rule that can be easily implemented with the new \scala{Parser} \textsc{ast} is to catch cases where a user manually writes out a parser that is already defined in the library.
+This is similar in spirit to the previous rule, but makes use of the new \scala{rewrite} and \scala{transform} methods on parsers introduced in \cref{sec:parser-rewrites}, which makes it incredibly convenient to write syntax-directed rewrite rules on parsers.
+Expressing high-level rewrites is much less error-prone than working with the Scalameta \textsc{ast} directly, and prevents re-duplication of efforts.
+As an example, consider the following rewrite:
+\begin{minted}{scala}
+parser.rewrite { case ManyP(p <~ sep) => EndBy(p, sep) }
+\end{minted}
+%
+This catches a case where a user writes a parser in the form of \scala{many(p <~ sep)}, which is already defined in \texttt{parsley} as \scala{endBy(p, sep)}.
+Compare this to the equivalent pattern match if working with the low-level \textsc{ast} directly:
+\begin{minted}{scala}
+tree.collect {
+  case Term.Apply.After_4_6_0(
+    manyMatcher(_),
+    Term.ArgClause(
+      List(Term.ApplyInfix.After_4_6_0(
+        Term.Name("p"),
+        Term.Name("<~"),
+        Type.ArgClause(Nil),
+        Term.ArgClause(List(Term.Name("sep")), None)
+    )), None)) => q"endBy(p, sep)"
 }
+\end{minted}
+%
+This rule is likely to be much more useful in practice than \emph{Simplify Parsers}, serving as a pedagogical tool to guide users towards using the library's higher-level combinators.
+
+% ** although still annoying for e.g. def countMany(p: Parsley[_]): Parsley[Int] = p.foldLeft(0)((n, _) => n + 1)    <---- still no good way to pattern match expr given that "n + 1" is translucent, easier to just reify this back to scala.meta.term and then low-level pattern match
 
 % \section{Convert to Parser Bridge}
 % \TODO{
 % * This would be cool, idk if I have time though, but this should also piggyback off of Func
-% * the pos bridges don't actually exist, so we can ignore that case and just say its too much code synthesis
-% * shouldn't be too bad? idk
+% * the pos bridges do not actually exist, so we can ignore that case and just say its too much code synthesis
 % * indicate limitations that this will only work if the ADT is defined in the same file, in order to extend it
 % }
+
+\section*{Summary}
 
 \end{document}
