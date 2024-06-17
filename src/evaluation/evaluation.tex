@@ -14,7 +14,7 @@ Therefore, evaluating the outputs of the left-recursion transformation also eval
 This chapter evaluates the overall project by assessing the performance of its expression normalisation infrastructure, which represents some of the most complex and critical parts of the system.
 Then, it evaluates the success of the left-recursion transformation by examining its ability to handle different forms of left-recursion.
 
-\subsection{Performance of Expression Normalisation}\label{sec:eval-exprs}
+\section{Performance of Expression Normalisation}\label{sec:eval-exprs}
 % TODO: move this to evaluation chapter?
 % TODO: tbh could've just stopped at HOAS, but in our case, NbE was an easily attainable logical next step to more aggressively use meta-language constructs
 Originally, the implementation of \scala{Expr} used a named approach with Barendregt's convention, generating fresh variable names using an atomic counter.
