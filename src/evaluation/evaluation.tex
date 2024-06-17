@@ -53,7 +53,7 @@ Maximum depth is also an unlikely explanation -- rather, it is likely that the i
 This requires copying and re-constructing objects for each variable substitution, which adds up to a significant amount of overhead.
 Contrast this with the \textsc{nbe} and \textsc{hoas} approaches, which do not experience the same rate of decrease in performance, as they mitigate this overhead by using Scala's native function application.
 
-\paragraph{Summary}
+\subsubsection*{Summary}
 The performance benchmarks show that the final implementation of expression normalisation is extremely performant, even for unrealistically large $\lambda$-terms.
 Although the original named substitution approach would've likely been sufficient for the standard use case of normalising parser terms, the cheap operational cost of \textsc{nbe} allows expression normalisation to be used frequently and liberally throughout the system, without worrying about performance bottlenecks.
 
@@ -275,7 +275,7 @@ The mechanism in which it catches these cases is when the \scala{leftRec} portio
 This can be seen in the error message, although in this context it is not particularly helpful as it leaks how \texttt{parsley-garnish} has desugared the parser while attempting to unfold it -- for example, the \scala{some} results from unfolding the \scala{many} combinator.
 Future work could see improvements in the error messages to make them more helpful and informative in the case of hidden left-recursion.
 
-\paragraph{Summary}
+\subsubsection*{Summary}
 The evaluation in this \namecref{sec:eval-leftrec} shows that \texttt{parsley-garnish} is able to detect and handle all forms of left-recursion, although the quality of the output varies depending on the nature of the left-recursion.
 Revisiting the evaluation criteria:
 \begin{itemize}
