@@ -19,7 +19,7 @@ This \namecref{sec:eval-leftrec} evaluates \texttt{parsley-garnish}'s ability to
   \item How clear was the output? How does it compare to an idiomatic, manually fixed version?
   \item Does the output compile?
 \end{itemize}
-% * Dealing with types of syntactic sugar in parsley
+% TODO: given the nature of the transfomration it is expected to be able to handle all cases
 %
 The following examples assume the existence of a \scala{number} parser, defined the same way as earlier in \cref{sec:background-parsers}:
 \begin{minted}{scala}
@@ -28,7 +28,10 @@ val number: Parsley[Int] = digit.foldLeft1(0)((n, d) => n * 10 + d.asDigit)
 
 \subsection{Direct Left-Recursion}
 Direct left-recursion is the simplest and most obvious form of left-recursion, where a parser directly refers to itself in its definition.
-This makes it relatively easy to detect and handle, regardless of the transformation technique used.
+Thus, it is the easiest form of left-recursion to detect and handle, regardless of the transformation technique used.
+This section evaluates \texttt{parsley-garnish}'s handling of direct left-recursion in a few different scenarios.
+
+\subsubsection{Unary Postfix Operator}
 The following minimal grammar for a postfix unary incrementing operator is directly left-recursive:
 % <inc> ::= <inc> '+' | <number>
 \begin{align*}
@@ -72,7 +75,8 @@ This example highlights some subtle points that \texttt{parsley-garnish} conside
   \item The type ascription \scala{chain.postfix[Expr]} is not always necessary, although in this case it is actually required to help Scala correctly unify the types expected by the combinator. Since \texttt{parsley-garnish} cannot typecheck its outputs, it always includes this type ascription to boost Scala's type inference.
   \item The original parser used the \emph{Implicit Conversions} pattern to elide the \scala{string} combinator, but \texttt{parsley-garnish} re-introduces the explicit \scala{string} combinator in its output. This is intentional -- Scala 2 has trouble with implicit conversions in certain positions, such as in this case where \scala{"+".map(...)} would not compile. \texttt{parsley-garnish} attempts to add the explicit combinator back in cases like this, although in general it will respect the original style the parser was written in.
 \end{itemize}
-%
+
+\subsubsection{Arithmetic Expression Language}
 As a larger-scale example, the left-associative arithmetic operators from \cref{sec:background-parsers} are also defined in a directly left-recursive manner.
 Recall how the hand-written version using \scala{chain.left1} was presented:
 \begin{minted}{scala}
@@ -92,15 +96,17 @@ This also manages to successfully compile, and is relatively clear to read.
 However, it does highlight a current shortcoming of the left-recursion rule: left-recursive parsers can only be transformed into the most generalised \scala{postfix} form, which may not always be the most optimal choice of combinator.
 In this case, the \scala{chain.left1} combinator would've been a more appropriate choice; even better would be the \scala{precedence} combinator, since the grammar forms multiple layers of expression operators.
 
-\scala{chain.left1} can be defined in terms of \scala{postfix}~\cite{willis_parsley_2024}.
-This is presented in Haskell syntax, as it illustrates the relationship more clearly.
-The only major difference in syntax is that Haskell uses \haskell{<$>} for the \scala{map} combinator:
+It is theoretically possible to automatically transform a \scala{postfix} parser into one of its more specialised brethren, but this would require a more sophisticated ability to factor out common patterns in parsers and expressions.
+% This comes at odds with the current machinery, which focuses on simplification and normalisation, and may lose the high-level patterns that would be helpful for factoring out common sub-expressions.
+\textcite{willis_parsley_2024} demonstrates how \scala{chain.left1} can be defined in terms of \scala{postfix}, presented in Haskell as it illustrates the relationship more clearly.
+The only major syntactical difference of note is that Haskell uses \haskell{<$>} for the \scala{map} combinator:
 \begin{equation*}
 \text{\haskell{chainl1 p op}} \enspace = \enspace \text{\haskell{postfix p (flip <$> op <*> p)}}
 \end{equation*}
 %
 Using this definition, the \scala{postfix} version can be provably shown to be equivalent to the \scala{chain.left1} version.
-This proof will again be shown in Haskell, as it is more suitable for equational reasoning:
+This proof will again use Haskell syntax as it is more suitable for equational reasoning.
+The goal is to show that \scala{('+' ~> term).map(x1 => x2 => Add(x2, x1))} can be rewritten in the form \scala{op.map(flip) <*> p}, where \scala{p} is \scala{term} and \scala{op} is shown to be \scala{'+' as Add(_, _)}.
 \begin{lstlisting}
     (\x1 x2 -> Add x2 x1) <$> ('+' *> term)
 % \proofstep{Definition of \texttt{flip}} %
@@ -120,8 +126,35 @@ This proof will again be shown in Haskell, as it is more suitable for equational
 % \proofstep{Definition of \texttt{\$>}  (equivalent to \texttt{.as} in Scala)} %
     flip <$> ('+' $> Add) <*> term
 \end{lstlisting}
+%
+The same proof can be applied to the other operators, and the \scala{map} combinator distributes over choice:
+\begin{equation*}
+\text{\scala{(u | v).map(f)}} \enspace = \enspace \text{\scala{u.map(f) | v.map(f)}}
+\end{equation*}
+%
+Therefore, the proof shows that the final term obtained from \texttt{parsley-garnish} can be rewritten in the form \scala{op.map(flip) <*> p}, so the obtained \scala{postfix} parser is equivalent to the hand-written version using \scala{chain.left1}.
 
-% TODO; future work to somwhoew factor these out
+\subsubsection{Evaluating the Arithmetic Expression Language}
+The evaluating parser variant of the same grammar, as presented in the introduction, has the same resulting form:
+\begin{minted}{scala}
+lazy val expr: Parsley[Float] = chain.postfix[Float](term)(
+  ('+' ~> term).map(x1 => x2 => x2 + x1) | ('-' ~> term).map(x1 => x2 => x2 - x1)
+)
+\end{minted}
+%
+However, in this case, the output unfortunately fails to compile.
+Scala's local type inference prevents the compiler from inferring the types of the \scala{x2} parameters, as the arithmetic operators used in the lambdas are overloaded.
+This problem does not occur for the previous example, since the \scala{Expr} constructors are explicitly and unambiguously typed.
+Users will have to manually fix \texttt{parsley-garnish}'s output by adding an explicit type annotation \scala{(x2: Float)}.
+
+Resolving this issue is future work: the most likely solution is to refactor the parser so that they do not take curried functions, which would make it easier for Scala to infer their types.
+For example, if the parser was refactored into the \scala{chain.left1} form utilising the \scala{as} combinator, the addition function \scala{_ + _} would be in a fully uncurried form.
+
+\paragraph{Summary}
+Direct left-recursion is the most straightforward form of left-recursion to detect, so it is unsurprising that \texttt{parsley-garnish} handles it well.
+The transformation on these test examples are provably correct, and the resulting parsers are relatively clear and idiomatic.
+\texttt{parsley-garnish} also takes care to improve the likelihood of producing compilable output, although there is still some future work to be done in this area.
+The most significant weakness is the inability to specialise the \scala{postfix} parser into a more specific form, however this is not a critical issue as the \scala{postfix} form is still correct and idiomatic.
 
 \subsection{Indirect Left-Recursion}
 Indirect left-recursion is more subtle and tricky to spot, since the parser's reference to itself takes more than one step to reach.
