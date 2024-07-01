@@ -35,8 +35,8 @@ Thus, the expression \textsc{ast} will be based on \cref{fig:lambda-calculus}, w
 % annoying \enspace hack to get operators aligned along the centre
 \begin{align*}
 M, N &\mathrel{::=} x & \text{variable} \\
-&\mathrel{\enspace\mid\enspace} (\lambda \overline{\mathbf{x}}.\ M) & \text{$n$-ary abstraction, where } \overline{\mathbf{x}} = (x_1, \ldots, x_n) \\
-&\mathrel{\enspace\mid\enspace} (M\ \overline{\mathbf{N}}) & \text{$n$-ary application, wher } \overline{\mathbf{N}} = (N_1, \ldots, N_n)
+&\mathrel{\enspace\mid\enspace} (\lamabs{\multivar{x}} M) & \text{$n$-ary abstraction, where } \multivar{x} = (x_1, \ldots, x_n) \\
+&\mathrel{\enspace\mid\enspace} (M\ \multivar{N}) & \text{$n$-ary application, where } \multivar{N} = (N_1, \ldots, N_n)
 \end{align*}
 \caption{Syntax for the untyped $\lambda$-calculus extended with $n$-ary abstraction and application.}
 \label{fig:lambda-calculus}
@@ -44,12 +44,12 @@ M, N &\mathrel{::=} x & \text{variable} \\
 
 \subsubsection{$\beta$-Reduction and $\alpha$-Conversion}
 In the $\lambda$-calculus, terms are evaluated via $\beta$-reduction: \cref{fig:beta-reduction} shows how this can be defined for the $n$-ary $\lambda$-calculus.
-Unlike the standard $\lambda$-calculus, reduction will only take place if the expected number of arguments in $\overline{\mathbf{x}}$ are equal to the number of arguments in $\overline{\mathbf{N}}$; otherwise, evaluation is stuck.
+Unlike the standard $\lambda$-calculus, reduction will only take place if the expected number of arguments in $\multivar{x}$ are equal to the number of arguments in $\multivar{N}$; otherwise, evaluation is stuck.
 
 \begin{figure}[htbp]
-\begin{equation*}
-(\lambda \overline{\mathbf{x}} .\ M)\ \overline{\mathbf{N}} \rightarrow_\beta M[\overline{\mathbf{N}}/\overline{\mathbf{x}}] \hspace{3em} (\text{if } | \overline{\mathbf{x}} | = | \overline{\mathbf{N}} |)
-\end{equation*}
+\begin{lambdacalc}
+(\lamabs{\multivar{x}} M)\ \multivar{N} &\betastep& M\ [\multivar{N}/\multivar{x}] \hspace{3em} (\text{if } \lvert \multivar{x} \rvert = \lvert \multivar{N} \rvert)
+\end{lambdacalc}
 \caption{The $\beta$-reduction rule for the $n$-ary lambda calculus.}
 \label{fig:beta-reduction}
 \end{figure}
@@ -61,31 +61,31 @@ In the $\lambda$-calculus, two terms are considered $\alpha$-equivalent if they 
 
 \paragraph{Illustrating variable capture}
 For example, substitution without $\alpha$-conversion incorrectly $\beta$-reduces the following term:
-\begin{align*}
-(\lambda x. \lambda y. x y) y\ &\rightarrow_\beta (\lambda y. x y)\ [y / x] \\
-&= \lambda y. y y
-\end{align*}
+\begin{lambdacalc}
+(\lamabs{x} \lamabs{y} x\ y)\ y &\betastep& (\lamabs{y} x\ y)\ [y / x] \\
+&\lameq& \lamabs{y} y\ y
+\end{lambdacalc}
 The $y$ that was substituted was originally a free variable, distinct from the $y$ bound in the lambda $\lambda y. x y$.
 % some weird spacing hacks because $y$ is weirdly slanted
 However, after substitution, it became captured under the lambda, where the two $y\ $ terms are now indistinguishable in the incorrect expression $\lambda y. y y$.
 The correct $\beta$-reduction with capture-avoiding substitution would instead proceed as follows:
-\begin{align*}
-(\lambda x. \lambda y. x y) y\ &\rightarrow_\beta (\lambda y. x y)\ [y / x] \\
-&=_\alpha (\lambda z. x z)\ [y / x] \\
-&= \lambda z. y z
-\end{align*}
+\begin{lambdacalc}
+(\lamabs{x} \lamabs{y} x\ y)\ y &\betastep& (\lamabs{y} x\ y)\ [y / x] \\
+&\alphaequiv& (\lamabs{z} x\ z)\ [y/x] \\
+&\lameq& \lamabs{z} y\ z
+\end{lambdacalc}
 
 \subsubsection{Simplifying the Example Expression}
 The example from the beginning of the \namecref{sec:simplify-exprs} can thus be evaluated by hand via $\beta$-reduction, representing the higher-order functions as $\lambda$-abstractions:
-\begin{align*}
-\mathtt{flip(compose((\_ + \_).curried)(identity))}\quad &\mathrel{=\quad\,} \mathrm{flip}\ (\mathrm{compose}\ (\lambda a. \lambda b. a + b)\ \mathrm{identity}) \\
-&\mathrel{=\quad\,} \mathrm{flip}\ ( (\lambda f. \lambda g. \lambda x. f\ (g\ x)) (\lambda a. \lambda b.\ a + b) (\lambda x. x)) \\
-&\rightarrow_{\beta*} \mathrm{flip}\ (\lambda g. \lambda x.\ (\lambda b.\ g\ x + b) (\lambda x. x)) \\
-&\rightarrow_{\beta*} \mathrm{flip}\ (\lambda x. \lambda b.\ x + b) \\
-&\mathrel{=\quad\,} (\lambda f. \lambda x. \lambda y.\ f\ y\ x) (\lambda x. \lambda b.\ x + b) \\
-&\rightarrow_{\beta*} \lambda x. \lambda y.\ y + x \\
-&\mathrel{=\quad\,} \mathtt{(x, y) => y + x}
-\end{align*}
+\begin{lambdacalc}
+\texttt{flip(compose((\_ + \_).curried)(identity))} &\lameq& \texttt{flip}\ (\texttt{compose}\ (\lamabs{a} \lamabs{b} a + b)\ \texttt{identity}) \\
+&\lameq& \texttt{flip}\ ( (\lamabs{f} \lamabs{g} \lamabs{x} f\ (g\ x)) (\lamabs{a} \lamabs{b} a + b) (\lamabs{x} x)) \\
+&\betareduce& \texttt{flip}\ (\lamabs{g} \lamabs{x} (\lamabs{b} g\ x + b) (\lamabs{x} x)) \\
+&\betareduce& \texttt{flip}\ (\lamabs{x} \lamabs{b} x + b) \\
+&\lameq& (\lamabs{f} \lamabs{x} \lamabs{y} f\ y\ x) (\lamabs{x} \lamabs{b} x + b) \\
+&\betareduce& \lamabs{x} \lamabs{y} y + x \\
+&\lameq& \texttt{(x, y) => y + x}
+\end{lambdacalc}
 %
 This normalised expression has the same meaning as the original, but is now expressed in a clearer form!
 This is much more suitable to be placed back into the code rewrite, as it is easier to understand by the user.
@@ -109,7 +109,7 @@ case class App[A, B](f: Lambda[A => B], x: Lambda[A]) extends Lambda[B]
 case class Var[A](name: VarName) extends Lambda[A]
 
 // λf. λx. f x
-val f = Var("f"), val x = Var("x")
+val (f, x) = (Var("f"), Var("x"))
 val expr = Abs(f, Abs(x, App(f, x)))
 \end{minted}
 %

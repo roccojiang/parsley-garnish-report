@@ -395,8 +395,7 @@ the choice operation represented by the \scala{|} combinator is \emph{left-biase
 \begin{minted}{scala}
 case class <|>(p: Parser, q: Parser) extends Parser {
   def unfold() = {
-    val (pe, pn, pl) = p.unfold
-    val (qe, qn, ql) = q.unfold
+    val ((pe, pn, pl), (qe, qn, ql)) = (p.unfold, q.unfold)
     (pe.orElse(qe), pn | qn, pl | ql)
   }
 }
@@ -424,15 +423,19 @@ Given the above observations, the implementation of the \scala{<*>} combinator's
 \begin{minted}{scala}
 case class <*>(p: Parser, q: Parser) extends Parser {
   def unfold() = {
-    val (pe, pn, pl) = p.unfold
-    val (qe, qn, ql) = q.unfold
+    val ((pe, pn, pl), (qe, qn, ql)) = (p.unfold, q.unfold)
 
-    val result = if (pe.isDefined && qe.isDefined) Some(q"${pe.get}(${qe.get})") else None
+    val result = for {
+      f <- pe
+      x <- qe
+    } yield App(f, x)
+
     val nonLefts = {
       val lnl = pn <*> q
       val rnl = pe.map(q"f => qn.map(f)").getOrElse(Empty) // f <$> qn
       lnl | rnl
     }
+
     val lefts = {
       val llr = pl.map(q"flip") <*> q
       val rlr = pe.map(q"$ql.map(compose)").getOrElse(Empty) // f.map(compose) <$> ql
