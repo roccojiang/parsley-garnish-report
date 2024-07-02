@@ -15,8 +15,6 @@ This chapter evaluates the overall project by assessing the performance of its e
 Then, it evaluates the success of the left-recursion transformation by examining its ability to handle different forms of left-recursion.
 
 \section{Performance of Expression Normalisation}\label{sec:eval-exprs}
-% TODO: move this to evaluation chapter?
-% TODO: tbh could've just stopped at HOAS, but in our case, NbE was an easily attainable logical next step to more aggressively use meta-language constructs
 Originally, the implementation of \scala{Expr} used a named approach with Barendregt's convention, generating fresh variable names using an atomic counter.
 Normalisation proceeded by manually substituting variable objects following the $\beta$-reduction rules.
 However, this required an extra $\alpha$-conversion pass to clean up variable names before pretty-printing the expression, as fresh name generation resulted in undesirably long names like \scala{x4657476}.
@@ -55,7 +53,7 @@ Contrast this with the \textsc{nbe} and \textsc{hoas} approaches, which do not e
 
 \subsubsection*{Summary}
 The performance benchmarks show that the final implementation of expression normalisation is extremely performant, even for unrealistically large $\lambda$-terms.
-Although the original named substitution approach would've likely been sufficient for the standard use case of normalising parser terms, the cheap operational cost of \textsc{nbe} allows expression normalisation to be used frequently and liberally throughout the system, without worrying about performance bottlenecks.
+Although the original named substitution approach would have likely been sufficient for the standard use case of normalising parser terms, the cheap operational cost of \textsc{nbe} allows expression normalisation to be used frequently and liberally throughout the system, without worrying about performance bottlenecks.
 
 \section{Removing Left-Recursion}\label{sec:eval-leftrec}
 Broadly speaking, left-recursive grammars can be classified into three categories: direct, indirect, and hidden.
@@ -141,7 +139,7 @@ lazy val atom = '(' ~> expr <~ ')' | number.map(Num(_))
 %
 This also manages to successfully compile, and is relatively clear to read.
 However, it does highlight a current shortcoming of the left-recursion rule: left-recursive parsers can only be transformed into the most generalised \scala{postfix} form, which may not always be the most optimal choice of combinator.
-In this case, the \scala{chain.left1} combinator would've been a more appropriate choice; even better would be the \scala{precedence} combinator, since the grammar forms multiple layers of expression operators.
+In this case, the \scala{chain.left1} combinator would have been a more appropriate choice; even better would be the \scala{precedence} combinator, since the grammar forms multiple layers of expression operators.
 
 It is theoretically possible to automatically transform a \scala{postfix} parser into one of its more specialised brethren, but this would require a more sophisticated ability to factor out common patterns in parsers and expressions.
 % This comes at odds with the current machinery, which focuses on simplification and normalisation, and may lose the high-level patterns that would be helpful for factoring out common sub-expressions.

@@ -1,0 +1,248 @@
+\ProvidesPackage{main}
+
+\usepackage[margin=1in,headheight=13.6pt]{geometry}
+\usepackage{setspace}
+\usepackage{xr-hyper}
+\usepackage{hyperref}
+\usepackage[english]{babel}
+\usepackage{fancyvrb}
+\usepackage{mathpartir}
+\usepackage[backend=biber,style=ext-authoryear,uniquename=false]{biblatex}
+\usepackage{float}
+\usepackage{iftex}
+\ifLuaTeX
+  \usepackage{fontspec}
+  \usepackage{unicode-math}
+  \setmainfont{Libertinus Serif}
+  \setsansfont{Libertinus Sans}
+  \setmathfont{Libertinus Math}[Scale=MatchUppercase]
+  \setmonofont{Fira Mono}[
+    Scale=MatchLowercase,
+    % Numbers=Lining % This causes errors?
+  ]
+  \usepackage{lstfiracode}
+\else
+  \usepackage[tt=false, type1=true]{libertine}
+  \usepackage[varqu]{zi4} % In LuaTeX this turns quotes into \textquotesingle within listings, breaking the tt font
+  \usepackage[libertine]{newtxmath}
+  \usepackage[T1]{fontenc}
+  \usepackage[scaled=0.8, lining]{FiraMono}
+\fi
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{pgfplotstable}
+\usepackage{scalerel}[2016/12/29]
+\usepackage{sansmath}
+\usepackage{placeins}
+\usepackage{flafter}
+\usepackage{fancyhdr}
+\usepackage{cleveref}
+\usepackage{url}
+\usepackage[figurename=Fig., justification=centering]{caption}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage[nounderscore]{syntax}
+\usepackage{minted}
+\usepackage{listings}
+\usepackage{subfiles}
+\usepackage{pifont}% http://ctan.org/pkg/pifont
+\usepackage{textcomp}
+\usepackage[autostyle]{csquotes}
+\usepackage{verbatimbox}
+\usepackage{pgf-pie}
+\usepackage[most]{tcolorbox}
+\usepackage{multirow}
+\usepackage{changepage}
+\usepackage{titlesec}
+\usepackage{booktabs}
+\usepackage{svg}
+
+\usetikzlibrary{cd}
+\usetikzlibrary{plotmarks}
+
+\lstloadlanguages{Haskell}
+\ifLuaTeX
+  \lstset{
+    language=Haskell,
+    basicstyle=\ttfamily\linespread{1.5}\selectfont,
+    keywordstyle=\ttfamily, % disable bold keywords
+    flexiblecolumns=false,
+    escapechar=\%, % char to escape out of listings and back to LaTeX
+    style=FiraCodeStyle,
+    literate={\\}{{λ}}1 {->}{{$\rightarrow$}}2
+  }
+\else
+  \lstset{
+    language=Haskell,
+    basicstyle=\ttfamily,
+    flexiblecolumns=false,
+    escapechar=\%, % char to escape out of listings and back to LaTeX
+    % literate={\\}{{$\lambda$}}1 % the lambda looks pretty bad so I have disabled this
+  }
+\fi
+
+% Equational reasoning proofs
+\newcommand{\proofstep}[1]{\( = \qquad \{ \enspace \textrm{#1} \enspace \}\)}
+
+% eBNF grammars
+\newcommand{\nt}[1]{\langle \mathit{#1} \rangle}
+\newcommand{\sym}[1]{\text{`\texttt{#1}'}}
+\newcommand{\alt}{\enspace | \enspace}
+
+% (N-ary) lambda calculus
+\newcolumntype{C}{>{{}}c<{{}}} % column type for relational and binary operators
+\newcommand{\alphaequiv}{\mathrel{=_\alpha}}
+\newcommand{\lameq}{\mathrel{=_{\hphantom{\alpha}}}}
+\newcommand{\betastep}{\mathrel{\to_\beta}}
+\newcommand{\betareduce}{\mathrel{\to_\beta^*}}
+\newcommand{\lamabs}[1]{\lambda {#1}\ldotp}
+\newcommand{\multivar}[1]{\overline{\mathbf{#1}}}
+
+% https://tex.stackexchange.com/a/500014
+\newenvironment{lambdacalc}{
+  \begingroup % localize scope of the next two instructions
+  \setlength{\arraycolsep}{0.2em}
+  \renewcommand{\arraystretch}{1.3}
+  \begin{equation*}
+  \begin{array}{rCl}
+}{
+  \end{array}
+  \end{equation*}
+  \endgroup\ignorespacesafterend
+}
+
+% https://tex.stackexchange.com/questions/568880/color-box-with-rounded-corners
+\tcbset{on line, 
+  boxsep=4pt, left=0pt,right=0pt,top=0pt,bottom=0pt,
+  colframe=white,
+  highlight math style={enhanced}
+}
+
+\let\cite\parencite
+
+\DeclareOuterCiteDelims{parencite}{\bibopenbracket}{\bibclosebracket}
+\DeclareInnerCiteDelims{textcite}{\bibopenbracket}{\bibclosebracket}
+
+\DeclareFieldFormat{citehyperref}{%
+  \DeclareFieldAlias{bibhyperref}{noformat}% Avoid nested links
+  \bibhyperref{#1}}
+
+% https://tex.stackexchange.com/questions/557104/how-to-have-completely-hyperlinked-authoryear-citations-using-biblatex
+% adjusted to hyperlink everything
+\DeclareCiteCommand{\parencite}[\mkouterparencitedelims]
+  {\usebibmacro{prenote}}
+  {\usebibmacro{citeindex}%
+   \printtext[citehyperref]{\usebibmacro{cite}}}
+  {\multicitedelim}
+  {\usebibmacro{postnote}}
+
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{fillbetween}
+
+% \setstretch{1.15} % adjust as needed, I like it when there is a bit more vertical space
+
+\setcounter{secnumdepth}{3} % number subsubsections
+
+\definecolor[named]{ImperialBlue}{HTML}{003e74}
+\definecolor[named]{ForestGreen}{HTML}{009B55}
+\definecolor[named]{Mint}{HTML}{96DEC4}
+\definecolor[named]{DarkRed}{HTML}{A50000}
+\definecolor[named]{ACMPurple}{cmyk}{0.55,1,0,0.15}
+\definecolor[named]{ACMDarkBlue}{cmyk}{1,0.58,0,0.21}
+\hypersetup{colorlinks,
+    linkcolor=ACMPurple,
+    citecolor=ACMPurple,
+    urlcolor=ACMDarkBlue,
+    filecolor=ACMDarkBlue}
+
+\DefineVerbatimEnvironment%
+  {core}{Verbatim}
+  {xleftmargin=\mathindent}
+
+%include format.fmt
+\newcommand{\keyword}[1]{\mathsfbf{#1}}
+
+\usemintedstyle{xcode}
+\setlength{\grammarparsep}{1pt}
+\setminted{baselinestretch=1.15}
+
+\newmintinline[scala]{scala}{fontsize=\normalsize, breaklines}
+\newmintinline[scalafoot]{scala}{fontsize=\footnotesize, breaklines}
+\newmintinline[bigscala]{scala}{fontsize=\large} %, breaklines
+\newmintinline[haskell]{haskell}{fontsize=\normalsize, breaklines}
+\newmintinline[haskellescape]{haskell}{fontsize=\normalsize, breaklines, escapeinside=**}
+\newmintinline[haskellfoot]{haskell}{fontsize=\footnotesize, breaklines}
+
+\newcommand{\textttiny}[1]{{\small {\texttt{#1}}}}
+\newcommand{\textttinier}[1]{{\footnotesize {\texttt{#1}}}}
+
+% Renders a Chapter more like an "article part"
+\assignpagestyle{\chapter}{fancy}
+\titleformat{\chapter}[display]{}{\bfseries\Large \chaptertitlename \ \thechapter}{-5pt}{\bfseries\huge}
+\titlespacing*{\chapter}{0pt}{-30pt}{10pt}
+
+\pagestyle{fancy}
+\providecommand{\chaptertitle}{}
+\newcommand{\ourchapter}[1]{\pagebreak\chapter{#1}\renewcommand{\chaptertitle}{#1}}
+\newcommand{\ourchapterstar}[1]{\pagebreak\chapter*{#1}\renewcommand{\chaptertitle}{}}
+\newcommand{\apxsection}[1]{\chapter{#1}}
+\newcommand{\tocsubsectionstar}[1]{\subsection*{#1}\phantomsection\addcontentsline{toc}{subsection}{#1}}
+\newcommand{\tocsubsubsectionstar}[1]{\subsubsection*{#1}\phantomsection\addcontentsline{toc}{subsubsection}{#1}}
+
+\newcommand{\authorname}{Rocco Jiang}
+\newcommand{\maintitle}{\texttt{parsley-garnish}}
+\newcommand{\mainsubtitle}{\emph{A linter for the \texttt{parsley} parser combinator library}}
+
+\lhead{\maintitle: \mainsubtitle}
+\rhead{\textsc{\chaptertitle}}
+\lfoot{\authorname}
+\renewcommand{\footrulewidth}{0.4pt}
+
+\crefformat{chapter}{#2\textsc{chapter}~#1#3}
+\Crefformat{chapter}{#2\textsc{Chapter}~#1#3}
+\crefname{chapter}{chapter}{chapters}
+\Crefname{chapter}{Chapter}{Chapters}
+\crefname{figure}{fig.}{figs.}
+\Crefname{figure}{Fig.}{Figs.}
+\crefname{equation}{eq.}{eqs.}
+\Crefname{equation}{Eq.}{Eqs.}
+\crefformat{section}{#2\S#1#3}
+\Crefformat{section}{Section~#2#1#3}
+\crefformat{subsection}{#2\S#1#3}
+\Crefformat{subsection}{Section~#2#1#3}
+\crefformat{subsubsection}{#2\S#1#3}
+\Crefformat{subsubsection}{Section~#2#1#3}
+\newcommand{\creflastconjunction}{, and~}
+
+\newcommand{\chapterref}[1]{\Cref{#1}:~\textsc{\nameref{#1}}}
+\newcommand{\citepaper}[1]{\citetitle{#1}~\cite{#1}}
+
+\makeatletter
+\patchcmd{\@addmarginpar}{\ifodd\c@page}{\ifodd\c@page\@tempcnta\m@ne}{}{}
+\makeatother
+\reversemarginpar
+\newcommand{\ponders}[3]{\marginpar{\tiny\itshape\raggedright\textcolor{#2}{\textbf{#1:} #3}}\ignorespaces}
+\marginparwidth=1.6cm \marginparsep=0cm
+\newcommand{\TODO}[1]{{\color{DarkRed}#1}}
+\newcommand{\rj}[1]{\ponders{RJ}{blue}{#1}}
+\newcommand{\jw}[1]{\ponders{JW}{DarkRed}{#1}}
+
+%fix for # and % inside footnotes for minted: must go below everything else!
+\makeatletter
+\let\footnote@orig\footnote
+\def\footnote{%
+  \begingroup
+  \@makeother\#%
+  \footnote@i
+}
+% added \long to accept multi-para footnotes
+\long\def\footnote@i#1{%
+  \endgroup
+  \footnote@orig{#1}%
+}
+\makeatother
+
+\addbibresource{\subfix{src/bibliography.bib}}

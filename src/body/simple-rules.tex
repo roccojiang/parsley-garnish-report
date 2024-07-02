@@ -2,14 +2,6 @@
 
 \begin{document}
 
-% TODO: Take inspiration from DLint paper, the Scala Refactoring master's thesis, HaRe papers
-% Simple rules can consist of a single heading, containing:
-% * Explanation of the rule
-% * Simple example to show a diagnostic, and a before and after if it's fixable
-% * How it's implemented in the code
-% * Proof (if applicable)
-% * Limitations
-
 \ourchapter{Idiomatic Implicits Usage}\label{sec:simple-rules}
 Implicit conversions are a powerful feature in Scala, allowing users to supply an argument of one type when another is expected, to reduce boilerplate.
 When the Scala compiler encounters a type mismatch, it will search for any implicit methods that are in scope to convert the argument to the expected type.
@@ -41,13 +33,13 @@ One common issue arises from ambiguous implicits when there are multiple implici
 \texttt{parsley} has first-class support for both design patterns, defining separate implicit methods for each:
 \begin{itemize}
   \item \emph{Implicit Conversions}: the \scala{parsley.syntax.character} package includes implicit methods \scala{stringLift} and \scala{charLift} to lift string and character literals into parsers, respectively.
-  \item \emph{Implicit Lexer}: the \scala{Lexer} class exposes \scala{implicitSymbol} to allow string and character literals to parse as proper tokens.
+  \item \emph{Implicit Lexer}: the \scala{Lexer} class exposes the \scala{implicitSymbol} method to allow string and character literals to parse as proper tokens.
 \end{itemize}
 %
 The two implicit conversions cannot be used in conjunction: the \emph{Implicit Lexer} pattern is a specialisation of the former, so \scala{implicitSymbol} is meant to be a \emph{replacement} for \scala{stringLift}.
 For novice users, this may not be immediately apparent and it is easy to accidentally bring both sets of these implicits into scope.
 Anecdotally, this issue has been encountered by a number of \textsc{Wacc} students at Imperial.
-For example, consider the following code snippet:
+Consider the following code snippet:
 \begin{minted}{scala}
 val p = 'g' ~> "arnish"
 p.parse("garnish")
@@ -132,8 +124,8 @@ To fix this, ensure that you only import a single implicit conversion.
 \subsection{Implementation as a Syntactic Lint Rule}
 The rule uses the following heuristics to determine if an import clause brings an implicit into scope:
 \begin{itemize}
-  \item An import clause of the form \scala{import parsley.syntax.character.xxx}, where \scala{xxx} is either a wildcard import or specifically contains the importee \scala{stringLift}, indicates the \emph{Implicit Conversions} pattern on strings.
-  \item The import path for the \emph{Implicit Lexer} pattern is subject to how the user names their lexer object, so determining this is much more heuristic-based. The following cases are considered indicative of this pattern:
+  \item An import clause of the form \scala{import parsley.syntax.character.xxx}, where \scala{xxx} is either a wildcard import or specifically contains the importee \scala{stringLift}, indicates the \emph{Implicit Conversions} pattern on string values.
+  \item The import path for the \emph{Implicit Lexer} pattern is subject to how the user names their lexer object, so determining this is more heuristic-based. The following cases are considered indicative of this pattern:
   \begin{itemize}
     \item An import containing the keyword \scala{lexer}, as well as either \scala{implicit} or \scala{implicits}.
     \item An import clause that brings in an importee called \scala{implicitSymbol}.
@@ -150,8 +142,7 @@ The flexibility of Scala's import system has two main repercussions:
 This behaviour presents extra challenges for this lint rule, as it must be aware of the exact scope of each import to determine which implicits are in scope at any given point.
 
 The lexically ordered management of scope can be respected by visiting all import clauses in the order they appear in the source file.
-By treating the parent of an \textsc{ast} node as its enclosing scope, it is possible to use ancestor information to determine the scoping relation between two nodes.
-Scoping rules can then be respected by using this information to determine which previously visited imports are still in scope at any given point in the traversal.
+By treating the parent of an \textsc{ast} node as its enclosing scope, it is possible to use ancestor information to determine the scoping relation between two nodes:
 \begin{minted}{scala}
 extension (tree: Tree) {
   def isWithinScope(scope: Tree): Boolean =
@@ -159,6 +150,7 @@ extension (tree: Tree) {
 }
 \end{minted}
 %
+Scoping rules can then be respected by using this information to determine which previously visited imports are still in scope at any given point in the traversal.
 With this, \cref{fig:ambiguous-implicits-impl} shows the core logic of the rule, implemented as a \emph{tail-recursive} visit over the list of imports, which allows the Scala compiler to optimise the recursion into an efficient iterative loop.
 The \scala{getClashingImports} method uses the heuristic rules described above to determine which implicits are brought into scope by an import.
 If an import brings in both types of implicits for the first time within its enclosing scope, a patch is generated to report a diagnostic.

@@ -38,16 +38,11 @@ As opposed to directly evaluating the results of the parser, this parser will in
 \vspace{3ex}
 \centering
 \begin{align*}
-\langle \mathit{digit} \rangle &::= \text{`\texttt{0}'} \ldots \text{`\texttt{9}'} \\
-\langle \mathit{number} \rangle &::= \langle \mathit{digit} \rangle+ \\
-\langle \mathit{expr} \rangle &::= \langle \mathit{expr} \rangle \; \text{`\texttt{+}'} \; \langle \mathit{term} \rangle \enspace | \enspace
-                                \langle \mathit{expr} \rangle \; \text{`\texttt{-}'} \; \langle \mathit{term} \rangle \enspace | \enspace
-                                \langle \mathit{term} \rangle \\
-\langle \mathit{term} \rangle &::= \langle \mathit{term} \rangle \; \text{`\texttt{*}'} \; \langle \mathit{atom} \rangle \enspace | \enspace
-                                \langle \mathit{term} \rangle \; \text{`\texttt{/}'} \; \langle \mathit{atom} \rangle \enspace | \enspace
-                                \langle \mathit{atom} \rangle \\
-\langle \mathit{atom} \rangle &::= \text{`\texttt{(}'} \; \langle \mathit{expr} \rangle \; \text{`\texttt{)}'} \enspace | \enspace
-                                \langle \mathit{number} \rangle
+\nt{digit} &::= \sym{0} \ldots \sym{9} \\
+\nt{number} &::= \nt{digit}+ \\
+\nt{expr} &::= \nt{expr} \; \sym{+} \; \nt{term} \alt \nt{expr} \; \sym{-} \; \nt{term} \alt \nt{term} \\
+\nt{term} &::= \nt{term} \; \sym{*} \; \nt{atom} \alt \nt{term} \; \sym{/} \; \nt{atom} \alt \nt{atom} \\
+\nt{atom} &::= \sym{(} \; \nt{expr} \; \sym{)} \alt \nt{number} \\
 \end{align*}
 \caption{The grammar in e\textsc{bnf}.}
 \label{fig:simple-grammar-ebnf}

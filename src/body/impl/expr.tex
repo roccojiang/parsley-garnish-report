@@ -4,10 +4,6 @@
 
 \section{Representing and Normalising Expressions}\label{sec:simplify-exprs}
 
-% \Cref{sec:parser-representation} showed that it is useful to lift Scala \textsc{ast} nodes to a specialised \scala{Parser} \textsc{ast}, making it easier to manipulate and inspect parsers.
-% Crucially, this allowed us to simplify parsers via term-rewriting rules based on parser laws.
-% \Cref{sec:simplify-parsers} demonstrated why this is necessary for \texttt{parsley-garnish}: transformations such as left-recursion factoring~\cref{sec:factor-leftrec} result in complex parser terms that must be simplified to be readable.
-
 The previous \namecref{sec:simplify-parsers} demonstrated the process of simplifying the \scala{Parser} \textsc{ast}, but this is not the only syntactic structure that requires simplification.
 So far, parsers such as \scala{pure} and \scala{map} still treat expressions as black boxes in the form of raw \scala{scala.meta.Term} \textsc{ast} nodes.
 This is evident from where the example in \cref{sec:simplify-example} left off, where the parser itself is in a simplified form, but the function passed to \scala{map} is not:
@@ -18,7 +14,7 @@ val f = flip(compose((_ + _).curried)(identity))
 Therefore, this \namecref{sec:simplify-exprs} explores the following:
 \begin{itemize}
   \item How expressions can be represented as another intermediate \textsc{ast}, so that they are statically inspectable enough to be simplified.
-  \item The idea of \emph{normalisation} to reduce expressions into a semantically equivalent but syntactically simpler form.
+  \item The notion of \emph{normalisation}, in order to reduce expressions into a semantically equivalent but syntactically simpler form.
 \end{itemize}
 
 \subsection{The $n$-ary Lambda Calculus}
@@ -29,14 +25,14 @@ The expression terms present within parsers are equivalent to $\lambda$-terms, j
 In the standard $\lambda$-calculus, each function only takes one argument, and multi-argument functions are represented as a chain of single-argument functions: this is known as \emph{currying}.
 Scala supports curried functions using multiple parameter lists, but uncurried functions are preferred for performance reasons.
 Since these functions will be transformed from Scala code and back, it is desirable to maintain a high-level equivalence between these two representations.
-Thus, the expression \textsc{ast} will be based on \cref{fig:lambda-calculus}, which extends the $\lambda$-calculus to support proper multi-argument functions using $n$-ary abstraction and application.
+As a result, the expression \textsc{ast} will be based on \cref{fig:lambda-calculus}, which extends the $\lambda$-calculus to support proper multi-argument functions using $n$-ary abstraction and application.
 
 \begin{figure}
 % annoying \enspace hack to get operators aligned along the centre
 \begin{align*}
 M, N &\mathrel{::=} x & \text{variable} \\
-&\mathrel{\enspace\mid\enspace} (\lambda \overline{\mathbf{x}}.\ M) & \text{$n$-ary abstraction, where } \overline{\mathbf{x}} = (x_1, \ldots, x_n) \\
-&\mathrel{\enspace\mid\enspace} (M\ \overline{\mathbf{N}}) & \text{$n$-ary application, wher } \overline{\mathbf{N}} = (N_1, \ldots, N_n)
+&\mathrel{\enspace\mid\enspace} (\lamabs{\multivar{x}} M) & \text{$n$-ary abstraction, where } \multivar{x} = (x_1, \ldots, x_n) \\
+&\mathrel{\enspace\mid\enspace} (M\ \multivar{N}) & \text{$n$-ary application, where } \multivar{N} = (N_1, \ldots, N_n)
 \end{align*}
 \caption{Syntax for the untyped $\lambda$-calculus extended with $n$-ary abstraction and application.}
 \label{fig:lambda-calculus}
@@ -44,12 +40,12 @@ M, N &\mathrel{::=} x & \text{variable} \\
 
 \subsubsection{$\beta$-Reduction and $\alpha$-Conversion}
 In the $\lambda$-calculus, terms are evaluated via $\beta$-reduction: \cref{fig:beta-reduction} shows how this can be defined for the $n$-ary $\lambda$-calculus.
-Unlike the standard $\lambda$-calculus, reduction will only take place if the expected number of arguments in $\overline{\mathbf{x}}$ are equal to the number of arguments in $\overline{\mathbf{N}}$; otherwise, evaluation is stuck.
+Unlike the standard $\lambda$-calculus, reduction will only take place if the expected number of arguments in $\multivar{x}$ are equal to the number of arguments in $\multivar{N}$; otherwise, evaluation is stuck.
 
 \begin{figure}[htbp]
-\begin{equation*}
-(\lambda \overline{\mathbf{x}} .\ M)\ \overline{\mathbf{N}} \rightarrow_\beta M[\overline{\mathbf{N}}/\overline{\mathbf{x}}] \hspace{3em} (\text{if } | \overline{\mathbf{x}} | = | \overline{\mathbf{N}} |)
-\end{equation*}
+\begin{lambdacalc}
+(\lamabs{\multivar{x}} M)\ \multivar{N} &\betastep& M\ [\multivar{N}/\multivar{x}] \hspace{3em} (\text{if } \lvert \multivar{x} \rvert = \lvert \multivar{N} \rvert)
+\end{lambdacalc}
 \caption{The $\beta$-reduction rule for the $n$-ary lambda calculus.}
 \label{fig:beta-reduction}
 \end{figure}
@@ -61,31 +57,31 @@ In the $\lambda$-calculus, two terms are considered $\alpha$-equivalent if they 
 
 \paragraph{Illustrating variable capture}
 For example, substitution without $\alpha$-conversion incorrectly $\beta$-reduces the following term:
-\begin{align*}
-(\lambda x. \lambda y. x y) y\ &\rightarrow_\beta (\lambda y. x y)\ [y / x] \\
-&= \lambda y. y y
-\end{align*}
-The $y$ that was substituted was originally a free variable, distinct from the $y$ bound in the lambda $\lambda y. x y$.
+\begin{lambdacalc}
+(\lamabs{x} \lamabs{y} x\ y)\ y &\betastep& (\lamabs{y} x\ y)\ [y / x] \\
+&\lameq& \lamabs{y} y\ y
+\end{lambdacalc}
 % some weird spacing hacks because $y$ is weirdly slanted
-However, after substitution, it became captured under the lambda, where the two $y\ $ terms are now indistinguishable in the incorrect expression $\lambda y. y y$.
-The correct $\beta$-reduction with capture-avoiding substitution would instead proceed as follows:
-\begin{align*}
-(\lambda x. \lambda y. x y) y\ &\rightarrow_\beta (\lambda y. x y)\ [y / x] \\
-&=_\alpha (\lambda z. x z)\ [y / x] \\
-&= \lambda z. y z
-\end{align*}
+The $y\ $ that was substituted was originally a free variable, distinct from the $y\ $ bound in the lambda $\lambda y. x y$.
+However, after substitution, it became captured under the lambda, where the two $y\ $ terms have become indistinguishable in the incorrect expression $\lambda y. y y$.
+Instead, the correct $\beta$-reduction using capture-avoiding substitution would proceed as follows:
+\begin{lambdacalc}
+(\lamabs{x} \lamabs{y} x\ y)\ y &\betastep& (\lamabs{y} x\ y)\ [y / x] \\
+&\alphaequiv& (\lamabs{z} x\ z)\ [y/x] \\
+&\lameq& \lamabs{z} y\ z
+\end{lambdacalc}
 
 \subsubsection{Simplifying the Example Expression}
 The example from the beginning of the \namecref{sec:simplify-exprs} can thus be evaluated by hand via $\beta$-reduction, representing the higher-order functions as $\lambda$-abstractions:
-\begin{align*}
-\mathtt{flip(compose((\_ + \_).curried)(identity))}\quad &\mathrel{=\quad\,} \mathrm{flip}\ (\mathrm{compose}\ (\lambda a. \lambda b. a + b)\ \mathrm{identity}) \\
-&\mathrel{=\quad\,} \mathrm{flip}\ ( (\lambda f. \lambda g. \lambda x. f\ (g\ x)) (\lambda a. \lambda b.\ a + b) (\lambda x. x)) \\
-&\rightarrow_{\beta*} \mathrm{flip}\ (\lambda g. \lambda x.\ (\lambda b.\ g\ x + b) (\lambda x. x)) \\
-&\rightarrow_{\beta*} \mathrm{flip}\ (\lambda x. \lambda b.\ x + b) \\
-&\mathrel{=\quad\,} (\lambda f. \lambda x. \lambda y.\ f\ y\ x) (\lambda x. \lambda b.\ x + b) \\
-&\rightarrow_{\beta*} \lambda x. \lambda y.\ y + x \\
-&\mathrel{=\quad\,} \mathtt{(x, y) => y + x}
-\end{align*}
+\begin{lambdacalc}
+\texttt{flip(compose((\_ + \_).curried)(identity))} &\lameq& \texttt{flip}\ (\texttt{compose}\ (\lamabs{a} \lamabs{b} a + b)\ \texttt{identity}) \\
+&\lameq& \texttt{flip}\ ( (\lamabs{f} \lamabs{g} \lamabs{x} f\ (g\ x)) (\lamabs{a} \lamabs{b} a + b) (\lamabs{x} x)) \\
+&\betareduce& \texttt{flip}\ (\lamabs{g} \lamabs{x} (\lamabs{b} g\ x + b) (\lamabs{x} x)) \\
+&\betareduce& \texttt{flip}\ (\lamabs{x} \lamabs{b} x + b) \\
+&\lameq& (\lamabs{f} \lamabs{x} \lamabs{y} f\ y\ x) (\lamabs{x} \lamabs{b} x + b) \\
+&\betareduce& \lamabs{x} \lamabs{y} y + x \\
+&\lameq& \texttt{(x, y) => y + x}
+\end{lambdacalc}
 %
 This normalised expression has the same meaning as the original, but is now expressed in a clearer form!
 This is much more suitable to be placed back into the code rewrite, as it is easier to understand by the user.
@@ -109,7 +105,7 @@ case class App[A, B](f: Lambda[A => B], x: Lambda[A]) extends Lambda[B]
 case class Var[A](name: VarName) extends Lambda[A]
 
 // λf. λx. f x
-val f = Var("f"), val x = Var("x")
+val (f, x) = (Var("f"), Var("x"))
 val expr = Abs(f, Abs(x, App(f, x)))
 \end{minted}
 %
@@ -152,8 +148,6 @@ val expr = Abs(f => Abs(x => App(f, x)))
 %
 Therefore, this representation performs substitution through Scala's function application, which makes it extremely fast compared to the other approaches.
 However, since lambda abstractions are represented as closures within Scala itself, the function body becomes wrapped under Scala's variable bindings, making them difficult to inspect and work with.
-
-% \scala{Expr} has one binding construct -- the n-ary abstraction. This introduces variables and the need for capture-avoiding substitution.
 
 \subsection{Normalisation Strategies}\label{sec:normalisation-approach}
 One remaining hurdle stands before deciding on an \textsc{adt} representation: how normalisation will be implemented.
@@ -204,18 +198,6 @@ This achieves the following desired properties for \texttt{parsley-garnish}'s us
   \item Lifting the syntactic constructs to Scala semantics with \textsc{hoas} unlocks extremely efficient normalisation, and easier guarantees of correctness with respect to variable capture.
   \item Reifying \scala{Sem} terms back into syntactic \scala{Expr} terms automatically $\alpha$-converts names, granting $\alpha$-equivalence for free.
 \end{itemize}
-%
-% \subsubsection{Defunctionalisation}
-% In the same way that representing parsers as datatypes allows them to be statically inspectable, the aforementioned higher-order functions can also be rendered as datatypes to allow them to be analysed in a similar manner.
-% This is an example of \emph{defunctionalisation}, a technique to eliminate higher-order functions by transforming them into specialised first-order equivalents~\cite{reynolds_defunc_1972,danvy_defunctionalization_2001}.
-%
-% Ideally for type safety, this could be represented as a generalised algebraic data type (\textsc{gadt})~\cite{cheney_gadt_2003} with a type parameter documenting the type that the function term represents:
-% \begin{minted}{scala}
-% trait Defunc[+T]
-% case class Identity[A]() extends Defunc[A => A]
-% case class Flip[A, B, C]() extends Defunc[(A => B => C) => B => A => C]
-% case class Compose[A, B, C]() extends Defunc[(B => C) => (A => B) => A => C]
-% \end{minted}
 %
 \Cref{fig:expr-adt} shows the implementation of the untyped \scala{Expr} \textsc{adt} representing the abstract syntax of $n$-ary $\lambda$-terms, extended with the following:
 \begin{itemize}
@@ -302,21 +284,18 @@ def compose(f: Expr, g: Expr) = App(compose, f, g)
 \label{fig:higher-order-funcs}
 \end{figure}
 
-% Ideally for type safety, this could be represented as a generalised algebraic data type (\textsc{gadt})~\cite{cheney_gadt_2003} with a type parameter documenting the type that the function term represents:
-
 \paragraph{Improved type safety}
 The originally intended design was to represent \scala{Expr} as a type-parameterised \textsc{gadt} for improved type safety, where it would be based on a \emph{typed} variant of the $\lambda$-calculus.
 This would have also allowed \scala{Parser} to be represented as a \textsc{gadt} parameterised by the result type of the parser.
 However, attempting to implement this ran into two main hurdles:
 \begin{itemize}
   \item \scala{Var} and \scala{Translucent} terms would need to be created with concrete type parameters of their inferred types. Scalafix's semantic \textsc{api} is not powerful enough to guarantee that all terms can be queried for their inferred types -- in fact, the built-in Scalafix rule \emph{Explicit Result Types} calls the Scala 2 presentation compiler to extract information like this\footnote{\url{https://github.com/scalacenter/scalafix/issues/1583}}. This solution is complex and brittle due to its reliance on unstable compiler internals, which undermines Scalafix's goal of being a cross-compatible, higher-level abstraction over compiler details.
-  \item Scala 2's type inference for \textsc{gadt}s is less than ideal, requiring extra type annotations and unsafe casts which ultimately defeat the original purpose of type safety. This situation is improved, although not completely solved, in Dotty~\cite{parreaux_towards_2019} -- but Scalafix does not yet support Scala 3.
+  \item Scala 2's type inference for \textsc{gadt}s is less than ideal, requiring extra type annotations and unsafe casts which ultimately defeat the original purpose of type safety. This situation is improved, although not completely solved, in \emph{Dotty}~\cite{parreaux_towards_2019} -- but Scalafix does not yet support Scala 3.
 \end{itemize}
 
 \subsection{Lifting to the Intermediate Expression \textsc{ast}}\label{sec:lifting-expr}
 The \scala{Parser} \textsc{ast} is amended to take \scala{Expr} arguments where they used to take \scala{scala.meta.Term} values.
 Take the \scala{Pure} parser as an example:
-% TODO: if time, highlight changes with tcolorbox?
 \begin{minted}{scala}
 case class Pure(x: Expr) extends Parser
 object Pure {
@@ -486,7 +465,7 @@ Adding an extra defunctionalised layer to the expression \textsc{ast} would be f
 \paragraph{Normalisation strategy}
 \texttt{parsley} normalises terms to full $\eta\beta$-\textsc{nf}, whereas \texttt{parsley-garnish} only normalises to $\beta$-\textsc{nf}.
 This is because $\eta$-reduction in Scala 2 is not as straightforward as in Haskell, and is not always possible -- in most cases the appropriate reduction is instead to convert lambdas to placeholder syntax.
-This is left as future work.
+Implementing this is left as future work.
 
 In \texttt{parsley}, normalisation is implemented as a reduction-based approach over the \textsc{hoas} \haskell{Lambda} datatype.
 Normalisation by $\beta$-reduction with Haskell function application brings this to $\beta$-\textsc{whnf}.

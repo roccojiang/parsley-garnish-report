@@ -69,10 +69,10 @@ The rule suggests to rewrite the function into an equivalent but more concise fo
 \end{figure}
 
 \paragraph{Domain-specific idioms}
-A library or especially an embedded \textsc{dsl} may require a particular style of usage that is different from the host language~\cite{hora_domain_2012}.
+A library or especially an e\textsc{dsl} may require a particular style of usage that is different from the host language~\cite{hora_domain_2012}.
 The majority of linters are designed for general-purpose application domains, so they are unlikely to detect issues specific to a more specialised domain.
 Therefore, linters may be developed for specific libraries or \textsc{dsl}s, with their own set of domain-specific rules.
-In this case, the accompanying linter can benefit users and improve developer productivity in a similar manner to general-purpose linters: common misuses can be detected and sometimes automatically fixed, and users can be directed to relevant documentation to learn more about correct usage.
+In this case, the accompanying linter can benefit users and improve productivity in a similar manner to general-purpose linters: common misuses can be detected and sometimes automatically fixed, and users can be directed to relevant documentation to learn more about correct usage.
 For instance, the \emph{xUnit.net} testing framework for C\# is accompanied by the \texttt{xunit.analyzers}\footnote{\url{https://github.com/xunit/xunit.analyzers}} package which provides linting rules to enforce best practices specific to \emph{xUnit}.
 
 \subsubsection{Code smells and opportunities for refactoring}
@@ -84,7 +84,7 @@ They are conceptually similar to the stylistic issues mentioned earlier, however
 Examples of code smells include duplicated code, which can be hard to update without introducing bugs, and long methods, which can be difficult to understand and maintain.
 Therefore, it is often productive to refactor code to eliminate code smells, even if the code is still correct and functional.
 
-Certain linting rules can aid in the refactoring process by broadly identifying code smells and candidate areas for refactoring, suggesting appropriate actions that the user can take.
+Certain linting rules can aid this process by broadly identifying code smells and candidate areas for refactoring, suggesting appropriate actions that the user can take.
 As an example, a linter may detect a fragment of code that is repeated in multiple places: this is a code smell, as discussed previously.
 The linter may then suggest a code action to automatically apply an \emph{Extract Method}~\cite{fowler_refactoring_2018} refactoring to avoid code duplication: \cref{fig:extract-function-intellij} demonstrates how this automatic refactoring process can be performed in the IntelliJ IDEA\footnote{\url{https://www.jetbrains.com/idea/}} \textsc{ide}.
 
@@ -136,7 +136,7 @@ The linter may then suggest a code action to automatically apply an \emph{Extrac
 In some cases, linters may be able to detect with relatively high confidence that a piece of code is likely to contain a bug.
 Rules that detect more egregious issues like this are helpful for even experienced users to avoid common pitfalls.
 For example, \emph{Clippy} has \texttt{clippy::correctness} rules which identify code very likely to be incorrect or useless, and \texttt{clippy::suspicious} rules for code that is \emph{very sus} but could be a false positive.
-\emph{ESLint} also provides several rules to warn against code patterns that are likely to cause runtime errors, such as re-assigning a \texttt{const} variable.
+\emph{ESLint} also includes rules to warn against code patterns that are likely to cause runtime errors, such as re-assigning a \texttt{const} variable.
 
 Again, linters may attempt to provide code fixes for these issues where possible.
 However, these issues are usually more complex, which may limit the effectiveness or usefulness of auto-fixes: in the case of a suspicious code pattern, the programmer's intent may not be clear, causing the linter to suggest a fix that does not align with the user's expectations.
@@ -155,36 +155,22 @@ Linters should be fast and lightweight, as it is desirable for them to provide f
 Furthermore, it is desirable for them to be able to provide warnings on incomplete programs and analyse even just fragments of code for suspicious code patterns.
 For these reasons, the vast majority of linters are static analysis tools.
 
-% TODO: might be worth talking about soundness and completeness
-% https://stackoverflow.com/questions/12884623/static-and-dynamic-code-analysis
-% Most practical static checkers for JavaScript [3, 2, 1, 4] and other languages [29, 11] take a pragmatic view and favor a relatively low false positive rate over soundness
-
 % In some instances, however, dynamic languages such as JavaScript present challenges for static analysis due to their dynamic runtime nature.
 % This has led to the exploration of linters that incorporate dynamic analysis techniques to identify issues that static methods cannot detect~\cite{gong_dlint_2015}.
 % Despite these developments, state-of-the-art JavaScript linters utilised in industry, such as \emph{ESLint}, still solely rely on static analysis.
 % Regardless, since Scala is strongly and statically-typed it does not suffer from the same downsides, so the focus of this thesis will be on implementing \texttt{parsley-garnish} using static analysis.
 
-% TODO: discussion of parsley-debug's dynamic analysis capabilities (should this go here?)
-
 \subsubsection{Metaprogramming}
 Linters that provide code fixes are \emph{metaprograms}: they are programs that manipulate programs.
-Auto-fixes and refactorings are performed as source-to-source transformations, which may be implemented as simple text-based replacements or more robust rewrite rules that operate on the abstract syntax tree (\textsc{ast}) of the source code.
+Auto-fixes and refactorings are performed as source-to-source transformations, which may be implemented as simple text-based replacements or more robust rewrite rules that operate on the \textsc{ast} of the source code.
 
 Analyses over \textsc{ast}s are typically semantic-aware, respecting scoping rules and type information to provide more accurate code fixes.
 This semantic information is often provided by the compiler -- some linters opt to run during compilation as a compiler plugin, while others run as a separate tool after compilation.
 Lint-on-compile and lint-after-compile tools both have their own advantages and disadvantages, and the choice between them depends on the use case~\cite{sadowski_analysis-google_2018}.
 
-% \subsubsection{Code-Fixing Approaches}
-% Partial verificationtechniques have been proposed. These techniques prove thatsome desired property of a program holds for all possible ex-ecutions.  Such techniques may be complete or incomplete;if incomplete, then the analysis may be unable to prove thatthe desired property holds for some correct programs.  Fi-nally,unsoundtechniques can identify “probable” bugs, butmay miss some real bugs and also may emit some inaccuratewarnings.
-
-% \TODO{
-%   Our approach is formal methods using domain-specific knowledge of parser laws
-%   Not data-driven or ML/LLM approach
-% }
-
 \section{Writing Linters for Scala}\label{sec:writing-scala-linters}
 The goal of \texttt{parsley-garnish} is to provide linting and refactoring capabilities for the \texttt{parsley} parser combinator library.
-Although \texttt{parsley} is its own domain-specific language, it is implemented as an embedded \textsc{dsl} utilising Scala as its host language.
+Although \texttt{parsley} is its own domain-specific language, it is implemented as an e\textsc{dsl} utilising Scala as its host language.
 This is convenient for writing a linter for \texttt{parsley}, as it can be implemented using existing tools available to statically analyse Scala code, rather than having to write all the tooling from scratch.
 
 \subsection{Choice of Tooling}\label{sec:choice-of-tooling}
@@ -199,7 +185,7 @@ Compiler plugins therefore offer full freedom to extend the Scala compiler with 
 However, this approach has several drawbacks.
 Firstly, compiler plugins are tightly coupled with the compiler itself, and therefore not portable across major compiler versions.
 % https://github.com/mattmoore/scala-compiler-plugins is a good reference, in case I need to revisit this
-For instance, plugins written for the Scala 3 compiler, known as \texttt{dotty}, are completely incompatible with Scala 2 plugins~\cite{lampepfl_changes_2022}.
+For instance, plugins written for the Scala 3 compiler, known as \emph{Dotty}, are completely incompatible with Scala 2 plugins~\cite{lampepfl_changes_2022}.
 Additionally, developing compiler plugins requires a deep understanding of arcane and poorly documented compiler internals.
 Exposing the full compiler \textsc{api} permits unsafe operations that may violate undocumented invariants assumed by the compiler, leading to exceptions during compilation or even malformed bytecode~\cite{sherwany_refactoring_2015}.
 The lack of higher-level abstractions also makes it difficult to implement even trivial tasks such as renaming a field.
@@ -208,7 +194,7 @@ For these reasons, it would be preferable to explore other tools that may use co
 
 \paragraph{Scalameta}
 \textit{Scalameta}\footnote{\url{https://scalameta.org/}} is a metaprogramming framework for Scala that provides a unified interface for performing common metaprogramming tasks.
-Many Scala tools are built with Scalameta, most notably the \emph{Metals}\footnote{\url{https://scalameta.org/metals/}} (Scala\underline{meta} \underline{L}anguage \underline{S}erver) \textsc{lsp} server for Scala. % TODO: does the writing of scalaMETA LS look good like this? Should I just write MetaLS?
+Many Scala tools are built with Scalameta, most notably the \emph{Metals}\footnote{\url{https://scalameta.org/metals/}} (Scala\underline{meta} \underline{L}anguage \underline{S}erver) \textsc{lsp} server for Scala.
 It provides a high-level syntactic \textsc{api} for transforming and pretty-printing Scala source code, as well as a semantic \textsc{api} providing access to semantic information such as type inference and name resolution.
 Scalameta builds upon the earlier \texttt{scala.reflect} metaprogramming framework, unifying runtime and compile-time metaprogramming under a single \textsc{api}.
 Previously under \texttt{scala.reflect}, source code was parsed into lossy trees that discarded syntactic \emph{trivia} such as comments and whitespace~\cite{burmako_scalameta_2017}.
@@ -262,7 +248,9 @@ However, it only can emit diagnostics and does not support code fixes, making it
 ScalaStyle\footnote{\url{http://www.scalastyle.org/}} is primarily a style checker which also supports custom rules.
 However, it is only able to perform syntactic analyses and cannot access semantic information, restricting the types of analyses it can perform.
 
-% If time: comparison with clippy (https://doc.rust-lang.org/clippy/development/lint_passes.html) and/or roslyn (https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/; https://learning.oreilly.com/library/view/roslyn-cookbook/9781787286832/) ?
+% If time and space permits, comparison with:
+% Clippy (https://doc.rust-lang.org/clippy/development/lint_passes.html), and
+% Roslyn (https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/ and/or https://learning.oreilly.com/library/view/roslyn-cookbook/9781787286832/)
 
 \subsection{A Crash Course on Scalafix}\label{sec:scalafix}
 This \namecref{sec:scalafix} briefly explains how Scalafix rules are written,
@@ -273,19 +261,18 @@ Scalafix rules are implemented as generic top-to-bottom traversals through the S
 This is achieved with a collection-like \textsc{api}, exposing these operations in the style of standard Scala collection methods such as \scala{traverse} and \scala{collect}.
 During traversal, side effects are generated using the \scala{Patch} data structure, which represents either a lint diagnostic or a code rewrite.
 Rules are applied file-by-file, and the patches generated by each rule are collected and applied by Scalafix as a batch rewrite after all rules have finished running.
-\Cref{fig:syntactic-rule-ex} thus showcases the basic structure of a simple syntactic rule:
-\begin{itemize}
-  \item \scala{doc.tree.collect} performs a tree traversal, where \textsc{ast} nodes of interest are visited via pattern matching.
-  \item \scala{case v: Defn.Val if !v.mods.exists(_.is[Mod.Lazy])} visits a \scala{val} definition node that is not already marked as \scala{lazy}.
-  \item \scala{Patch.addLeft(v, "lazy ")} describes a patch to add the \scala{lazy} modifier to the left side of the node that was matched on.
-\end{itemize}
+\Cref{fig:syntactic-rule-ex} thus explains the basic structure of a simple syntactic rule.
 
 \begin{figure}[htbp]
 \begin{minted}{scala}
 class MakeValsLazy extends SyntacticRule("MakeValsLazy") {
   override def fix(implicit doc: SyntacticDocument): Patch = {
+    // 'Tree.collect' performs a tree traversal, inspecting AST nodes via pattern matching
     doc.tree.collect {
-      case v: Defn.Val if !v.mods.exists(_.is[Mod.Lazy]) => Patch.addLeft(v, "lazy ")
+      // Visit a 'val' definition node not already marked as 'lazy'
+      case v: Defn.Val if !v.mods.exists(_.is[Mod.Lazy]) =>
+        // A patch that adds the 'lazy' modifier to the left side of the visited node
+        Patch.addLeft(v, "lazy ")
     }.asPatch
   }
 }
@@ -304,7 +291,7 @@ In the majority of cases, \texttt{parsley-garnish} represents intended rewrites 
   \item \scala{q"..."} is the quasiquote's string interpolation syntax to build a \scala{Term} node, which is a subclass of \scala{Tree}.
   \item \scala{${...}} is the \emph{splice} or \emph{unquote} operation to insert a term into the constructed tree. Ordinarily, spliced values need to be an instance of a \scala{Tree}, but simple values such as integers (in this case) can be automatically lifted into the appropriate tree node.
   \item \scala{Tree.structure} represents the resulting \scala{Tree} data structure as a string, useful for debugging.
-  \item \scala{Tree.syntax} pretty-prints the tree back into its source code representation, which can then be fed into a \scala{Patch}.
+  \item \scala{Tree.syntax} pretty-prints the tree back into its source code representation. This string representation is suitable to be fed into a \scala{Patch}.
 \end{itemize}
 Quasiquotes expand at compile-time into \scala{Tree} constructors, so they do not preserve formatting details.
 This turns out to be very convenient for pretty-printing purposes: often, spliced values may contain superfluous parentheses, which are automatically removed (as seen in the final example within \cref{fig:quasiquote-ex}).
@@ -322,10 +309,8 @@ println(tree.structure)
 //   Term.ArgClause(List(Lit.Int(2)), None)
 // )
 
-println(tree.syntax)
-// 1 + 2
-println(q"($tree)".syntax)
-// 1 + 2
+println(tree.syntax) // => 1 + 2
+println(q"($tree)".syntax) // => 1 + 2
 \end{minted}
 \caption{Using Scalameta quasiquotes to construct a tree.}
 \label{fig:quasiquote-ex}
@@ -366,7 +351,7 @@ case class IntAdditionLint(tree: Tree) extends Diagnostic {
 \end{subfigure}
 %
 \begin{subfigure}{\textwidth}
-\vspace{3ex} % TODO: ew
+\vspace{3ex}
 \begin{minted}{scala}
 object Main {
   val stringAdd = "parsley" + "garnish"
@@ -391,17 +376,17 @@ object Main {
 % Basically a stripped-down version of \textsc{tast}y (Typed Abstract Syntax Trees)\footnote{\url{https://docs.scala-lang.org/scala3/guides/tasty-overview.html}} but for both scala 2 and 3.
 % Scalafix then presents a seamless API to implement semantic rules, allowing users to inspect an AST node and any semantic information associated with it.
 
-The following methods are the most important for querying the semantic information associated with a tree node:
+The following methods are the most important and commonly used for querying the semantic information associated with a tree node:
 \begin{itemize}
   \item \scala{Tree.symbol} retrieves the symbol associated with a node.
-  \item \scala{Symbol.info} queries a symbol for any \scala{SymbolInformation} attached to it, including metadata such as its type signature.
+  \item \scala{Symbol.info} queries a symbol for any possible \scala{SymbolInformation} attached to it, such as metadata including its type signature.
   \item \scala{Tree.synthetics} reveals extra compiler-generated tree nodes not present in the original source code, such as implicit conversions or inferred \scala{.apply} methods.
 \end{itemize}
 %
 Additionally, the \scala{SymbolMatcher} trait provides a convenient way to create predicates that match specific symbols.
-\Cref{fig:semantic-rule-ex} demonstrates how symbol matching can be used to detect integer addition operations, emitting a diagnostic warning when found.
+\Cref{fig:semantic-rule-ex-impl} demonstrates how symbol matching can be used to detect integer addition operations, emitting a diagnostic warning when found.
 The \scala{intAdd} symbol matcher only matches the \scala{+} method on integers, so the rule does not emit a diagnostic for addition operations on other types, as seen in \cref{fig:semantic-rule-ex-example}.
 
-% TODO: Comparison with HLint? https://ndmitchell.com/downloads/slides-static_analysis_of_haskell-11_jul_2017.pdf
+% If time/space permits: comparison with HLint (https://ndmitchell.com/downloads/slides-static_analysis_of_haskell-11_jul_2017.pdf)
 
 \end{document}

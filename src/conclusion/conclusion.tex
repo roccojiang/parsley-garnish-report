@@ -19,11 +19,6 @@ For their static analyser, the authors also had access to a Scalafix-like tool w
 However, they opted to define their own separate \textsc{dsl} to specify lint and rewrite rules.
 In contrast, this project argues that the most ergonomic approach is to model the linter \textsc{ast} on the original \textsc{ast} of the \textsc{dsl} itself -- this allows \texttt{parsley-garnish} to manipulate \textsc{ast}s of parsers in a high-level declarative manner comparable to writing standard \texttt{parsley} code.
 
-% xunit.analyzers -- seems to be relatively simple one-off rules though, not a DSL
-% Related to scalafix, so it could be possible to do very similar things as I've done:
-% Rust (I can see this as possible, ask Boogle people for thoughts?) -- Clippy lint passes % https://doc.rust-lang.org/clippy/development/lint_passes.html
-% C\# -- Roslyn
-
 \section{Left-Recursion Removal}
 The need to remove left-recursion from parsers is not a new problem, as many popular parser-writing tools such as \textsc{antlr}~\cite{parr_antlr_2013} produce recursive-descent parsers.
 Classical left-factoring algorithms such as Paull's algorithm~\cite{moore_removing_2000} and the left-corner transform~\cite{rosenkrantz_deterministic_1970} have been around for decades.
@@ -44,14 +39,6 @@ These techniques supersede the work in \cref{sec:simplify-exprs}, which was nece
 Squid and Scala 3 macros are superior to the expression representation in this project in the sense that they formalise their type-safety and hygienic properties.
 
 Finally, as already noted in \cref{sec:simplify-exprs}, the implementation of the \scala{Expr} \textsc{ast} also shares similarities with the \haskell{Defunc} and \haskell{Lam} infrastructures for code optimisation in \texttt{parsley} Haskell.
-
-% Things that could help:
-% Squid quasiquotes: type-safe and hygienic quasiquotes -- but only for scala 2.11/12
-% * squid quasiquotes have rudimentary function inlining features https://infoscience.epfl.ch/record/231700
-% Scala 3 macros: I wonder if this could help?
-% Related concepts to the Function stuff:
-% Metaprogramming and multi-staged programming? a dual: instead of for optimisation/code-generation purposes, we do it just for stringifying
-% Actually I feel like I've borrowed a lot of stuff from metaprogramming optimisation techniques -- Haskell Parsley itself
 
 \ourchapter{Conclusion}
 This project has presented a number of lint rules for the \texttt{parsley} parser combinator library:

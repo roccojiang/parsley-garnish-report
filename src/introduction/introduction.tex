@@ -5,7 +5,7 @@
 \ourchapter{Introduction}
 
 Parser combinators~\cite{hutton_higher-order_1992} are an elegant approach for writing parsers in a manner that remains close to their original grammar specification.
-\texttt{parsley}~\cite{willis_garnishing_2018} is a parser combinator library implemented as an embedded domain-specific language (\textsc{dsl})~\cite{hudak_building_1996} in Scala, with an \textsc{api} inspired by the \texttt{parsec}~\cite{leijen_parsec_2001} family of libraries in Haskell.
+\texttt{parsley}~\cite{willis_garnishing_2018} is a parser combinator library implemented as an embedded domain-specific language (e\textsc{dsl})~\cite{hudak_building_1996} in Scala, with an \textsc{api} inspired by the \texttt{parsec}~\cite{leijen_parsec_2001} family of libraries in Haskell.
 However, as with many libraries, there exists a learning curve to utilising \texttt{parsley} and parser combinator libraries in an idiomatic manner.
 
 While well-documented, the wealth of information to get started with \texttt{parsley} can be overwhelming for users, particularly those new to parser combinators.
@@ -18,29 +18,21 @@ Many of these linters are designed to detect general issues for the host languag
 However, tools may also utilise domain-specific code analyses in order to detect issues specific to a particular system or problem domain~\cite{renggli_domain-specific_2010,gregor_stllint_2006}.
 Well-designed linters can offer significant benefits to users:
 \begin{itemize}
-  \item Linters can be particularly valuable for uncovering subtle issues that might be hard to diagnose and locate, especially in large codebases. Automated fixes can save further effort by resolving issues without manual intervention.
+  \item Linters can be particularly valuable for uncovering subtle issues that might be hard to diagnose and locate, especially in large codebases. Automated fixes can save further effort by resolving issues with little or no manual intervention.
   \item Linters are also beneficial for teaching best practices in context, offering relevant hints and improvements precisely where sub-optimal code is detected.
 \end{itemize}
 %
 For example, suppose a user wants to write a simple arithmetic expression parser in \texttt{parsley}, which evaluates the parsed expression as a floating-point calculation.
 The parser will be based on the following e\textsc{bnf} grammar, with standard arithmetic operator precedence and left-associativity:
 \begin{align*}
-\langle \mathit{digit} \rangle &::= \text{`\texttt{0}'} \ldots \text{`\texttt{9}'} \\
-\langle \mathit{number} \rangle &::= \langle \mathit{digit} \rangle+ \\
-\langle \mathit{expr} \rangle &::= \langle \mathit{expr} \rangle \; \text{`\texttt{+}'} \; \langle \mathit{term} \rangle \enspace | \enspace
-                                \langle \mathit{expr} \rangle \; \text{`\texttt{-}'} \; \langle \mathit{term} \rangle \enspace | \enspace
-                                \langle \mathit{term} \rangle \\
-\langle \mathit{term} \rangle &::= \langle \mathit{term} \rangle \; \text{`\texttt{*}'} \; \langle \mathit{atom} \rangle \enspace | \enspace
-                                \langle \mathit{term} \rangle \; \text{`\texttt{/}'} \; \langle \mathit{atom} \rangle \enspace | \enspace
-                                \langle \mathit{atom} \rangle \\
-\langle \mathit{atom} \rangle &::= \text{`\texttt{(}'} \; \langle \mathit{expr} \rangle \; \text{`\texttt{)}'} \enspace | \enspace
-                                \langle \mathit{number} \rangle
+\nt{digit} &::= \sym{0} \ldots \sym{9} \\
+\nt{number} &::= \nt{digit}+ \\
+\nt{expr} &::= \nt{expr} \; \sym{+} \; \nt{term} \alt \nt{expr} \; \sym{-} \; \nt{term} \alt \nt{term} \\
+\nt{term} &::= \nt{term} \; \sym{*} \; \nt{atom} \alt \nt{term} \; \sym{/} \; \nt{atom} \alt \nt{atom} \\
+\nt{atom} &::= \sym{(} \; \nt{expr} \; \sym{)} \alt \nt{number} \\
 \end{align*}
 %
 By closely following the structure of the grammar, a naïve first attempt at writing the parser-evaluator in \texttt{parsley} may resemble the following:
-% import parsley.Parsley
-% import parsley.character.{char, digit}
-% import parsley.syntax.zipped._
 \begin{minted}{scala}
 val number: Parsley[Float] = digit.foldLeft1(0)((n, d) => n * 10 + d.asDigit).map(_.toFloat)
 
@@ -63,11 +55,8 @@ A recursive-descent parser would see that the first thing to parse when attempti
 The caveat of left-recursion may not be immediately obvious to a novice user, and even less obvious is how to resolve the issue in an idiomatic manner.
 This situation is exactly where a domain-specific linter like \texttt{parsley-garnish} can be invaluable.
 A linter with knowledge of the \texttt{parsley} library could help users by providing \emph{relevant} suggestions at the \emph{precise} location of the issue:
-\begin{minted}{scala}
-lazy val expr: Parsley[Float] = (expr, char('+') ~> term).zipped(_ + _)
-\end{minted}
-\vspace{-3ex}
 \begin{minted}[baselinestretch=1]{scala}
+lazy val expr: Parsley[Float] = (expr, char('+') ~> term).zipped(_ + _)
 //       ^^^^^^^^^^^^^^^^^^^^
 // Warning: This parser is left-recursive, which will cause an infinite loop when parsing.
 // Suggestion: Refactor using chain combinators from the parsley.expr module,
@@ -78,11 +67,8 @@ In addition to the correctness issue, the left-recursive parser example also suf
 overuse of the \scala{char} combinator leads to visual clutter, making the parser harder to read.
 In \texttt{parsley}, this can be addressed by using implicit conversions to lift character literals directly to parsers -- this feature may not be known to users new to the library.
 Thus, a linter could also aid users in learning about \texttt{parsley} idioms and best practices:
-\begin{minted}{scala}
-lazy val atom: Parsley[Float] = char('(') ~> expr <~ char(')') | number
-\end{minted}
-\vspace{-3ex}
 \begin{minted}[baselinestretch=1]{scala}
+lazy val atom: Parsley[Float] = char('(') ~> expr <~ char(')') | number
 //                              ^^^^^^^^^            ^^^^^^^^^
 // Info: Explicit usage of the 'char' combinator may not be necessary.
 // Suggestion [auto-fix available]: Use implicit conversions:
@@ -123,7 +109,7 @@ Executing \scala{expr.parse("1+2*3/4")} now evaluates to \scala{2.5}, as expecte
 This project introduces two major contributions in separate areas:
 \begin{enumerate}
   \item An auto-fix lint rule that detects and refactors left-recursive parsers to an idiomatic form that can be handled correctly by \texttt{parsley}. This rule can handle all forms of left-recursion, although to varying degrees of success. Although the most significant lint rule produced in this project is this \emph{left-recursion factoring} rule, \texttt{parsley-garnish} also implements a number of simpler rules that enforce idiomatic design patterns in \texttt{parsley} code.
-  \item The motivation behind the \emph{infrastructure} required to support complex lint rules such as the left-recursion rule, and its implementation. At a high-level, these are two separate intermediate \textsc{ast} representations that abstract away from the generic Scala \textsc{ast}:
+  \item The motivation behind the \emph{infrastructure} required to support complex lint rules such as the left-recursion rule, and its implementation. At a high-level, these are two separate intermediate representations that abstract away from the generic Scala abstract syntax tree (\textsc{ast}):
   \begin{itemize}
     \item A parser \textsc{ast} designed to mirror the \textsc{ast} of the \texttt{parsley} \textsc{dsl}, which allows \emph{code} of parsers to be manipulated and transformed in a high-level declarative manner. This is based on the insight that any \textsc{dsl} and its accompanying linter are simply different semantic interpretations on the same underlying structure: the former folds over its \textsc{ast} structure to evaluate its results, while the latter performs a fold to emit lint diagnostics and pretty-print a transformed \textsc{ast}.
     \item An expression \textsc{ast} based on the $\lambda$-calculus, granting static expression \textsc{ast}s the ability to be normalised via $\beta$-reduction. This approach draws inspiration from staged metaprogramming frameworks for manipulating \textsc{ast}s.
@@ -135,7 +121,7 @@ This project introduces two major contributions in separate areas:
 This includes an introduction to linters and how they are typically implemented; a discussion on writing linters specifically for Scala; and an overview of parser combinators, their design patterns, and the \texttt{parsley} library.
 
 From there, \Cref{sec:simple-rules} dives into the first set of linting rules that \texttt{parsley-garnish} implements.
-These relatively simple rules focus on enforcing idiomatic design patterns relating to \emph{implicit conversions} in Scala, and were largely inspired by common issues I've seen in my experiences as a teaching assistant for the second-year undergraduate \textsc{Wacc} compilers project at Imperial.
+These relatively simple rules focus on enforcing idiomatic design patterns relating to \emph{implicit conversions} in Scala, and were largely inspired by common issues I have seen in my experiences as a teaching assistant for the second-year undergraduate \textsc{Wacc} compilers project at Imperial.
 
 \Cref{sec:factor-leftrec} tackles a more ambitious rule to automatically refactor left-recursive parsers into a form that \texttt{parsley} can handle.
 This chapter introduces the idea of utilising intermediate \textsc{ast} representations to perform higher-level domain-specific transformations.
