@@ -52,7 +52,7 @@ Most of these laws have already been shown to hold for Parsley by \textcite{will
   \text{\scala{empty <*> u = empty}} \label{eqn:alt-empty-absorb} \\
   \text{\scala{empty.map(f) = empty}} \label{eqn:alt-fmap-absorb}
 \end{gather}
-% I've wanted more fine-grained control, so instead of using cleveref I've manually written out the references -- TAKE CARE to keep them in the same order as the equations
+% I wanted more fine-grained control, so instead of using \cleveref I have manually written out the references -- TAKE CARE to keep them in the same order as the equations
 % \caption{Functor~\cref{eqn:functor-comp}, Applicative~\cref{eqn:app-homomorphism,eqn:app-fmap}, and Alternative~\cref{eqn:alt-left-neutral,eqn:alt-right-neutral,eqn:alt-left-biased-choice,eqn:alt-empty-absorb,eqn:alt-fmap-absorb} laws.}
 \caption{Functor~(\ref{eqn:functor-comp}), Applicative~(\ref{eqn:app-homomorphism}, \ref{eqn:app-fmap}), and Alternative~(\ref{eqn:alt-left-neutral}--\ref{eqn:alt-fmap-absorb}) laws.}
 \label{fig:parser-laws}
@@ -155,7 +155,6 @@ def simplify: Parser = this.rewrite {
 \paragraph{Extensibility and Safety}
 Further design considerations are made to ensure the extensibility of this approach: the \scala{Parser} trait is sealed, which enables compiler warnings if a new \scala{Parser} case is added and the \scala{transform} method is not updated.
 Although this formulation of the traversal is inspired by generic traversals, it still manually defines the traversal for each case: a safer approach would be to generically derive this.
-% parsley Haskell achieves this with cata
 In Scala, this would require the use of an external dependency such as \texttt{shapeless}\footnote{\url{https://github.com/milessabin/shapeless}},
 which is overkill given the relative simplicity of the \scala{Parser} \textsc{adt}.
 

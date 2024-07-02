@@ -185,7 +185,7 @@ Compiler plugins therefore offer full freedom to extend the Scala compiler with 
 However, this approach has several drawbacks.
 Firstly, compiler plugins are tightly coupled with the compiler itself, and therefore not portable across major compiler versions.
 % https://github.com/mattmoore/scala-compiler-plugins is a good reference, in case I need to revisit this
-For instance, plugins written for the Scala 3 compiler, known as \texttt{dotty}, are completely incompatible with Scala 2 plugins~\cite{lampepfl_changes_2022}.
+For instance, plugins written for the Scala 3 compiler, known as \emph{Dotty}, are completely incompatible with Scala 2 plugins~\cite{lampepfl_changes_2022}.
 Additionally, developing compiler plugins requires a deep understanding of arcane and poorly documented compiler internals.
 Exposing the full compiler \textsc{api} permits unsafe operations that may violate undocumented invariants assumed by the compiler, leading to exceptions during compilation or even malformed bytecode~\cite{sherwany_refactoring_2015}.
 The lack of higher-level abstractions also makes it difficult to implement even trivial tasks such as renaming a field.

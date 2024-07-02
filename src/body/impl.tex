@@ -7,22 +7,12 @@ At this stage, the left-recursion factoring transformation leaves a lot to be de
 This \namecref{sec:impl} takes a step back from linting rules and focuses on ensuring how transformed terms can get pretty-printed in a human-readable form.
 The following ideas are explored:
 \begin{itemize}
-  \item First, \cref{sec:simplify-parsers} discusses how parser terms can be simplified via domain-specific optimisations based on parser laws.
+  \item First, \cref{sec:simplify-parsers} discusses how parsers can be simplified via domain-specific optimisations based on parser laws.
   \item Afterwards, \cref{sec:simplify-exprs} discusses how expressions can be partially evaluated to some extent. This is achieved using another intermediate \textsc{ast}, this time based on the $\lambda$-calculus, which unlocks the idea of $\beta$-reduction and normalisation as tools to reduce the complexity of these terms.
 \end{itemize}
 
-% Core embedded dsl with shallow embeddings as smart constructors https://link.springer.com/chapter/10.1007/978-3-642-40447-4_2 (folding dsls paper by gibbons and wu cites this as the originator of the "core" language idea)
-
-% DSL optimisation = for speed, linter optimisation = for readability
-
-% The idea is that we're linting and rewriting for the PARSLEY DSL, so really its better to work on a parsley ast
-% Since it's embedded it also has access to host language features, which is why we still work on top of the scala ast
-% And some of the stuff e.g. expressions can also be treated as a dsl and lifted into an intermediate ast
-
-% https://okmij.org/ftp/Denotational.html
 % Parser: syntactic approach to optimisation/simplification, focusing on term rewriting
 % Expr: semantic approach to optimisation/simplification, focusing on denotations
-% What would be cool for future work is this finally-tagless approach so Scala typechecks transformations for us, but the problem is how to reflect scala.meta.Types into actual types??
 
 \subfile{impl/parser}
 \subfile{impl/expr}

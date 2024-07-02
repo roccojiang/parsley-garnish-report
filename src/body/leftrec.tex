@@ -7,12 +7,12 @@
 \emph{Left-recursive} grammar rules are a common pattern to represent left-associativity.
 Take for example the following definition of a left-associative addition operator:
 \begin{equation*}
-\langle \mathit{expr} \rangle ::= \langle \mathit{expr} \rangle \; \text{`+'} \; \langle \mathit{term} \rangle \enspace | \enspace \langle \mathit{term} \rangle
+\nt{expr} ::= \nt{expr} \; \sym{+} \; \nt{term} \alt \nt{term}
 \end{equation*}
 %
-Since the first production of $\langle \mathit{expr} \rangle$ is itself, this rule is said to be left-recursive.
+Since the first production of $\nt{expr}$ is itself, this rule is said to be left-recursive.
 This poses a problem for recursive-descent parsers, such as those that \texttt{parsley} produces:
-it will try to parse $\langle \mathit{expr} \rangle$ by first trying to parse $\langle \mathit{expr} \rangle$, and so on, resulting in an unproductive infinite loop.
+it will try to parse $\nt{expr}$ by first trying to parse $\nt{expr}$, and so on, resulting in an unproductive infinite loop.
 
 Although it is possible to address the issue by transforming the grammar with algorithms such as Paull's algorithm~\cite{moore_removing_2000},
 in the context of parser combinators this is considered an anti-pattern by \textcite{willis_design-haskell_2021}.
@@ -24,7 +24,6 @@ Left-recursion often comes as a nasty surprise for novice users naïvely transla
 Thus, it would be beneficial to provide a linting rule for \texttt{parsley} that can warn users when parsers are left-recursive.
 In fact, the next major release of \texttt{parsley} 5.0 will introduce a \scala{detectDivergence} combinator, which performs \emph{dynamic} analysis to detect unproductive looping at runtime.
 Therefore, \texttt{parsley-garnish} could complement this functionality with an auto-fix rule to refactor left-recursive parsers to use \texttt{parsley}'s idiomatic \scala{chain} combinators.
-% TODO: could compare what the static vs dynamic analyses can detect?
 
 \paragraph{Running example}
 The following left-recursive parser and its transformation into a non-left-recursive form will be used as an example for this \namecref{sec:factor-leftrec}:
@@ -34,19 +33,8 @@ lazy val example: Parsley[String] = (example, string("a")).zipped(_ + _) | strin
 %
 The \scala{example} parser intends to express the following simple grammar expressed using left-recursion. The goal is to refactor \scala{example} so that it retains the intended semantics, but is transformed into a parser that \texttt{parsley} can handle correctly.
 \begin{equation*}
-  \langle \mathit{example} \rangle ::= \langle \mathit{example} \rangle \; \text{``a''} \enspace | \enspace \text{``b''}
+\nt{example} ::= \nt{example} \; \sym{a} \alt \sym{b}
 \end{equation*}
-
-% \begin{minted}{scala}
-% def postfix[A](p: Parsley[A], op: =>Parsley[A => A]): Parsley[A] =
-%   lazy val rest: Parsley[A => A] = (op, rest).zipped(_ andThen _) <|> pure(identity[A])
-%   p <**> rest
-% \end{minted}
-% \begin{minted}{haskell}
-% postfix :: Parser a -> Parser (a -> a) -> Parser a
-% postfix p op = p <**> rest
-%   where rest = flip (.) <$> op <*> rest <|> pure id
-% \end{minted}
 
 \section{The Left-Recursion Factoring Transformation}
 \texttt{parsley-garnish} bases its left-recursion factoring transformation on the work of \textcite{baars_leftrec_2004}, adapted to fit the \textsc{peg} semantics of \texttt{parsley}.
@@ -82,7 +70,7 @@ Domain-specific transformations like left-recursion factoring are therefore natu
 Thus, this \namecref{sec:leftrec-infra} discusses the extra infrastructure used to support the left-recursion factoring transformation:
 \begin{itemize}
   \item Firstly, \cref{sec:parser-ast-motivation} motivates the idea of using an intermediate \textsc{ast} representation for parsers, distinct from the general-purpose Scala \textsc{ast}.
-  \item Following this, \cref{sec:lifting-parsers} shows how the \textsc{ast} of a Scala source file is converted into this intermediate representation.
+  \item Following this, \cref{sec:lifting-parsers} shows how the source Scala \textsc{ast} is converted into this intermediate representation.
   \item Finally, \cref{sec:lowering-parsers} discusses how the intermediate \textsc{ast} is converted back into Scala code so that it can be applied as a Scalafix patch.
 \end{itemize}
 
@@ -94,7 +82,7 @@ Since \texttt{parsley-garnish} is a linter, by nature, it has access to an expli
 However, this datatype represents general-purpose abstract Scala syntax, rather than the abstract syntax of a specialised parser combinator \textsc{dsl}.
 This makes it not well-suited for performing domain-specific operations over the \textsc{ast}.
 
-Take for example the task of combining two \textsc{ast} nodes \scala{Term.Name("p")} and \scala{Term.Name("q")}, representing named parsers \scala{p} and \scala{q}, with the combinator \scala{<*>} (pronunced ``ap'').
+Take for example the task of combining two \textsc{ast} nodes \scala{Term.Name("p")} and \scala{Term.Name("q")}, representing named parsers \scala{p} and \scala{q}, with the combinator \scala{<*>} (pronounced ``ap'').
 This operation can be concisely expressed with Scalameta quasiquotes, rather than manually writing out the full explicit \textsc{ast}:
 \begin{minted}{scala}
 q"p <*> q" ==
@@ -181,8 +169,8 @@ case class ParserDefn(name: Term.Name, parser: Parser, tpe: Type.Name, originalT
 \end{minted}
 
 \subsubsection{Identifying Named Parsers}
-Finding \textsc{ast} nodes corresponding to the definition sites of named parsers involves pattern matching on \scala{val}, \scala{var}, and \scala{def} definitions with a type inferred to be some \scala{Parsley[_]}.
-This type information is accessed by querying the Scalafix semantic \textsc{api} for the node's symbol information.
+Finding \textsc{ast} nodes corresponding to the definition sites of named parsers involves pattern matching on \scala{val}, \scala{var}, and \scala{def} nodes with a type inferred as some \scala{Parsley[_]}.
+This type information is queried using the Scalafix semantic \textsc{api} on the node's symbol information.
 Consider the labelled \textsc{ast} structure of the \scala{example} parser:
 \begin{minted}{scala}
 // lazy val example: Parsley[String] = (example, string("a")).zipped(_ + _) | string("b")
@@ -225,8 +213,6 @@ exampleTree match {
 \end{minted}
 Seeing that the type of this \textsc{ast} node is \scala{Parsley[String]}, \texttt{parsley-garnish} can then proceed to convert the \scala{rhs} term into a \scala{Parser} \textsc{adt} object.
 The map entry uses the fully qualified symbol for \scala{example} as the key, and the lifted \scala{Parser} object as the value.
-
-% Thus, a full traversal through the source file builds a map of all named parsers, representing all non-terminals in the grammar defined within that file.
 
 \subsubsection{Converting Scalameta Terms to the Parser \textsc{adt}}
 Having identified the \textsc{ast} nodes which represent parsers, they need to be transformed into the appropriate \scala{Parser} representation.
@@ -408,12 +394,11 @@ It is also the most complex:
   \item \scala{p <*> q} can succeed without consuming input only if \emph{both} \scala{p} and \scala{q} can do so. Parser combinators abide by the law that \scala{pure(f) <*> pure(x) = pure(f(x))}, so the resulting semantic action is that of \scala{p} applied as a function to the semantic action of \scala{q}.
   \item In the \scala{nonLeftRec} and \scala{leftRec} portions, if \scala{p} can succeed without consuming input, then \scala{q} must be subjected to the semantic value corresponding to \scala{p}~\cite{swierstra_deterministic_1996}. This is achieved using the result shown in \cref{eq:ap-leftrec}, which is a special case of grammar right-factoring in reverse.
   \begin{itemize}
-    \item The \scala{leftRec} portion requires re-associating semantic actions back to the left, which uses the \scala{flip} higher-order function. Thus, the left branch of the \textsc{rhs} of \cref{eq:ap-leftrec} is reformulated as \scala{p.map(flip) <*> q}.
+    \item The \scala{leftRec} portion requires re-associating semantic actions back to the left, which necessitates using the \scala{flip} higher-order function. Therefore, the left branch of the \textsc{rhs} in \cref{eq:ap-leftrec} is reformulated as \scala{p.map(flip) <*> q}.
     \item Since \scala{leftRec} is a parser of a function, the right branch also needs adjusting: the function composition operation must be used in order to apply the function to \scala{q} with the \scala{<*>} combinator.
   \end{itemize}
 \end{itemize}
 
-% \text{\scala{(p | pure(f)) <*> q}} \quad \Rightarrow \quad \text{\scala{(p <*> q) | q.map(f)}}
 \begin{equation} \label{eq:ap-leftrec}
 \text{\haskell{(p <|> pure f) <*> q}} \quad \Rightarrow \quad \text{\haskell{(p <*> q) <|> (f <$> q)}}
 \vspace{3ex} % shh...
